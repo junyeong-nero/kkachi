@@ -1,7 +1,35 @@
 # Kkachi (까치)
 
-아이폰에서 말이나 글로 대화하면, 코딩 에이전트 세션처럼 개인 노트 레포(`junyeong-notes`)를 근거로 답하고 노트를 관리하는 개인 비서.
+A self-hosted personal assistant you talk to from your phone. It answers from your own Markdown notes and keeps them up to date, like a coding agent working on a git repo.
 
-`아이폰 Safari → Tailscale Serve → Kkachi 웹앱 → 에이전트 세션 → notes 도구 / 모델 API`
+> **Status: planning.** Nothing is runnable yet. See [docs/plan.md](docs/plan.md) (Korean) for the design and roadmap.
 
-계획: [docs/plan.md](docs/plan.md)
+## How it works
+
+```
+Phone browser → Tailscale Serve (HTTPS) → Kkachi web app (Bun, localhost) → opencode serve → your memory repo + model API
+```
+
+- **One conversation, two jobs** — ask questions and record decisions in the same chat. Close the page and pick up where you left off.
+- **Answers with sources** — Kkachi reads only the notes it needs, cites file paths, and says so when your notes don't cover something.
+- **Notes as git commits** — when you ask it to record something, it edits your memory repo and commits (and pushes, if you set a remote).
+- **Your machine, your keys** — runs on your own computer. Model API keys stay on the server. Access is protected by Tailscale and an app password.
+
+## Planned setup
+
+```sh
+git clone https://github.com/junyeong-nero/kkachi && cd kkachi
+bun install
+bunx opencode auth login   # register your model provider key (e.g. OpenRouter)
+bun run init               # choose memory repo path, model, and app password
+bun start
+tailscale serve --bg 4300  # open the printed URL on your phone
+```
+
+Requirements: git, [Bun](https://bun.sh), [Tailscale](https://tailscale.com). macOS and Linux first; Windows later.
+
+## Memory repo
+
+Your notes live in a separate git repo that you own. `bun run init` creates one from `templates/memory/` with an `AGENTS.md` that tells Kkachi how to organize notes. Pushing to a private remote is optional.
+
+Do not store secrets (ID numbers, bank accounts, passwords) in it.
