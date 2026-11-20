@@ -4,4 +4,4 @@
 
 `아이폰 Safari → Tailscale Serve → Kkachi 웹앱 → 에이전트 세션 → notes 도구 / 모델 API`
 
-계획: `junyeong-notes/01_projects/09_kkachi/plan.md`
+계획: [docs/plan.md](docs/plan.md)
