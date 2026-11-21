@@ -4,6 +4,11 @@ import { config } from "./config";
 
 const auth = (key: string): Record<string, string> => (key ? { Authorization: `Bearer ${key}` } : {});
 
+// Whisper returns these for silence or noise (no_speech_prob stays 0, so it cannot filter them).
+// Drop a transcript only when it is entirely one of them.
+const HALLUCINATIONS = new Set(["감사합니다", "고맙습니다", "시청해주셔서감사합니다", "구독과좋아요부탁드립니다", "다음영상에서만나요", "mbc뉴스", "thankyou", "thanksforwatching"]);
+const isHallucination = (text: string) => HALLUCINATIONS.has(text.toLowerCase().replace(/[\s.,!?~]/g, ""));
+
 // Any OpenAI-compatible transcription API (Groq, OpenAI, local mlx-audio, ...).
 export async function transcribe(audio: Blob): Promise<string> {
   const { baseUrl, apiKey, model, language } = config.stt;
@@ -14,7 +19,8 @@ export async function transcribe(audio: Blob): Promise<string> {
   const r = await fetch(`${baseUrl}/audio/transcriptions`, { method: "POST", headers: auth(apiKey), body: form });
   const body: any = await r.json();
   if (!r.ok) throw new Error(`stt ${r.status}: ${body.error?.message ?? JSON.stringify(body)}`);
-  return String(body.text ?? "").trim();
+  const text = String(body.text ?? "").trim();
+  return isHallucination(text) ? "" : text;
 }
 
 export async function synthesize(text: string): Promise<{ audio: ArrayBuffer; type: string }> {
