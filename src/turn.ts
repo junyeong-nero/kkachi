@@ -1,6 +1,7 @@
 // One conversational turn: sync notes, prompt Pi, stream speakable sentences, collect sources,
 // commit and push. There are no fixed voice commands: the agent decides, using pi/kkachi.ts tools.
 import { config } from "./config";
+import { log } from "./log";
 import { commitTurn, filesIn, pull, pushIfAhead, stashLeftovers } from "./git";
 import { cancelTidy, scheduleTidy } from "./librarian";
 import { currentModel, isLimitError, markLimited } from "./models";
@@ -108,6 +109,8 @@ async function doTurn(text: string, emit: (e: TurnEvent) => void) {
 
 /** Runs one prompt. Returns the error message if the model was rate-limited before speaking. */
 async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnEvent) => void): Promise<string | null> {
+  const t0 = performance.now();
+  let firstSentenceMs = 0, tools = 0, aborted = false;
   let said = false;
   let error = "";
   let end: "done" | "handoff" | null = null;
@@ -126,6 +129,7 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
       const sentence = speakable(part);
       if (!/[\p{L}\p{N}]/u.test(sentence)) continue;
       said = true;
+      if (!firstSentenceMs) firstSentenceMs = Math.round(performance.now() - t0);
       emit({ type: "sentence", text: sentence, silent: ++count > MAX_SPOKEN_SENTENCES });
     }
   };
@@ -139,6 +143,7 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
         break;
       case "tool_execution_start": {
         const name: string = e.toolName;
+        tools++;
         if (name === "end_conversation") { end = "done"; break; }
         if (name === "handoff") { end = "handoff"; break; }
         if (name === "tidy_notes") { tidyRequested = true; break; }
@@ -157,9 +162,9 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
     }
   };
 
-  await pi.run(message, onEvent);
+  await pi.run(message, (e) => { if (e.type === "agent_settled" && e.aborted) aborted = true; onEvent(e); });
+  log("turn", { model: agentModel, text, firstSentenceMs, totalMs: Math.round(performance.now() - t0), tools, aborted, error: error ? error.slice(0, 200) : undefined });
   if (error) {
-    console.error(`turn failed (${agentModel}): ${error.slice(0, 300)}`);
     if (!said && isLimitError(error)) return error;
     emit({ type: "error", message: "모델이 응답하지 않아요. 잠시 뒤에 다시 말해 주세요." });
     return null;

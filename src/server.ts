@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { config } from "./config";
+import { log } from "./log";
 import { polish } from "./polish";
 import { synthesize, transcribe } from "./speech";
 import { runTurn, startConversation, type TurnEvent } from "./turn";
@@ -23,17 +24,27 @@ Bun.serve({
 
       if (req.method === "POST" && pathname === "/api/stt") {
         const t0 = performance.now();
-        const raw = await transcribe(await req.blob());
+        const audio = await req.blob();
+        const raw = await transcribe(audio);
         const t1 = performance.now();
         const text = await polish(raw);
-        if (text !== raw) console.log(`polish: ${raw} → ${text || "(noise, dropped)"}`);
-        return Response.json({ text, raw, sttMs: Math.round(t1 - t0), polishMs: Math.round(performance.now() - t1) });
+        const sttMs = Math.round(t1 - t0), polishMs = Math.round(performance.now() - t1);
+        // 16 kHz mono 16-bit WAV: 32000 bytes per second after the 44-byte header.
+        log("stt", { audioSec: +((audio.size - 44) / 32000).toFixed(1), sttMs, polishMs, raw, text, dropped: !!raw && !text });
+        return Response.json({ text, raw, sttMs, polishMs });
       }
 
       if (req.method === "POST" && pathname === "/api/tts") {
         const { text } = await req.json();
-        const { audio, type } = await synthesize(String(text).slice(0, 1000));
-        return new Response(audio, { headers: { "Content-Type": type } });
+        const t0 = performance.now();
+        try {
+          const { audio, type } = await synthesize(String(text).slice(0, 1000));
+          log("tts", { ms: Math.round(performance.now() - t0), chars: String(text).length, bytes: audio.byteLength });
+          return new Response(audio, { headers: { "Content-Type": type } });
+        } catch (err) {
+          log("tts_error", { ms: Math.round(performance.now() - t0), chars: String(text).length, error: String((err as Error).message).slice(0, 300) });
+          throw err;
+        }
       }
 
       // Server-sent events of TurnEvent, one JSON object per `data:` line.
@@ -56,7 +67,7 @@ Bun.serve({
       }
 
       if (req.method === "POST" && pathname === "/api/log") {
-        console.log("client", JSON.stringify(await req.json()));
+        log("client", await req.json());
         return new Response(null, { status: 204 });
       }
     } catch (err) {

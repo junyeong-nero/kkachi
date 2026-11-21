@@ -12,7 +12,7 @@ const FILLER_ONLY = /^[아어오우으음엄흠허하호에\s.,!?~…·-]*$/;
 
 const SYSTEM = `You fix speech-recognition transcripts of Korean (sometimes mixed with English) spoken to a voice assistant.
 Return only the corrected transcript, nothing else.
-- If the transcript is not real speech to the assistant (noise, filler sounds or repeated syllables like "아 아 아 아", "음 음", "어어어", video/TV phrases like "구독과 좋아요"), return exactly ${NOISE}. Short replies such as "응", "네", "아니", "그래" are real speech
+- Return exactly ${NOISE} only when the transcript contains no real word at all: just filler sounds or repeated syllables ("아 아 아 아", "음 음", "어어어"), or a video outro ("구독과 좋아요 부탁드립니다", "시청해주셔서 감사합니다"). Any real word is speech, even a single word, a name, a title, or a word in another language ("림보", "limbo", "응", "아니")
 - Fix misrecognized words when context makes the intended word clear (place names, people, common phrases), spacing, and punctuation
 - Write times and dates naturally (일곱 시 → 7시, 삼월 십사일 → 3월 14일)
 - Keep the meaning, tone, and wording otherwise. Do not add, remove, summarize, or answer anything

@@ -21,12 +21,14 @@ let turnId = 0, currentSource = null;
 
 if (DEBUG) document.body.classList.add("debug");
 const diagLines = [];
+// Key events (timings, errors) always go to the server log; state changes only with ?debug.
 function diag(msg, data) {
-  if (!DEBUG) return;
-  const line = `${new Date().toISOString().slice(11, 23)} ${msg}${data ? " " + JSON.stringify(data) : ""}`;
-  diagLines.unshift(line); diagLines.length = Math.min(diagLines.length, 60);
-  $("diag").textContent = diagLines.join("\n");
-  fetch("/api/log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ msg, ...data }) }).catch(() => {});
+  if (DEBUG) {
+    const line = `${new Date().toISOString().slice(11, 23)} ${msg}${data ? " " + JSON.stringify(data) : ""}`;
+    diagLines.unshift(line); diagLines.length = Math.min(diagLines.length, 60);
+    $("diag").textContent = diagLines.join("\n");
+  }
+  if (DEBUG || msg !== "state") fetch("/api/log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ msg, ...data }) }).catch(() => {});
 }
 
 function setState(s, hint = "") {
