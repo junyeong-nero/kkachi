@@ -124,7 +124,7 @@ export class Pi {
     try {
       const res = await this.command({ type: "prompt", message });
       if (res?.disposition === "handled") return;
-      await settled;
+      await Promise.race([settled, this.exited]); // never hang if Pi dies mid-run
     } finally {
       off();
     }

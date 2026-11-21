@@ -7,13 +7,14 @@ import { currentModel, isLimitError, markLimited } from "./models";
 import { Pi, type PiEvent } from "./pi";
 
 export type TurnEvent =
-  | { type: "sentence"; text: string }
+  | { type: "sentence"; text: string; silent?: boolean } // silent: shown on screen, not spoken
   | { type: "activity"; tool: string; path?: string }
   | { type: "end"; reason: "done" | "handoff" } // stop listening after speaking
   | { type: "done"; sources: string[]; changed: string[]; commit: string | null }
   | { type: "error"; message: string };
 
-let busy = false;
+let currentTurn: Promise<void> | null = null;
+const MAX_SPOKEN_SENTENCES = 2; // long replies are tiring to listen to; the rest is shown on screen
 
 // ---- the long-lived conversation agent ----
 let agent: Pi | null = null;
@@ -73,30 +74,35 @@ function relPath(p: string): string {
 // A note shown as a source: a Markdown file inside the memory repo, not the rules or catalog.
 const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && !rel.startsWith("..") && rel !== "AGENTS.md" && rel !== "README.md";
 
+// A new utterance supersedes the one still being handled: abort it, wait for it to wind down
+// (it still commits whatever it already changed), then run the new one.
 export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
-  if (busy) { emit({ type: "error", message: "아직 앞의 말을 처리하고 있어요." }); return; }
-  busy = true;
+  if (currentTurn) await agent?.abort();
+  const turn = queue.then(() => doTurn(text, emit));
+  queue = turn.catch(() => {});
+  currentTurn = turn;
+  try { await turn; } finally { if (currentTurn === turn) currentTurn = null; }
+}
+let queue: Promise<void> = Promise.resolve();
+
+async function doTurn(text: string, emit: (e: TurnEvent) => void) {
+  await cancelTidy(); // the user comes first; the librarian retries after this conversation
   try {
-    await cancelTidy(); // the user comes first; the librarian retries after this conversation
-    try {
-      await pull(config.memoryDir);
-    } catch (err) {
-      console.error("pull failed", err);
-      emit({ type: "error", message: "노트 저장소를 동기화하지 못했어요. 컴퓨터에서 확인이 필요해요." });
-      return;
+    await pull(config.memoryDir);
+  } catch (err) {
+    console.error("pull failed", err);
+    emit({ type: "error", message: "노트 저장소를 동기화하지 못했어요. 컴퓨터에서 확인이 필요해요." });
+    return;
+  }
+  // Retry on the next model when a model is rate-limited before saying anything.
+  for (let attempt = 0; ; attempt++) {
+    const pi = await conversation();
+    const limited = await streamTurn(pi, `[지금: ${now()}]\n${text}`, text, emit);
+    if (!limited) break;
+    if (!markLimited(agentModel, limited) || attempt + 1 >= config.models.length) {
+      emit({ type: "error", message: "지금 모델들이 모두 바빠요. 잠시 뒤에 다시 말해 주세요." });
+      break;
     }
-    // Retry on the next model when a free model is rate-limited before saying anything.
-    for (let attempt = 0; ; attempt++) {
-      const pi = await conversation();
-      const limited = await streamTurn(pi, `[지금: ${now()}]\n${text}`, text, emit);
-      if (!limited) break;
-      if (!markLimited(agentModel, limited) || attempt + 1 >= config.models.length) {
-        emit({ type: "error", message: "지금 모델들이 모두 바빠요. 잠시 뒤에 다시 말해 주세요." });
-        break;
-      }
-    }
-  } finally {
-    busy = false;
   }
 }
 
@@ -115,9 +121,12 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
   const speakMessage = (message: any) => {
     const body = (message.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
     const spoken = body.split(/\n\s*(?:sources|출처)\s*:/i)[0];
+    let count = 0;
     for (const part of sentences(spoken)) {
       const sentence = speakable(part);
-      if (/[\p{L}\p{N}]/u.test(sentence)) { said = true; emit({ type: "sentence", text: sentence }); }
+      if (!/[\p{L}\p{N}]/u.test(sentence)) continue;
+      said = true;
+      emit({ type: "sentence", text: sentence, silent: ++count > MAX_SPOKEN_SENTENCES });
     }
   };
 

@@ -139,7 +139,8 @@ async function handleUtterance(frames) {
   const queue = [];       // Promise<AudioBuffer|null>, in play order
   const spoken = [];
   let streamDone = false, end = false, firstSound = 0;
-  const say = (s) => { spoken.push(s); $("reply").textContent = spoken.join(" "); queue.push(ttsBuffer(s)); };
+  // Every sentence is shown; only non-silent ones are spoken.
+  const say = (s, silent = false) => { spoken.push(s); $("reply").textContent = spoken.join(" "); if (!silent) queue.push(ttsBuffer(s)); };
 
   const player = (async () => {
     for (let i = 0; ; ) {
@@ -159,7 +160,7 @@ async function handleUtterance(frames) {
   try {
     await readEvents("/api/turn", { text }, (e) => {
       if (my !== turnId) return;
-      if (e.type === "sentence") say(e.text);
+      if (e.type === "sentence") say(e.text, e.silent);
       else if (e.type === "activity") {
         const writing = e.tool === "edit" || e.tool === "write";
         if (state === "thinking") $("hint").textContent = writing ? "기억하는 중…" : "찾는 중…";
