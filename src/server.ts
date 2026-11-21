@@ -1,13 +1,12 @@
 import { join } from "node:path";
 import { config } from "./config";
-import { startOpencode } from "./opencode";
 import { polish } from "./polish";
 import { synthesize, transcribe } from "./speech";
-import { runTurn, type TurnEvent } from "./turn";
+import { runTurn, startConversation, type TurnEvent } from "./turn";
 
 const web = join(import.meta.dir, "web");
 
-await startOpencode();
+await startConversation();
 
 Bun.serve({
   port: config.port,

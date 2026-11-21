@@ -1,50 +1,43 @@
 # Kkachi (까치)
 
-A self-hosted, voice-only personal assistant for your phone. Tap once, then just talk. It answers from your own Markdown notes and keeps them up to date, like a coding agent working on a git repo.
+A self-hosted, voice-only assistant for your phone. Tap once, then just talk. It remembers what you tell it in your own Markdown notes (a git repo), and it can do anything your [Pi](https://github.com/earendil-works/pi) coding agent can: search the web, use MCP servers (browser, calendar, ...), and work on code.
 
-> **Status: early prototype.** The voice loop runs on macOS; setup is still manual. See [docs/plan.md](docs/plan.md) and [docs/design.md](docs/design.md) (Korean).
+> **Status: early prototype.** Runs on macOS; setup is still manual. See [docs/plan.md](docs/plan.md) and [docs/design.md](docs/design.md) (Korean).
+
+> **Warning:** Kkachi runs Pi with full access to your computer (shell, files, network) and acts without asking. Anyone who can reach it can make it run commands by voice. Expose it only through Tailscale Serve on a tailnet you control, never Tailscale Funnel or a public URL.
 
 ### Run it now (manual)
 
 ```sh
+# Requirements: git, Bun, Pi (configured with an OpenRouter key), Tailscale
 uv tool install edge-tts                 # TTS (free, unofficial Microsoft Edge voices)
-# .env: GROQ_API_KEY=...                 # STT (free Groq Whisper)
+# .env: GROQ_API_KEY=...                 # STT (Groq Whisper) and transcript cleanup (free tier)
 # .env.local: KKACHI_MEMORY_DIR=/abs/path/to/memory-repo  (a git repo, see templates/memory)
-bun start                                # needs `opencode` (@opencode/cli 2.3.x) on PATH
+bun start
 tailscale serve --bg --https=8443 http://127.0.0.1:4300
 ```
 
-Add `?debug` to the URL for an on-screen log.
+Open the printed URL on your phone and add it to the home screen. Add `?debug` to the URL for an on-screen log.
 
 ## How it works
 
 ```
-Phone (mic/speaker) → Tailscale Serve (HTTPS) → Kkachi web app (Bun, localhost) → opencode serve → your memory repo + model API
-                                                      ↳ speech-to-text / text-to-speech APIs
+Phone (mic/speaker) → Tailscale Serve (HTTPS) → Kkachi web app (Bun, localhost)
+                                                  ├─ speech-to-text → transcript cleanup (small LLM)
+                                                  ├─ Pi (RPC mode): your extensions, skills, MCP servers
+                                                  ├─ text-to-speech
+                                                  └─ git: commit and push the memory repo
 ```
 
-- **Hands-free** — after one tap, Kkachi listens, answers out loud, and listens again. No typing.
-- **One conversation, two jobs** — ask questions and record decisions in the same chat. Close the page and pick up where you left off.
-- **Answers with sources** — Kkachi reads only the notes it needs, cites file paths, and says so when your notes don't cover something.
+- **Hands-free** — after one tap, Kkachi listens, answers out loud, and listens again. No typing, no commands: say "thanks, that's all" and it stops; say "I'll take it from the computer" and it hands off.
+- **Remembers quietly** — mention a plan or decision and it is saved to the right note, without "I've noted that". Each turn is one git commit; say "forget that" to revert.
+- **Answers from your notes** — questions about your life are answered from the notes, with the notes shown on screen.
+- **Does things** — web search, MCP tools, code in other repos: whatever your Pi setup can do.
 - **A tidy library** — after each conversation a background librarian sorts the inbox, merges duplicates, archives finished items, and rewrites the memory repo's `README.md` as a catalog you can browse on GitHub.
-- **Notes as git commits** — when you ask it to record something, it edits your memory repo and commits (and pushes, if you set a remote). Say "undo" to revert.
-- **Your machine, your keys** — runs on your own computer. API keys stay on the server. Only devices on your tailnet can reach it (use Tailscale Serve, never Funnel).
-
-## Planned setup
-
-```sh
-git clone https://github.com/junyeong-nero/kkachi && cd kkachi
-bun install
-bunx opencode auth login   # register your model provider key (e.g. OpenRouter)
-bun run init               # choose memory repo, model, and speech providers
-bun start
-tailscale serve --bg 4300  # open the printed URL on your phone, add to home screen
-```
-
-Requirements: git, [Bun](https://bun.sh), [Tailscale](https://tailscale.com). macOS and Linux first; Windows later.
+- **Free by default** — OpenRouter free models with automatic fallback, Groq free tier, Edge TTS. Everything is configurable (`src/config.ts`).
 
 ## Memory repo
 
-Your notes live in a separate git repo that you own. `bun run init` creates one from `templates/memory/` with an `AGENTS.md` that tells Kkachi how to organize notes. Pushing to a private remote is optional.
+Your notes live in a separate git repo that you own, created from `templates/memory/`. Its `AGENTS.md` tells Kkachi how to organize notes. Pushing to a private remote is optional.
 
 Do not store secrets (ID numbers, bank accounts, passwords) in it.

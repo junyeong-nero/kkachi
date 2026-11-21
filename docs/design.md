@@ -59,7 +59,7 @@ Kkachi 는 **음성만으로 쓰는 앱**이다. 화면은 상태를 보여주�
 마이크 (getUserMedia, echoCancellation)
   → VAD (브라우저, 소음 기준선을 재는 에너지 VAD. 실기기에서 충분했음. 오인식이 많으면 Silero VAD wasm 으로 교체) 로 말 구간만 잘라냄
   → POST /api/stt (오디오) → 웹앱 서버 → STT provider → 텍스트 → 작은 LLM 으로 다듬기 (오인식·숫자 교정, ~0.6초)
-  → opencode prompt → 답 텍스트 스트리밍
+  → Pi prompt → 최종 답 텍스트 (도구 사이 중계는 버림)
   → 문장 단위로 잘라 TTS provider 로 → 오디오를 순서대로 재생
   → 마지막 문장 재생이 끝나면 다시 듣기
 ```
@@ -98,13 +98,14 @@ agent system prompt 에 추가할 규칙:
 |---|---|
 | 말의 의도 (예) | 까치가 하는 일 |
 |---|---|
-| "방금 거 취소해", "없던 걸로 해줘" | MCP 도구 `undo_last_change` → 직전 Kkachi 커밋을 `git revert`, 턴 끝에 push. 애매하면 무엇을 되돌릴지 되물음 |
+| "방금 거 취소해", "없던 걸로 해줘" | `undo_last_change` → 직전 Kkachi 커밋을 `git revert`, 턴 끝에 push. 애매하면 무엇을 되돌릴지 되물음 |
 | "아니 3시 반이야" | 정정. 노트를 고침 (되돌리지 않음) |
-| "됐어 고마워", "잘 자" | 짧게 인사하고 MCP 도구 `end_conversation` → 앱이 대기 상태로 |
+| "됐어 고마워", "잘 자" | 짧게 인사하고 `end_conversation` → 앱이 대기 상태로 |
+| "내가 직접 할게", "컴퓨터로 이어서 할게", "잠깐 딴 사람이랑 얘기 좀" | handoff. 짧게 답하고 `handoff` → 듣기를 끔 |
 | "다시 말해줘", "뭐라고?" | 직전 답을 다시 말함 |
 | TV·다른 사람 말 | 자기에게 한 말이 아니면 답하지 않음 |
 
-도구는 `src/mcp.ts` (opencode 가 실행하는 MCP stdio 서버). 앱은 이벤트 스트림에서 `end_conversation` 호출을 보고 듣기를 멈춘다.
+도구는 까치 전용 Pi 확장 `pi/kkachi.ts`. 앱은 Pi 이벤트에서 `end_conversation`·`handoff` 호출을 보고 듣기를 멈춘다. 그 밖의 요청(웹 검색, 브라우저·캨린더 MCP, 코드 작업)은 사용자의 Pi 설정에 있는 도구로 바로 실행한다.
 
 ## 지연 목표
 

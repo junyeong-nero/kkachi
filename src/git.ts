@@ -28,6 +28,16 @@ export async function commitAll(dir: string, subject: string) {
 export const commitTurn = (dir: string, userText: string) =>
   commitAll(dir, COMMIT_PREFIX + (userText.replace(/\s+/g, " ").trim().slice(0, 60) || "update"));
 
+export async function filesIn(dir: string, commit: string) {
+  return (await git(dir, "show", "--name-only", "--format=", commit)).split("\n").filter(Boolean);
+}
+
+export async function stashLeftovers(dir: string) {
+  if (!(await git(dir, "status", "--porcelain"))) return false;
+  await git(dir, "stash", "push", "--include-untracked", "--quiet", "-m", `kkachi: leftover changes ${new Date().toISOString()}`);
+  return true;
+}
+
 export async function pushIfAhead(dir: string) {
   if (!(await hasUpstream(dir))) return;
   if ((await git(dir, "rev-list", "--count", "@{upstream}..HEAD")) !== "0") await git(dir, "push", "--quiet");

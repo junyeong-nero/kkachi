@@ -21,18 +21,15 @@ export const config = {
   memoryDir,
   dataDir,
   port: Number(env.KKACHI_PORT ?? 4300),
-  // Ordered fallback list (comma-separated). See docs/m0.md and src/models.ts.
-  // opencode and OpenRouter free limits are separate, so mixing them stretches the free budget.
+  // Ordered fallback list of Pi models (provider/model, comma-separated). See src/models.ts.
   models: (env.KKACHI_MODEL ?? [
     "openrouter/particle-ai/particle-1:free",
-    "opencode/hy4-flash-free",
     "openrouter/nvidia/nemotron-3.5-super-vl:free",
-    "opencode/tidepool-alpha-free",
-    "opencode/flint-40b-free",
-    "opencode/deepseek-v4.1-flash-free",
+    "openrouter/recursive/flint-v1.0:free",
   ].join(","))
     .split(",").map((m) => m.trim()).filter(Boolean),
-  opencodeBin: env.KKACHI_OPENCODE_BIN ?? "opencode",
+  piBin: env.KKACHI_PI_BIN ?? "pi",
+  timeZone: env.KKACHI_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
   stt: {
     baseUrl: env.KKACHI_STT_BASE_URL ?? "https://api.groq.com/openai/v1",
     apiKey: env.KKACHI_STT_API_KEY ?? env.GROQ_API_KEY ?? "",
