@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0b0d12" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<title>Kkachi</title>
+<style>
+  :root { --bg: #0b0d12; --fg: #e8eaf0; --dim: #7a8194; --faint: #3a4050; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: -apple-system, system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overflow: hidden; }
+  #stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+           padding: calc(24px + env(safe-area-inset-top)) 28px calc(24px + env(safe-area-inset-bottom)); text-align: center; }
+  #heard { font-size: 17px; color: var(--dim); min-height: 1.4em; max-width: 32ch; }
+  #orb { width: 112px; height: 112px; border-radius: 50%; background: #232a3a; transition: transform .08s linear, background .3s; flex: none; }
+  body[data-state=listening] #orb { background: #3b82f6; }
+  body[data-state=thinking] #orb { background: #8b5cf6; animation: breathe 1.4s ease-in-out infinite; }
+  body[data-state=speaking] #orb { background: #22c55e; }
+  body[data-state=error] #orb { background: #ef4444; }
+  @keyframes breathe { 50% { transform: scale(.86); } }
+  #reply { font-size: 24px; line-height: 1.45; min-height: 2.9em; max-width: 30ch; }
+  #chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; min-height: 30px; }
+  .chip { font-size: 13px; color: var(--dim); border: 1px solid var(--faint); border-radius: 999px; padding: 5px 11px; }
+  .chip.changed { color: #86efac; border-color: #166534; }
+  #hint { color: #565d70; font-size: 15px; min-height: 1.3em; }
+  #diag { display: none; font: 11px/1.35 ui-monospace, monospace; color: #6b7285; padding: 8px 12px; max-height: 30vh; overflow: auto; border-top: 1px solid #1c2130; white-space: pre-wrap; }
+  body.debug #diag { display: block; }
+</style>
+</head>
+<body data-state="idle">
+<div id="stage">
+  <div id="heard"></div>
+  <div id="orb"></div>
+  <div id="reply"></div>
+  <div id="chips"></div>
+  <div id="hint">탭해서 시작</div>
+</div>
+<div id="diag"></div>
+<script src="/app.js"></script>
+</body>
+</html>

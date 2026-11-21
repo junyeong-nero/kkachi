@@ -2,7 +2,19 @@
 
 A self-hosted, voice-only personal assistant for your phone. Tap once, then just talk. It answers from your own Markdown notes and keeps them up to date, like a coding agent working on a git repo.
 
-> **Status: planning.** Nothing is runnable yet. See [docs/plan.md](docs/plan.md) (Korean) for the design and roadmap.
+> **Status: early prototype.** The voice loop runs on macOS; setup is still manual. See [docs/plan.md](docs/plan.md) and [docs/design.md](docs/design.md) (Korean).
+
+### Run it now (manual)
+
+```sh
+uv tool install edge-tts                 # TTS (free, unofficial Microsoft Edge voices)
+# .env: GROQ_API_KEY=...                 # STT (free Groq Whisper)
+# .env.local: KKACHI_MEMORY_DIR=/abs/path/to/memory-repo  (a git repo, see templates/memory)
+bun start                                # needs `opencode` (@opencode/cli 2.3.x) on PATH
+tailscale serve --bg --https=8443 http://127.0.0.1:4300
+```
+
+Add `?debug` to the URL for an on-screen log.
 
 ## How it works
 
