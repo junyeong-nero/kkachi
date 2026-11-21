@@ -7,10 +7,16 @@ const END_SILENCE_MS = 800;
 const MIN_SPEECH_MS = 250;
 const MAX_UTTER_MS = 15000;
 const PREROLL_FRAMES = 4;
-const IDLE_AFTER_MS = 30000;
 const RESUME_DELAY_MS = 300;
-const THINKING_TONE_AFTER_MS = 4000;
-const THINKING_TONE_EVERY_MS = 3000;
+const STILL_WORKING_AFTER_MS = 7000;
+
+// Short spoken reactions while Kkachi works, instead of beeps. Synthesized once, played instantly.
+const FILLERS = {
+  search: ["잠깐만요, 찾아볼게요.", "음, 확인해볼게요."],
+  write: ["네, 적어둘게요."],
+  wait: ["조금만 기다려 주세요."],
+};
+const fillerAudio = {};
 
 const DEBUG = new URLSearchParams(location.search).has("debug");
 const $ = (id) => document.getElementById(id);
@@ -19,9 +25,8 @@ const $ = (id) => document.getElementById(id);
 let ctx, stream, frameMs = 0, wakeLock = null;
 let state = "idle";
 let noiseFloor = 0.003, calibFrames = 0;
-let inSpeech = false, speechFrames = [], preroll = [], silentMs = 0, speechMs = 0, listenSince = 0;
-let turnId = 0, currentSource = null, thinkingTimer = null;
-let lastReply = [];
+let inSpeech = false, speechFrames = [], preroll = [], silentMs = 0, speechMs = 0;
+let turnId = 0, currentSource = null, waitTimer = null;
 
 if (DEBUG) document.body.classList.add("debug");
 const diagLines = [];
@@ -48,19 +53,20 @@ function tone(freq, ms, vol = 0.12) {
 const earcon = {
   start: () => tone(660, 90),
   heard: () => tone(880, 70, 0.08),
-  thinking: () => tone(330, 160, 0.05),
   error: () => tone(220, 260),
 };
 
-function startThinkingTones(my) {
-  stopThinkingTones();
-  thinkingTimer = setTimeout(function tick() {
-    if (my !== turnId || state !== "thinking") return;
-    earcon.thinking();
-    thinkingTimer = setTimeout(tick, THINKING_TONE_EVERY_MS);
-  }, THINKING_TONE_AFTER_MS);
+function prepareFillers() {
+  for (const [kind, lines] of Object.entries(FILLERS)) {
+    fillerAudio[kind] = lines.map(() => null);
+    lines.forEach((line, i) => ttsBuffer(line).then((b) => (fillerAudio[kind][i] = b)));
+  }
 }
-function stopThinkingTones() { clearTimeout(thinkingTimer); thinkingTimer = null; }
+function filler(kind) {
+  const ready = (fillerAudio[kind] ?? []).filter(Boolean);
+  return ready.length ? ready[Math.floor(Math.random() * ready.length)] : null;
+}
+function clearWaitTimer() { clearTimeout(waitTimer); waitTimer = null; }
 
 // ---- start: must run inside the tap gesture (iOS needs it for audio output and mic) ----
 async function start() {
@@ -82,6 +88,7 @@ async function start() {
     const sink = ctx.createGain(); sink.gain.value = 0;
     source.connect(proc); proc.connect(sink); sink.connect(ctx.destination);
     proc.onaudioprocess = (e) => onFrame(new Float32Array(e.inputBuffer.getChannelData(0)));
+    prepareFillers();
     diag("env", { standalone: matchMedia("(display-mode: standalone)").matches || !!navigator.standalone, rate: ctx.sampleRate });
   } else {
     await ctx.resume();
@@ -96,15 +103,14 @@ async function keepScreenOn() {
 }
 
 function goIdle() {
-  turnId++; stopPlayback(); stopThinkingTones();
+  turnId++; stopPlayback(); clearWaitTimer();
   wakeLock?.release().catch(() => {});
   setState("idle", "탭해서 시작");
 }
 
 function listen() {
   inSpeech = false; speechFrames = []; preroll = []; silentMs = 0; speechMs = 0;
-  listenSince = performance.now();
-  setState("listening", "듣고 있어요");
+  setState("listening", "듣고 있어요 · 탭하면 쉬어요");
 }
 
 // ---- VAD: energy against a calibrated noise floor ----
@@ -119,10 +125,7 @@ function onFrame(f) {
   if (!inSpeech) {
     preroll.push(f); if (preroll.length > PREROLL_FRAMES) preroll.shift();
     if (rms > th) { inSpeech = true; speechFrames = [...preroll]; speechMs = 0; silentMs = 0; }
-    else {
-      noiseFloor = noiseFloor * 0.95 + rms * 0.05;
-      if (performance.now() - listenSince > IDLE_AFTER_MS) goIdle();
-    }
+    else noiseFloor = noiseFloor * 0.95 + rms * 0.05;
     return;
   }
   speechFrames.push(f); speechMs += frameMs;
@@ -153,12 +156,19 @@ async function handleUtterance(frames) {
   $("heard").textContent = `“${text}”`;
   $("reply").textContent = ""; $("chips").replaceChildren();
   diag("stt", { text, ms: Math.round(performance.now() - t0) });
-  startThinkingTones(my);
 
-  const queue = [];       // Promise<AudioBuffer|null>, in sentence order
+  const queue = [];       // Promise<AudioBuffer|null>, in play order
   const spoken = [];
-  let streamDone = false, command = null, firstSound = 0;
+  let streamDone = false, end = false, firstSound = 0, reacted = false;
   const say = (s) => { spoken.push(s); $("reply").textContent = spoken.join(" "); queue.push(ttsBuffer(s)); };
+  // A filler plays only if nothing has been queued yet, and at most once per turn plus one "still working".
+  const react = (kind) => {
+    if (queue.length || reacted) return;
+    const buf = filler(kind);
+    if (buf) { reacted = true; queue.push(Promise.resolve(buf)); }
+  };
+  clearWaitTimer();
+  waitTimer = setTimeout(() => { if (my === turnId && !spoken.length) { reacted = false; react("wait"); } }, STILL_WORKING_AFTER_MS);
 
   const player = (async () => {
     for (let i = 0; ; ) {
@@ -167,7 +177,6 @@ async function handleUtterance(frames) {
         const buf = await queue[i++];
         if (my !== turnId) return;
         if (!buf) continue;
-        stopThinkingTones();
         if (!firstSound) { firstSound = performance.now(); diag("first sound", { ms: Math.round(firstSound - t0) }); }
         setState("speaking", "탭하면 멈춰요");
         await play(buf);
@@ -180,11 +189,12 @@ async function handleUtterance(frames) {
     await readEvents("/api/turn", { text }, (e) => {
       if (my !== turnId) return;
       if (e.type === "sentence") say(e.text);
-      else if (e.type === "activity") { if (state === "thinking") $("hint").textContent = e.tool === "edit" || e.tool === "write" ? "노트에 적는 중…" : "노트 찾는 중…"; }
-      else if (e.type === "command") {
-        command = e.name;
-        if (e.name === "repeat") for (const s of lastReply) say(s);
+      else if (e.type === "activity") {
+        const writing = e.tool === "edit" || e.tool === "write";
+        if (state === "thinking") $("hint").textContent = writing ? "노트에 적는 중…" : "노트 찾는 중…";
+        if (/read|grep|glob/.test(e.tool) || writing) react(writing ? "write" : "search");
       }
+      else if (e.type === "end") end = true;
       else if (e.type === "done") showChips(e.sources, e.changed);
       else if (e.type === "error") { say(e.message); earcon.error(); }
     });
@@ -193,18 +203,17 @@ async function handleUtterance(frames) {
     return turnError(my, "연결이 끊겼어요. 다시 말해 주세요.", e);
   }
   streamDone = true;
+  clearWaitTimer();
   await player;
   if (my !== turnId) return;
-  stopThinkingTones();
-  if (command !== "repeat" && spoken.length) lastReply = spoken;
-  if (command === "stop") return goIdle();
+  if (end) return goIdle();
   setTimeout(() => { if (my === turnId) listen(); }, RESUME_DELAY_MS);
 }
 
 async function turnError(my, message, err) {
   diag("turn error", { err: String(err) });
   if (my !== turnId) return;
-  stopThinkingTones();
+  clearWaitTimer();
   setState("error", message);
   earcon.error();
   const buf = await ttsBuffer(message);
@@ -282,10 +291,11 @@ function encodeWav(frames, inRate, outRate) {
   return new Blob([buf], { type: "audio/wav" });
 }
 
-// ---- input: tap to start; tap while thinking/speaking interrupts and listens again ----
+// ---- input: tap to start; tap while listening rests; tap while thinking/speaking interrupts ----
 $("stage").addEventListener("click", () => {
   if (state === "idle" || state === "error") start();
-  else if (state === "speaking" || state === "thinking") { turnId++; stopPlayback(); stopThinkingTones(); listen(); }
+  else if (state === "listening") goIdle();
+  else if (state === "speaking" || state === "thinking") { turnId++; stopPlayback(); clearWaitTimer(); listen(); }
 });
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);

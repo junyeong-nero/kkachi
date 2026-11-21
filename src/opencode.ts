@@ -26,6 +26,8 @@ export async function startOpencode() {
       OPENCODE_DISABLE_CLAUDE_CODE: "1",
       OPENCODE_DISABLE_AUTOUPDATE: "1",
       OPENCODE_SERVER_PASSWORD: PASSWORD,
+      KKACHI_ROOT: config.root, // used by opencode.jsonc to start src/mcp.ts
+      KKACHI_MEMORY_DIR: config.memoryDir,
     },
     stdout: "ignore",
     stderr: "inherit",

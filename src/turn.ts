@@ -1,14 +1,16 @@
-// One conversational turn: voice commands, prompt opencode, stream speakable sentences, collect sources.
+// One conversational turn: sync notes, prompt opencode, stream speakable sentences, collect sources,
+// commit and push. There are no fixed voice commands: the agent decides, using the kkachi MCP tools.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
+import { commitTurn, pull, pushIfAhead } from "./git";
 import { createSession, prompt, sessionExists, subscribe, type OcEvent } from "./opencode";
 
 export type TurnEvent =
   | { type: "sentence"; text: string }
-  | { type: "command"; name: "stop" | "repeat" }
   | { type: "activity"; tool: string; path?: string }
-  | { type: "done"; sources: string[]; changed: string[] }
+  | { type: "end" } // the agent ended the conversation; stop listening after speaking
+  | { type: "done"; sources: string[]; changed: string[]; commit: string | null }
   | { type: "error"; message: string };
 
 const TURN_TIMEOUT_MS = 120_000;
@@ -28,18 +30,6 @@ async function newSession() {
   const sessionId = await createSession();
   await Bun.write(stateFile, JSON.stringify({ sessionId }));
   return sessionId;
-}
-
-// ---- voice commands: handled here, never sent to the model ----
-const COMMANDS: [RegExp, "stop" | "repeat" | "new"][] = [
-  [/^(그만|그만해|잘자|잘자요|됐어)$/, "stop"],
-  [/^(다시말해줘|다시말해|다시한번|뭐라고)$/, "repeat"],
-  [/^(새대화|새로운대화|새대화시작)$/, "new"],
-];
-
-function matchCommand(text: string) {
-  const norm = text.replace(/[\s.,!?~]/g, "");
-  return COMMANDS.find(([re]) => re.test(norm))?.[1];
 }
 
 // ---- speech text ----
@@ -76,14 +66,16 @@ function notesIn(content: any): string[] {
 }
 
 export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
-  const cmd = matchCommand(text);
-  if (cmd === "stop") { emit({ type: "sentence", text: "네, 대기할게요." }); emit({ type: "command", name: "stop" }); return; }
-  if (cmd === "repeat") { emit({ type: "command", name: "repeat" }); return; }
-  if (cmd === "new") { await newSession(); emit({ type: "sentence", text: "새 대화를 시작할게요." }); return; }
-
   if (busy) { emit({ type: "error", message: "아직 앞의 말을 처리하고 있어요." }); return; }
   busy = true;
   try {
+    try {
+      await pull(config.memoryDir);
+    } catch (err) {
+      console.error("pull failed", err);
+      emit({ type: "error", message: "노트 저장소를 동기화하지 못했어요. 컴퓨터에서 확인이 필요해요." });
+      return;
+    }
     const sessionId = await currentSession();
     await streamTurn(sessionId, text, emit);
   } finally {
@@ -118,6 +110,7 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
     }
   };
 
+  let ended = false;
   let finish!: (outcome: "succeeded" | "failed" | "interrupted", detail?: any) => void;
   const finished = new Promise<{ outcome: string; detail?: any }>((res) => (finish = (outcome, detail) => res({ outcome, detail })));
 
@@ -136,8 +129,10 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
         break;
       case "session.tool.called": {
         toolInputs.set(d.id, d.input);
+        const name = toolNames.get(d.id) ?? "tool";
+        if (name.endsWith("end_conversation")) { ended = true; break; }
         const path = d.input?.path ?? d.input?.filePath;
-        emit({ type: "activity", tool: toolNames.get(d.id) ?? "tool", path: path ? relPath(path) || undefined : undefined });
+        emit({ type: "activity", tool: name, path: path ? relPath(path) || undefined : undefined });
         break;
       }
       case "session.tool.success": {
@@ -169,7 +164,16 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
       return;
     }
     for (const c of changed) sources.add(c);
-    emit({ type: "done", sources: [...sources], changed: [...changed] });
+    let commit: string | null = null;
+    try {
+      commit = await commitTurn(config.memoryDir, text);
+      await pushIfAhead(config.memoryDir); // also pushes an undo commit made by the MCP tool
+    } catch (err) {
+      console.error("commit/push failed", err);
+      emit({ type: "sentence", text: "노트는 고쳤지만 저장소에 올리지는 못했어요." });
+    }
+    emit({ type: "done", sources: [...sources], changed: [...changed], commit });
+    if (ended) emit({ type: "end" });
   } finally {
     close();
   }
