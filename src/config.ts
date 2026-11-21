@@ -36,7 +36,7 @@ export const config = {
   stt: {
     baseUrl: env.KKACHI_STT_BASE_URL ?? "https://api.groq.com/openai/v1",
     apiKey: env.KKACHI_STT_API_KEY ?? env.GROQ_API_KEY ?? "",
-    model: env.KKACHI_STT_MODEL ?? "whisper-large-v3-turbo",
+    model: env.KKACHI_STT_MODEL ?? "whisper-large-v3", // not turbo: it reports no_speech_prob, which filters noise
     language: env.KKACHI_STT_LANGUAGE ?? "ko",
   },
   // Transcript cleanup before the agent (OpenAI-compatible chat API). KKACHI_POLISH_MODEL= disables it.

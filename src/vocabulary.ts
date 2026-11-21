@@ -1,4 +1,5 @@
-// Terms speech recognition should spell exactly (mostly English names inside Korean speech).
+// Terms the transcript cleanup (src/polish.ts) should spell exactly, mostly English names inside
+// Korean speech. Not given to Whisper itself: as a prompt it leaks into transcripts of silence.
 // Sources, in priority order: the memory repo's vocabulary.md (one term per line, "- " bullets
 // allowed; Kkachi extends it when the user corrects a misheard word), the titles of the user's
 // notes (places and names they talk about, e.g. "삿포로"), then built-in defaults.
@@ -35,14 +36,4 @@ function noteTitles(): string[] {
     if (h1) titles.push(h1);
   }
   return titles;
-}
-
-// Whisper's prompt is limited (~224 tokens); keep the hint short, user terms first.
-export function sttHint(): string {
-  let terms = "";
-  for (const t of vocabulary()) {
-    if ((terms + t).length > 500) break;
-    terms += (terms ? ", " : "") + t;
-  }
-  return `한국어와 영어가 섞인 대화. 영어 용어는 영어로 적는다: ${terms}.`;
 }
