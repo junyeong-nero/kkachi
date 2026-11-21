@@ -5,14 +5,14 @@ Single source of truth for the app's visual system (`src/web/index.html`). Inter
 ## Discovery
 
 - **Artifact**: mobile AI/conversational interface, voice-first (Operate mode). Used one-handed on a phone, often without looking.
-- **Who / job**: one person talking to their own assistant. Primary action: hold to talk.
+- **Who / job**: one person talking to their own assistant. Primary action: say or type something, check it, send.
 - **Brief**: clean and neutral like other AI products; the magpie (까치) appears only as the app icon and logo, the way Kitsune uses its fox. An earlier full-screen magpie illustration was rejected as kitschy.
 - **Adjectives**: calm, clear, quick, trustworthy. Essence: *quiet voice tool*.
 
 ## Commitments
 
 - **Aesthetic**: plain neutral surfaces, one accent, content first. Familiar chat patterns (your words right, Kkachi's answer left) because Operate mode rewards familiarity.
-- **Signature move**: the hold-to-talk button that draws your live voice level as a ring, and "remembered" chips in the same magpie-wing teal. Teal only ever means "Kkachi is listening" or "Kkachi remembered this".
+- **Signature move**: the mic button that draws your live voice level as a halo while recording, and "remembered" chips in the same magpie-wing teal. Teal only ever means "Kkachi is listening" or "Kkachi remembered this".
 - **Symbol**: flat magpie head-and-shoulders mark (black, white belly and wing, one teal wing patch) on pale mint `#CEE8E2`, generated with Codex image generation on deep ink `#16181C` and moved onto mint by `assets/icon/recolor.py` (the black bird disappeared on the ink at home-screen size). Used for the app icon and the header logo only. Source and the two unused candidates (perched profile on off-white, in flight on pale teal) are in `assets/icon/`; `src/web/icon.png` (512), `apple-touch-icon.png` (180), `favicon.png` (64) are resized from `icon-b-mint.png`.
 
 ## Tokens
@@ -35,11 +35,11 @@ Single source of truth for the app's visual system (`src/web/index.html`). Inter
 
 ## Craft decisions
 
-- **Layout**: header (refresh, logo, settings) / transcript / input dock. The dock is the talk area (voice) or a text box with a send button (keyboard), chosen per device in settings. In voice mode the whole talk area is the press target, so it can be hit without looking.
+- **Layout**: header (refresh, logo, settings) / transcript / composer: `[text box] (mic) (send)`, with a one-line status above it only when there is something to say (recording, transcribing, an error). The mic is tap to start / tap to stop, or hold and let go; transcribed words are appended to the text box to check and fix, and nothing is sent until you press send (or Enter).
 - **Transcript**: last 30 turns of this page, as chat bubbles: yours a light `surface` fill on the right, Kkachi's outlined (`bg` with a `line` border) on the left (fill vs outline keeps them apart without heavy color) with the working dots and activity label inside it. Kkachi's bubble appears once your words are known and is removed if the turn ends without words. Replies are Markdown (marked + DOMPurify, vendored in `src/web/vendor/`); narration before a tool call stays in the bubble as a muted aside. Read-aloud is off by default (per device) and speaks only the first two sentences.
 - **First run**: example sentences to say, as plain quoted lines (not tappable-looking boxes), placed near the talk button.
 - **States**: mic idle / recording (teal, level ring) / thinking (dimmed) / speaking (bars) / disabled (mic permission denied). Icon buttons and settings controls have hover (pointer devices), active, focus-visible (3px teal ring).
-- **Keyboard**: hold Space to talk.
+- **Keyboard**: Enter sends, Shift+Enter is a new line; outside the text box, hold Space to dictate.
 - **Browser surfaces**: selection, caret, and scrollbar use the palette.
 - **Dark mode**: designed per token, follows the system; `?theme=light` forces light for review.
 
@@ -54,6 +54,7 @@ Kept on purpose: centered single column and chat bubbles (familiar Operate-mode 
 ## Changelog
 
 - 2026-11-21: clean AI-app direction, magpie as icon only, deslop pass.
+- 2026-11-21: voice and keyboard merged into one composer; dictation fills the text box for review before sending (no more send-on-release).
 - 2026-11-21: text-first: Markdown replies, keyboard input mode, read-aloud optional; Kkachi uses Pi's own prompt and AGENTS.md (short-spoken-reply rules dropped). Icon background ink → mint.
 - 2026-11-21: Kkachi's replies in bubbles like the user's (were plain text).
 - 2026-11-21: hand-drawn SVG icon replaced by a Codex-generated icon (candidate A of three), then switched to candidate B at the user's choice.

@@ -1,25 +1,24 @@
-// Kkachi UI. Voice (hold to talk, release to send) or keyboard input; replies render as Markdown and
-// can be read aloud. See DESIGN.md.
+// Kkachi UI. One composer: type, or tap the mic and speak. Spoken words land in the text box to check
+// and fix before sending. Replies render as Markdown and can be read aloud. See DESIGN.md.
 "use strict";
 
 // ---- tuning ----
 const TARGET_RATE = 16000;
-const MIN_HOLD_MS = 300;     // shorter presses are accidental taps
-const MAX_HOLD_MS = 60000;   // send automatically after a minute
-const PREROLL_FRAMES = 2;    // ~170 ms before the press, so the first syllable is not cut
-const READY_HINT = "누르고 있는 동안 말하세요";
+const MIN_RECORD_MS = 300;   // shorter recordings are accidental taps
+const HOLD_MS = 400;         // mic held longer than this: letting go stops; a shorter tap toggles
+const MAX_RECORD_MS = 60000; // stop by itself after a minute
+const PREROLL_FRAMES = 2;    // ~170 ms from just before recording, when the mic was already open
 
 const DEBUG = new URLSearchParams(location.search).has("debug");
 const $ = (id) => document.getElementById(id);
 
-// Per-device preferences (a phone and a laptop want different ones), kept in localStorage.
-const inputMode = () => (localStorage.getItem("kkachi.input") === "keyboard" ? "keyboard" : "voice");
+// Per-device preference (a phone and a laptop want different ones), kept in localStorage.
 const readAloud = () => localStorage.getItem("kkachi.speak") === "on";
 
 // ---- state ----
 let ctx, stream, frameMs = 0;
-let state = "idle";
-let recording = false, recordFrames = [], preroll = [], prerollCount = 0, pressedAt = 0, holdTimer = null;
+let state = "idle"; // the mic: idle | recording | transcribing | error
+let recording = false, recordFrames = [], preroll = [], prerollCount = 0, recordStart = 0, holdTimer = null;
 let turnId = 0, currentSource = null;
 
 if (DEBUG) document.body.classList.add("debug");
@@ -58,7 +57,7 @@ const earcon = {
 function audioOut() {
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (navigator.audioSession) { try { navigator.audioSession.type = inputMode() === "voice" ? "play-and-record" : "playback"; } catch {} }
+    setSession("play-and-record"); // not "playback": WebKit then refuses the mic
   }
   if (ctx.state !== "running") ctx.resume();
 }
@@ -126,9 +125,9 @@ async function ensureAudio() {
   return true;
 }
 
-function ready(hint = READY_HINT) { setState("idle", inputMode() === "voice" ? hint : ""); }
+function ready(hint = "") { setState("idle", hint); }
 
-// ---- capture: keep a short pre-roll, record only while pressed ----
+// ---- capture: record only while the mic button says so ----
 function onFrame(f) {
   if (!recording) {
     preroll.push(f); if (preroll.length > PREROLL_FRAMES) preroll.shift();
@@ -139,32 +138,32 @@ function onFrame(f) {
   $("mic").style.setProperty("--level", Math.min(Math.sqrt(sum / f.length) / 0.08, 1).toFixed(2));
 }
 
-async function press() {
-  if (recording) return;
-  turnId++; stopPlayback(); // talking over Kkachi interrupts it
-  pressedAt = performance.now();
+async function startRecording() {
+  if (recording || state === "transcribing") return;
+  stopPlayback(); // speaking over Kkachi silences it (the reply itself keeps coming)
   recording = true;
   recordFrames = [];
   const firstGrant = !micGranted;
   if (!(await ensureAudio())) { recording = false; return; }
-  if (firstGrant) { recording = false; doneWithMic(); ready("마이크 준비됐어요. 누른 채로 말하세요"); return; } // the permission prompt ate this press
-  if (!recording) { doneWithMic(); ready(); return; } // released while the mic was opening
+  if (firstGrant) { recording = false; doneWithMic(); ready("마이크 준비됐어요. 다시 눌러 말하세요"); return; } // the permission prompt ate this press
+  if (!recording) { doneWithMic(); ready(); return; } // stopped while the mic was opening
   recordFrames = [...preroll];
   prerollCount = recordFrames.length;
+  recordStart = performance.now();
   earcon.start();
-  setState("recording", "듣고 있어요 · 손을 떼면 보내요");
+  setState("recording", "듣고 있어요 · 다시 누르면 받아적어요");
   clearTimeout(holdTimer);
-  holdTimer = setTimeout(release, MAX_HOLD_MS);
+  holdTimer = setTimeout(stopRecording, MAX_RECORD_MS);
 }
 
-function release() {
+function stopRecording() {
   if (!recording) return;
   recording = false;
   clearTimeout(holdTimer);
-  if (state !== "recording") return; // still opening the mic: press() finishes up
+  if (state !== "recording") return; // still opening the mic: startRecording() finishes up
   const frames = recordFrames, rate = ctx?.sampleRate ?? 48000, ctxState = ctx?.state;
   doneWithMic(); // let go of the mic right away (other apps' music)
-  if (performance.now() - pressedAt < MIN_HOLD_MS) { ready(); return; }
+  if (performance.now() - recordStart < MIN_RECORD_MS) { ready(); return; }
   // No new audio while held: the audio pipeline is dead (iOS interruption). Do not send silence.
   if (frames.length - prerollCount < 2) {
     diag("no audio while held", { frames: frames.length, ctx: ctxState });
@@ -172,51 +171,45 @@ function release() {
     ready("마이크를 다시 연결했어요. 다시 눌러 말해 주세요");
     return;
   }
-  handleUtterance(frames, rate);
+  transcribe(frames, rate);
 }
 
-// ---- one turn ----
-async function handleUtterance(frames, rate) {
-  const my = ++turnId;
+// Spoken words go into the text box (after what is already there), to check and fix before sending.
+async function transcribe(frames, rate) {
   const t0 = performance.now();
   earcon.heard();
-  setState("thinking", "받아적는 중…");
-  const view = addTurn(); // shows up at once: your bubble is a placeholder until transcription returns
-  let text, raw;
+  setState("transcribing", "받아적는 중…");
+  let text;
   try {
     const r = await fetch("/api/stt", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: encodeWav(frames, rate, TARGET_RATE) });
     const body = await r.json();
     if (!r.ok) throw new Error(body.error);
     text = body.text;
-    raw = body.raw;
   } catch (e) {
-    view.remove();
-    return turnError(my, "잘 못 들었어요. 다시 말해 주세요.", e);
+    diag("stt error", { err: String(e) });
+    earcon.error();
+    return setState("error", "잘 못 들었어요. 다시 말해 주세요.");
   }
-  if (my !== turnId) { view.remove(); return; }
-  if (!text) { view.remove(); ready("잘 못 들었어요. 다시 눌러 말해 주세요"); return; }
-  view.setYou(text);
-  setState("thinking", "생각하는 중 · 누르면 멈춰요");
+  if (!text) return setState("error", "잘 못 들었어요. 다시 말해 주세요.");
   diag("stt", { text, ms: Math.round(performance.now() - t0) });
-  await runTurn(my, view, { text, raw }, t0);
+  addToDraft(text);
+  ready();
 }
 
-// A typed message: no transcription, straight to the turn.
-function handleText(text) {
-  const my = ++turnId;
+// ---- one turn ----
+function sendMessage(text) {
+  const my = ++turnId; // a newer message replaces a reply still coming
   stopPlayback();
   if (readAloud()) audioOut(); // the send tap is the gesture iOS needs before it plays sound
-  const view = addTurn();
-  view.setYou(text);
-  setState("thinking", "");
-  runTurn(my, view, { text }, performance.now());
+  if (state === "error") ready();
+  runTurn(my, addTurn(text), { text }, performance.now());
 }
 
 async function runTurn(my, view, body, t0) {
   const speak = readAloud();
   const queue = [];       // Promise<AudioBuffer|null>, in play order
   let skipBefore = 0;     // queue items before this index were narration before a tool call: not played
-  let streamDone = false, end = false, firstSound = 0;
+  let streamDone = false, firstSound = 0;
 
   const player = !speak ? Promise.resolve() : (async () => {
     for (let i = 0; ; ) {
@@ -227,7 +220,6 @@ async function runTurn(my, view, body, t0) {
         if (my !== turnId) return;
         if (!buf) continue;
         if (!firstSound) { firstSound = performance.now(); diag("first sound", { ms: Math.round(firstSound - t0) }); }
-        setState("speaking", "누르면 멈추고 다시 들어요");
         await play(buf);
       } else if (streamDone) return;
       else await new Promise((r) => setTimeout(r, 40));
@@ -240,35 +232,19 @@ async function runTurn(my, view, body, t0) {
       if (e.type === "delta") view.stream(e.text);                       // live text on screen
       else if (e.type === "sentence") { if (speak && !e.silent) queue.push(ttsBuffer(e.text)); } // speak as soon as a sentence is complete
       else if (e.type === "aside") { view.aside(); if (speak) { skipBefore = queue.length; stopPlayback(); } }
-      else if (e.type === "activity") {
-        const label = activityLabel(e.tool, e.path);
-        view.working(label);
-        if (state === "thinking") $("status").textContent = `${label} · 누르면 멈춰요`;
-      }
-      else if (e.type === "end") end = true;
+      else if (e.type === "activity") view.working(activityLabel(e.tool, e.path));
       else if (e.type === "done") { view.finish(); showChips(view.chips, e.sources, e.changed, e.titles); }
       else if (e.type === "error") { view.fail(e.message); if (speak) queue.push(ttsBuffer(e.message)); earcon.error(); }
     });
     view.finish();
   } catch (e) {
     streamDone = true;
-    if (my === turnId) view.fail("연결이 끊겼어요. 다시 보내 주세요.");
-    return turnError(my, "연결이 끊겼어요. 다시 말해 주세요.", e);
+    diag("turn error", { err: String(e) });
+    if (my === turnId) { view.fail("연결이 끊겼어요. 다시 보내 주세요."); earcon.error(); }
+    return;
   }
   streamDone = true;
   await player;
-  if (my !== turnId) return;
-  ready(end ? "필요하면 다시 눌러 말을 걸어주세요" : READY_HINT);
-}
-
-async function turnError(my, message, err) {
-  diag("turn error", { err: String(err) });
-  if (my !== turnId) return;
-  setState("error", message);
-  earcon.error();
-  const buf = readAloud() ? await ttsBuffer(message) : null;
-  if (buf && my === turnId) await play(buf);
-  if (my === turnId) ready();
 }
 
 // ---- transcript ----
@@ -300,15 +276,14 @@ function renderMarkdown(target, text) {
 }
 
 // One turn in the transcript. It appears the moment you send and fills in live.
-function addTurn() {
+function addTurn(text) {
   $("intro")?.remove();
   const turn = el("article", "turn");
-  const you = el("div", "you pending", DOTS);
-  you.setAttribute("aria-label", "받아적는 중");
+  const you = el("div", "you");
+  you.textContent = text;
   const reply = el("div", "kkachi");
   const work = el("div", "working", `${DOTS}<span class="label"></span>`);
   let block = el("div", "md"); // the message being written; earlier ones (narration before tool calls) are asides
-  reply.hidden = true; // Kkachi's bubble appears once your words are known
   reply.append(block, work);
   const chips = el("div", "chips");
   turn.append(you, reply, chips);
@@ -320,8 +295,6 @@ function addTurn() {
   const render = () => { cancelAnimationFrame(frame); frame = 0; renderMarkdown(block, raw.trimStart()); scrollDown(); };
   return {
     chips,
-    remove: () => turn.remove(),
-    setYou(text) { you.classList.remove("pending"); you.removeAttribute("aria-label"); you.textContent = text; reply.hidden = false; work.hidden = false; scrollDown(); },
     working(label) { work.hidden = false; work.querySelector(".label").textContent = label; scrollDown(); },
     stream(delta) { work.hidden = true; raw += delta; if (!frame) frame = requestAnimationFrame(render); }, // one render per frame
     aside() {
@@ -508,29 +481,18 @@ function renderTextSize() {
   input.onchange = () => localStorage.setItem("kkachi.fontSize", input.value);
 }
 
-// Input mode and read-aloud: radio groups in the sheet, stored on this device.
+// Read-aloud: a radio group in the sheet, stored on this device.
 function renderDevicePrefs() {
-  const bind = (name, current, apply) => {
-    for (const input of document.querySelectorAll(`input[name=${name}]`)) {
-      input.checked = input.value === current;
-      input.onchange = () => { apply(input.value); toast("저장했어요"); };
-    }
-  };
-  bind("input", inputMode(), (v) => { localStorage.setItem("kkachi.input", v); applyInputMode(); });
-  bind("speak", readAloud() ? "on" : "off", (v) => { localStorage.setItem("kkachi.speak", v); applySpeak(); });
+  for (const input of document.querySelectorAll("input[name=speak]")) {
+    input.checked = input.value === (readAloud() ? "on" : "off");
+    input.onchange = () => { localStorage.setItem("kkachi.speak", input.value); applySpeak(); toast("저장했어요"); };
+  }
   applySpeak();
 }
 
 function applySpeak() {
   $("voice-settings").hidden = !readAloud();
   if (!readAloud() && !recording) { stopPlayback(); resetAudio(); setSession("auto"); } // nothing holds audio now
-}
-
-function applyInputMode() {
-  const mode = inputMode();
-  document.body.dataset.input = mode;
-  if (mode === "keyboard") { release(); resetAudio(); } // let go of the mic (iOS shows it as in use)
-  if (state === "idle" || state === "error") ready();
 }
 
 async function openSettings() {
@@ -609,28 +571,45 @@ $("new-conversation").addEventListener("click", async () => {
   toast("새 대화를 시작했어요");
 });
 
-// ---- input: press and hold anywhere to talk ----
-// The whole bottom area (status + button) is the target, so it is easy to hit without looking.
-const talk = $("talk");
-talk.addEventListener("pointerdown", (e) => { e.preventDefault(); talk.setPointerCapture?.(e.pointerId); press(); });
-for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) talk.addEventListener(ev, release);
-talk.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-press menu
+// ---- input: the mic button ----
+// Tap to start and tap again to stop, or hold while speaking and let go. pointerdown's default is
+// prevented so the text box keeps (or does not get) focus: no keyboard popping up on a phone.
+const mic = $("mic");
+let micDownAt = 0;
+mic.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  if (recording) { stopRecording(); return; } // second tap
+  micDownAt = performance.now();
+  startRecording();
+});
+mic.addEventListener("pointerup", () => { if (recording && performance.now() - micDownAt >= HOLD_MS) stopRecording(); }); // held
+mic.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-press menu
 
-// Voice mode on a computer: hold Space to talk (not while typing in the settings sheet).
+// On a computer: hold Space to talk (when not typing).
 const typing = (el) => el?.closest?.("dialog[open], input, select, textarea");
 document.addEventListener("keydown", (e) => {
-  if (e.code !== "Space" || e.repeat || typing(e.target) || inputMode() !== "voice") return;
-  e.preventDefault(); press();
+  if (e.code !== "Space" || e.repeat || typing(e.target)) return;
+  e.preventDefault(); startRecording();
 });
 document.addEventListener("keyup", (e) => {
-  if (e.code !== "Space" || typing(e.target) || inputMode() !== "voice") return;
-  e.preventDefault(); release();
+  if (e.code !== "Space" || typing(e.target)) return;
+  e.preventDefault(); stopRecording();
 });
 
-// ---- input: keyboard ----
+// ---- input: the text box ----
 // Enter sends, Shift+Enter is a new line. Enter that ends a Korean IME composition is not a send.
 const say = $("say"), send = $("send");
-const grow = () => { say.style.height = "auto"; say.style.height = `${Math.min(say.scrollHeight, 160)}px`; send.disabled = !say.value.trim(); };
+const grow = () => {
+  say.style.height = "auto";
+  const border = say.offsetHeight - say.clientHeight; // scrollHeight leaves the border out
+  say.style.height = `${Math.min(say.scrollHeight + border, 160)}px`;
+  send.disabled = !say.value.trim();
+};
+function addToDraft(text) {
+  const draft = say.value.trimEnd();
+  say.value = draft ? `${draft} ${text}` : text;
+  grow();
+}
 say.addEventListener("input", grow);
 say.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
@@ -641,21 +620,20 @@ $("compose").addEventListener("submit", (e) => {
   const text = say.value.trim();
   if (!text) return;
   say.value = ""; grow();
-  handleText(text);
+  sendMessage(text);
 });
 
-applyInputMode();
 clearTranscript();
 // ?demo=<state> renders a sample screen for design review (no audio, no requests).
 const demo = new URLSearchParams(location.search).get("demo");
 if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.dataset.theme = "light";
-if (new URLSearchParams(location.search).get("input") === "keyboard") document.body.dataset.input = "keyboard";
 if (demo === "settings") openSettings();
 else if (demo) {
-  const hints = { recording: "듣고 있어요 · 손을 떼면 보내요", thinking: "노트 찾는 중 · 누르면 멈춰요", speaking: "누르면 멈추고 다시 들어요" };
-  setState(demo, hints[demo] ?? "");
-  $("mic").style.setProperty("--level", "0.7");
-  const sample = (you, reply) => { const v = addTurn(); v.setYou(you); if (reply) { v.stream(reply); v.finish(); } return v; };
+  const hints = { recording: "듣고 있어요 · 다시 누르면 받아적어요", transcribing: "받아적는 중…" };
+  if (hints[demo]) setState(demo, hints[demo]);
+  mic.style.setProperty("--level", "0.7");
+  const sample = (you, reply) => { const v = addTurn(you); if (reply) { v.stream(reply); v.finish(); } return v; };
+  if (demo === "draft") addToDraft("다음 주 화요일 저녁 7시에 엄마 졸업 연주회 있어");
   if (demo === "speaking") {
     sample("오늘 서울 날씨 어때?", "서울은 지금 맑고 영하 1도예요.");
     const v = sample("친구 결혼식 언제였지?", "다다음 주 금요일, 12월 4일이에요. 축가는 성시경의 「거리에서」예요.");
@@ -664,11 +642,9 @@ else if (demo) {
   if (demo === "thinking") {
     sample("오늘 서울 날씨 어때?", "서울은 지금 맑고 영하 1도예요.");
     sample("다음 주 일정 정리해줘").working("노트 찾는 중");
-    addTurn(); // a turn whose words are still being transcribed
   }
   if (demo === "text") {
-    const v = addTurn();
-    v.setYou("이번 주 일정이랑 할 일 정리해줘");
+    const v = addTurn("이번 주 일정이랑 할 일 정리해줘");
     v.stream("노트에서 이번 주 일정을 찾아볼게요.");
     v.aside();
     v.stream("이번 주 일정이에요.\n\n| 날짜 | 일정 |\n|---|---|\n| 11월 24일 (화) 19:00 | 엄마 졸업 연주회 |\n| 11월 27일 (금) | 팀 회식 |\n\n**할 일**\n- 연주회 꽃다발 예약\n- `kkachi` 아이콘 수정\n\n연주회는 대경선으로 가면 돼요. 자세한 건 [노트](https://example.com)에 있어요.");
@@ -679,7 +655,7 @@ else if (demo) {
 
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);
-  if (document.visibilityState === "hidden") { release(); resetAudio(); } // iOS will cut the mic anyway
+  if (document.visibilityState === "hidden") { stopRecording(); resetAudio(); } // iOS will cut the mic anyway; keep what was said
   // Back in the app: the turn stream may be dead without having errored yet. Restart it now; it
   // resumes from the last event received (see followTurn).
   else liveStream?.abort();

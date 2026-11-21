@@ -89,9 +89,9 @@ Bun.serve({
       // Server-sent events of TurnEvent, one JSON object per `data:` line. The turn runs to the end
       // (and commits) even if the phone drops the stream; the app resumes it by id (X-Turn-Id).
       if (req.method === "POST" && pathname === "/api/turn") {
-        const { text, raw } = await req.json();
+        const { text } = await req.json();
         const [id, record] = recordTurn();
-        runTurn(String(text), (e) => record.push(e), typeof raw === "string" ? raw : undefined)
+        runTurn(String(text), (e) => record.push(e))
           .catch((err) => {
             console.error("turn error", err);
             record.push({ type: "error", message: "문제가 생겼어요. 다시 말해 주세요." });
