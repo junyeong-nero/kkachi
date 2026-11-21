@@ -615,6 +615,21 @@ say.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
   e.preventDefault(); $("compose").requestSubmit();
 });
+// The on-screen keyboard: iOS keeps the page full height and pans it up to the text box, pushing the
+// header and the conversation out of sight. Keep the app exactly on the visible area instead, so the
+// conversation shrinks above the text box (CSS: body height and offset).
+const vv = window.visualViewport;
+if (vv) {
+  const root = document.documentElement.style;
+  const fit = () => {
+    root.setProperty("--vv-height", `${vv.height}px`);
+    root.setProperty("--vv-top", `${vv.offsetTop}px`);
+  };
+  vv.addEventListener("resize", () => { fit(); scrollDown(); }); // keyboard in or out: keep the latest message in view
+  vv.addEventListener("scroll", fit);
+  fit();
+}
+
 $("compose").addEventListener("submit", (e) => {
   e.preventDefault();
   const text = say.value.trim();

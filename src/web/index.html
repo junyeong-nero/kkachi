@@ -57,6 +57,11 @@
   body {
     background: var(--bg); color: var(--text); font-family: var(--font); font-size: var(--t-base);
     display: flex; flex-direction: column; overflow: hidden;
+    /* pinned to the visible area (set from visualViewport in app.js): when the on-screen keyboard
+       opens, iOS pans the page instead of shrinking it, which pushed the header and the
+       conversation out of view. Fixed children (status shield, toast) follow the body. */
+    position: fixed; top: 0; left: 0; right: 0;
+    height: var(--vv-height, 100%); transform: translateY(var(--vv-top, 0px));
     -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
     caret-color: var(--accent);
   }
