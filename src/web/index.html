@@ -86,13 +86,16 @@
     scrollbar-width: thin; scrollbar-color: var(--line) transparent;
   }
   .turn { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 640px; margin: 0 auto; }
-  .you {
-    align-self: flex-end; max-width: 85%; background: var(--surface); padding: 10px 14px;
-    border-radius: var(--r-md) var(--r-md) 4px var(--r-md);
-    font-size: var(--t-base); line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere;
+  /* chat bubbles: yours dark on the right, Kkachi's light on the left */
+  .you, .kkachi {
+    max-width: 85%; padding: 10px 14px; font-size: var(--t-base); line-height: 1.55;
+    word-break: keep-all; overflow-wrap: anywhere;
   }
-  .kkachi { font-size: var(--t-md); line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; max-width: 34em; }
+  .you { align-self: flex-end; background: var(--text); color: var(--bg); border-radius: var(--r-md) var(--r-md) 4px var(--r-md); }
+  .kkachi { align-self: flex-start; background: var(--surface); border-radius: var(--r-md) var(--r-md) var(--r-md) 4px; }
+  .kkachi[hidden] { display: none; }
   .kkachi .live { white-space: pre-wrap; }
+  .kkachi .live:empty { display: none; }
   .kkachi.error { color: var(--danger); }
 
   /* live progress: typing dots, and what Kkachi is doing right now */
@@ -100,15 +103,16 @@
   .dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .3; animation: dot 1.2s var(--ease-out) infinite; }
   .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
   @keyframes dot { 30% { opacity: 1; transform: translateY(-2px); } 60%, 100% { opacity: .3; transform: none; } }
-  .you.pending { color: var(--muted); padding: 13px 16px; }
-  .working { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--t-sm); min-height: 1.6em; }
+  .you.pending { padding: 13px 16px; }
+  .you.pending .dots { opacity: .8; }
+  .working { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--t-sm); min-height: 1.55em; }
   .working[hidden] { display: none; }
   .working .dots { color: var(--accent); }
   .working .label:empty { display: none; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -2px; }
   .chips:empty { display: none; }
-  .chip { font-size: var(--t-sm); color: var(--muted); background: var(--surface); border-radius: var(--r-sm); padding: 4px 9px; }
-  .chip.changed { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  .chip { font-size: var(--t-sm); color: var(--muted); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 3px 8px; }
+  .chip.changed { color: var(--accent); background: var(--accent-soft); border-color: transparent; font-weight: 600; }
 
   /* first run: real things to say, near where you talk */
   .intro { margin-top: auto; width: 100%; max-width: 640px; margin-inline: auto; padding-bottom: 8px; }

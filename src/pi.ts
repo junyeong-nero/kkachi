@@ -89,7 +89,9 @@ export class Pi {
       if (DIALOGS.has(r.method)) this.write({ type: "extension_ui_response", id: r.id, cancelled: true });
       return;
     }
-    for (const l of this.listeners) l(r);
+    for (const l of this.listeners) {
+      try { l(r); } catch (err) { console.error("pi event listener failed", err); } // never break the stdout loop
+    }
   }
 
   private write(o: unknown) {

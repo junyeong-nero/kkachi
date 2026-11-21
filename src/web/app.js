@@ -236,7 +236,7 @@ function addTurn() {
   const reply = el("div", "kkachi");
   const live = el("span", "live");
   const work = el("div", "working", `${DOTS}<span class="label"></span>`);
-  work.hidden = true; // only your bubble shows progress until the transcription is back
+  reply.hidden = true; // Kkachi's bubble appears once your words are transcribed
   reply.append(live, work);
   const chips = el("div", "chips");
   turn.append(you, reply, chips);
@@ -248,12 +248,12 @@ function addTurn() {
   return {
     chips,
     remove: () => turn.remove(),
-    setYou(text) { you.classList.remove("pending"); you.removeAttribute("aria-label"); you.textContent = text; work.hidden = false; scrollDown(); },
+    setYou(text) { you.classList.remove("pending"); you.removeAttribute("aria-label"); you.textContent = text; reply.hidden = false; work.hidden = false; scrollDown(); },
     working(label) { work.hidden = false; work.querySelector(".label").textContent = label; scrollDown(); },
     stream(delta) { work.hidden = true; raw += delta; live.textContent = plain(raw).trimStart(); scrollDown(); },
     retract() { raw = ""; live.textContent = ""; work.hidden = false; },
-    finish() { work.hidden = true; },
-    fail(message) { work.hidden = true; reply.classList.add("error"); live.textContent = (live.textContent ? live.textContent + " " : "") + message; },
+    finish() { work.hidden = true; if (!live.textContent) reply.hidden = true; }, // no words (only actions): no empty bubble
+    fail(message) { work.hidden = true; reply.hidden = false; reply.classList.add("error"); live.textContent = (live.textContent ? live.textContent + " " : "") + message; },
   };
 }
 
@@ -296,14 +296,31 @@ function play(buf) {
 function stopPlayback() { try { currentSource?.stop(); } catch {} currentSource = null; }
 
 // ---- server-sent events over POST ----
+// The server sends a heartbeat every 15 s; silence longer than this means the stream is dead
+// (server restarted, network dropped) and the turn ends with an error instead of loading forever.
+const STREAM_IDLE_MS = 45_000;
+
 async function readEvents(url, body, onEvent) {
-  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok || !r.body) throw new Error("turn " + r.status);
-  const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
+  const ctrl = new AbortController();
+  let idle;
+  const arm = () => { clearTimeout(idle); idle = setTimeout(() => ctrl.abort(), STREAM_IDLE_MS); };
+  arm();
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal });
+    if (!r.ok || !r.body) throw new Error("turn " + r.status);
+    await readStream(r.body, onEvent, arm);
+  } finally {
+    clearTimeout(idle);
+  }
+}
+
+async function readStream(body, onEvent, alive) {
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
   let buf = "";
   for (;;) {
     const { value, done } = await reader.read();
     if (done) return;
+    alive();
     buf += value;
     let i;
     while ((i = buf.indexOf("\n\n")) >= 0) {

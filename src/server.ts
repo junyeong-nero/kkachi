@@ -77,18 +77,28 @@ Bun.serve({
       // Server-sent events of TurnEvent, one JSON object per `data:` line.
       if (req.method === "POST" && pathname === "/api/turn") {
         const { text, raw } = await req.json();
+        // The phone may drop the connection mid-turn (app backgrounded). The turn still finishes and
+        // commits; writes to a closed stream are skipped instead of throwing (which killed the server).
+        let open = true, heartbeat: ReturnType<typeof setInterval> | undefined;
         const stream = new ReadableStream({
           async start(controller) {
             const enc = new TextEncoder();
-            const emit = (e: TurnEvent) => controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
+            const send = (chunk: string) => {
+              if (!open) return;
+              try { controller.enqueue(enc.encode(chunk)); } catch { open = false; }
+            };
+            const emit = (e: TurnEvent) => send(`data: ${JSON.stringify(e)}\n\n`);
+            heartbeat = setInterval(() => send(": ping\n\n"), 15_000); // lets the client detect a dead stream
             try {
               await runTurn(String(text), emit, typeof raw === "string" ? raw : undefined);
             } catch (err) {
               console.error("turn error", err);
               emit({ type: "error", message: "문제가 생겼어요. 다시 말해 주세요." });
             }
-            controller.close();
+            clearInterval(heartbeat);
+            if (open) { open = false; try { controller.close(); } catch {} }
           },
+          cancel() { open = false; clearInterval(heartbeat); },
         });
         return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" } });
       }
