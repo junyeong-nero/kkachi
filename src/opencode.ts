@@ -57,10 +57,10 @@ async function api(method: string, path: string, body?: unknown) {
   return text ? JSON.parse(text) : null;
 }
 
-export async function createSession(): Promise<string> {
+export async function createSession(agent = "kkachi"): Promise<string> {
   const [providerID, ...rest] = config.model.split("/");
   const s = await api("POST", "/api/session", {
-    agent: "kkachi",
+    agent,
     location: { directory: config.memoryDir },
     model: { providerID, id: rest.join("/") },
   });

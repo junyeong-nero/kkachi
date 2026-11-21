@@ -1,7 +1,8 @@
-// Minimal MCP stdio server giving the kkachi agent two safe actions. opencode starts it (see
-// opencode/opencode.jsonc). The web app also watches for these tool calls in the event stream.
+// Minimal MCP stdio server giving the agents safe actions on the memory repo. opencode starts it
+// (see opencode/opencode.jsonc). The web app also watches for some of these calls in the event stream.
 import { realpathSync } from "node:fs";
 import { undoLast } from "./git";
+import { deleteNote, moveNote } from "./notes";
 
 const memoryDir = realpathSync(process.env.KKACHI_MEMORY_DIR!);
 
@@ -16,9 +17,27 @@ const TOOLS = [
     description: "Revert the most recent note change Kkachi committed (the previous turn's edits), when the user asks to cancel or undo what was just recorded. Do not use it to fix a detail; edit the note instead.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "tidy_notes",
+    description: "Schedule the librarian to reorganize the notes and refresh the README catalog after this turn. Call when the user asks to organize or clean up the notes.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "move_note",
+    description: "Move or rename a note file or a whole folder inside the memory repo (git mv). Links to and from moved notes are repaired automatically. Paths are repo-relative, e.g. inbox/idea.md -> projects/trip-2027/index.md, or projects/trip-2027 -> archive/projects/trip-2027.",
+    inputSchema: { type: "object", properties: { from: { type: "string" }, to: { type: "string" } }, required: ["from", "to"] },
+  },
+  {
+    name: "delete_note",
+    description: "Delete a note file (git rm). Only after its content has been merged into another note. Never for AGENTS.md or README.md.",
+    inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+  },
 ];
 
-async function callTool(name: string) {
+async function callTool(name: string, args: any = {}) {
+  if (name === "tidy_notes") return "The librarian will tidy the notes in the background after this turn. Tell the user briefly.";
+  if (name === "move_note") return moveNote(memoryDir, String(args.from ?? ""), String(args.to ?? ""));
+  if (name === "delete_note") return deleteNote(memoryDir, String(args.path ?? ""));
   if (name === "end_conversation") return "Conversation will end after your reply.";
   if (name === "undo_last_change") {
     const subject = await undoLast(memoryDir);
@@ -46,7 +65,7 @@ process.stdin.on("data", async (chunk: string) => {
       } else if (req.method === "tools/list") {
         send({ jsonrpc: "2.0", id: req.id, result: { tools: TOOLS } });
       } else if (req.method === "tools/call") {
-        const text = await callTool(req.params.name);
+        const text = await callTool(req.params.name, req.params.arguments);
         send({ jsonrpc: "2.0", id: req.id, result: { content: [{ type: "text", text }] } });
       } else if (req.method === "ping") {
         send({ jsonrpc: "2.0", id: req.id, result: {} });

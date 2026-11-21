@@ -26,6 +26,7 @@ Phone (mic/speaker) → Tailscale Serve (HTTPS) → Kkachi web app (Bun, localho
 - **Hands-free** — after one tap, Kkachi listens, answers out loud, and listens again. No typing.
 - **One conversation, two jobs** — ask questions and record decisions in the same chat. Close the page and pick up where you left off.
 - **Answers with sources** — Kkachi reads only the notes it needs, cites file paths, and says so when your notes don't cover something.
+- **A tidy library** — after each conversation a background librarian sorts the inbox, merges duplicates, archives finished items, and rewrites the memory repo's `README.md` as a catalog you can browse on GitHub.
 - **Notes as git commits** — when you ask it to record something, it edits your memory repo and commits (and pushes, if you set a remote). Say "undo" to revert.
 - **Your machine, your keys** — runs on your own computer. API keys stay on the server. Only devices on your tailnet can reach it (use Tailscale Serve, never Funnel).
 

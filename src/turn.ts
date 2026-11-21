@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
 import { commitTurn, pull, pushIfAhead } from "./git";
+import { idle as librarianIdle, scheduleTidy } from "./librarian";
 import { createSession, prompt, sessionExists, subscribe, type OcEvent } from "./opencode";
 
 export type TurnEvent =
@@ -69,6 +70,7 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
   if (busy) { emit({ type: "error", message: "아직 앞의 말을 처리하고 있어요." }); return; }
   busy = true;
   try {
+    await librarianIdle(); // never let the librarian and a conversation edit at the same time
     try {
       await pull(config.memoryDir);
     } catch (err) {
@@ -110,7 +112,7 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
     }
   };
 
-  let ended = false;
+  let ended = false, tidyRequested = false;
   let finish!: (outcome: "succeeded" | "failed" | "interrupted", detail?: any) => void;
   const finished = new Promise<{ outcome: string; detail?: any }>((res) => (finish = (outcome, detail) => res({ outcome, detail })));
 
@@ -131,6 +133,7 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
         toolInputs.set(d.id, d.input);
         const name = toolNames.get(d.id) ?? "tool";
         if (name.endsWith("end_conversation")) { ended = true; break; }
+        if (name.endsWith("tidy_notes")) { tidyRequested = true; break; }
         const path = d.input?.path ?? d.input?.filePath;
         emit({ type: "activity", tool: name, path: path ? relPath(path) || undefined : undefined });
         break;
@@ -174,6 +177,7 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
     }
     emit({ type: "done", sources: [...sources], changed: [...changed], commit });
     if (ended) emit({ type: "end" });
+    if (ended || tidyRequested) scheduleTidy();
   } finally {
     close();
   }
