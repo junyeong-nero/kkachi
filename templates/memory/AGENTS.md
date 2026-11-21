@@ -49,6 +49,8 @@ status: active        # active | paused | done | archived
 
 Never write these into notes: national ID numbers, passport numbers, bank or card numbers, passwords, API keys, full home addresses. Write only where to find them ("in my wallet", "see password manager").
 
+Original documents (ID photos, certificates) live in git-ignored folders such as `areas/personal-info/id-photo/` and `areas/personal-info/certificates/`. Never open, read, summarize, upload, or send these files anywhere; you may only say that they exist and where. If the user explicitly asks to use one, say exactly what would leave the computer and ask first.
+
 ## Answering
 
 - Read the relevant notes before answering. Kkachi shows the notes you used on screen; do not read paths aloud
