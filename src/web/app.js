@@ -87,8 +87,10 @@ async function ensureAudio() {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   } catch (e) {
     diag("mic error", { err: String(e) });
-    $("mic").disabled = true;
-    setState("error", "마이크를 쓸 수 없어요. 설정에서 마이크를 허용해 주세요.");
+    // Not a permanent block: iOS also refuses while the app is going to the background. The next
+    // press tries again.
+    if (document.visibilityState === "visible") setState("error", "마이크를 쓸 수 없어요. 설정에서 마이크를 허용해 주세요.");
+    else ready();
     return false;
   }
   micGranted = true;
@@ -211,7 +213,7 @@ async function runTurn(my, view, body, t0) {
   })();
 
   try {
-    await readEvents("/api/turn", body, (e) => {
+    await followTurn(body, () => my === turnId, (e) => {
       if (my !== turnId) return;
       if (e.type === "delta") view.stream(e.text);                       // live text on screen
       else if (e.type === "sentence") { if (speak && !e.silent) queue.push(ttsBuffer(e.text)); } // speak as soon as a sentence is complete
@@ -356,22 +358,60 @@ function play(buf) {
 
 function stopPlayback() { try { currentSource?.stop(); } catch {} currentSource = null; }
 
-// ---- server-sent events over POST ----
-// The server sends a heartbeat every 15 s; silence longer than this means the stream is dead
-// (server restarted, network dropped) and the turn ends with an error instead of loading forever.
+// ---- a turn's server-sent events ----
+// iOS cuts a backgrounded app's connections, but the turn keeps running on the server. So the app
+// counts the events it got and, when the stream breaks or the app comes back, reconnects to the
+// same turn from there (GET /api/turn/<id>?from=<n>). Nothing is lost or shown twice.
+// The server sends a heartbeat every 15 s; silence longer than this means the stream is dead.
 const STREAM_IDLE_MS = 45_000;
+let liveStream = null; // the turn stream being read; returning to the app restarts it
 
-async function readEvents(url, body, onEvent) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const foreground = () => new Promise((resolve) => {
+  if (document.visibilityState === "visible") return resolve();
+  const on = () => { if (document.visibilityState === "visible") { document.removeEventListener("visibilitychange", on); resolve(); } };
+  document.addEventListener("visibilitychange", on);
+});
+
+async function followTurn(body, isCurrent, onEvent) {
+  let id = null, got = 0, failures = 0;
+  const count = (e) => { got++; onEvent(e); };
+  for (;;) {
+    const before = got;
+    try {
+      if (id === null) {
+        await readEvents("/api/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }, count, (r) => (id = r.headers.get("X-Turn-Id")));
+      } else {
+        await readEvents(`/api/turn/${id}?from=${got}`, {}, count);
+      }
+      return; // the server closed the stream: the turn is over
+    } catch (e) {
+      // Not started, gone from the server (restarted), or replaced by a newer turn: give up.
+      if (!id || e.status === 404 || !isCurrent()) throw e;
+      failures = got > before ? 0 : failures + 1;
+      if (failures > 4) throw e;
+      diag("turn resume", { got, failures, err: String(e) });
+      await foreground();
+      if (failures > 1) await sleep(1000 * failures);
+      if (!isCurrent()) throw e;
+    }
+  }
+}
+
+async function readEvents(url, init, onEvent, onResponse) {
   const ctrl = new AbortController();
+  liveStream = ctrl;
   let idle;
   const arm = () => { clearTimeout(idle); idle = setTimeout(() => ctrl.abort(), STREAM_IDLE_MS); };
   arm();
   try {
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal });
-    if (!r.ok || !r.body) throw new Error("turn " + r.status);
+    const r = await fetch(url, { ...init, signal: ctrl.signal });
+    if (!r.ok || !r.body) throw Object.assign(new Error("turn " + r.status), { status: r.status });
+    onResponse?.(r);
     await readStream(r.body, onEvent, arm);
   } finally {
     clearTimeout(idle);
+    if (liveStream === ctrl) liveStream = null;
   }
 }
 
@@ -618,4 +658,7 @@ else if (demo) {
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);
   if (document.visibilityState === "hidden") { release(); resetAudio(); } // iOS will cut the mic anyway
+  // Back in the app: the turn stream may be dead without having errored yet. Restart it now; it
+  // resumes from the last event received (see followTurn).
+  else liveStream?.abort();
 });

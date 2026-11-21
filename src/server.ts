@@ -5,7 +5,8 @@ import { polish } from "./polish";
 import { modelOrder } from "./models";
 import { settings, THINKING, updateSettings, VOICES } from "./settings";
 import { synthesize, transcribe } from "./speech";
-import { applyThinking, modelChoices, newConversation, runTurn, startConversation, type TurnEvent } from "./turn";
+import { applyThinking, modelChoices, newConversation, runTurn, startConversation } from "./turn";
+import { findTurn, recordTurn, streamTurn } from "./replay";
 
 const web = join(import.meta.dir, "web");
 
@@ -31,6 +32,13 @@ Bun.serve({
         // App icon generated with Codex image generation (assets/icon/, see DESIGN.md)
         if (["/icon.png", "/apple-touch-icon.png", "/favicon.png"].includes(pathname)) {
           return new Response(Bun.file(join(web, pathname.slice(1))), { headers: { "Content-Type": "image/png" } });
+        }
+        // Resume a turn's events after the app lost the stream (see src/replay.ts).
+        const resume = /^\/api\/turn\/([\w-]+)$/.exec(pathname);
+        if (resume) {
+          const record = findTurn(resume[1]);
+          if (!record) return new Response("unknown turn", { status: 404 }); // server restarted, or too old
+          return streamTurn(resume[1], record, Number(new URL(req.url).searchParams.get("from")) || 0);
         }
         if (pathname === "/api/settings") {
           return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
@@ -78,33 +86,18 @@ Bun.serve({
         }
       }
 
-      // Server-sent events of TurnEvent, one JSON object per `data:` line.
+      // Server-sent events of TurnEvent, one JSON object per `data:` line. The turn runs to the end
+      // (and commits) even if the phone drops the stream; the app resumes it by id (X-Turn-Id).
       if (req.method === "POST" && pathname === "/api/turn") {
         const { text, raw } = await req.json();
-        // The phone may drop the connection mid-turn (app backgrounded). The turn still finishes and
-        // commits; writes to a closed stream are skipped instead of throwing (which killed the server).
-        let open = true, heartbeat: ReturnType<typeof setInterval> | undefined;
-        const stream = new ReadableStream({
-          async start(controller) {
-            const enc = new TextEncoder();
-            const send = (chunk: string) => {
-              if (!open) return;
-              try { controller.enqueue(enc.encode(chunk)); } catch { open = false; }
-            };
-            const emit = (e: TurnEvent) => send(`data: ${JSON.stringify(e)}\n\n`);
-            heartbeat = setInterval(() => send(": ping\n\n"), 15_000); // lets the client detect a dead stream
-            try {
-              await runTurn(String(text), emit, typeof raw === "string" ? raw : undefined);
-            } catch (err) {
-              console.error("turn error", err);
-              emit({ type: "error", message: "문제가 생겼어요. 다시 말해 주세요." });
-            }
-            clearInterval(heartbeat);
-            if (open) { open = false; try { controller.close(); } catch {} }
-          },
-          cancel() { open = false; clearInterval(heartbeat); },
-        });
-        return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" } });
+        const [id, record] = recordTurn();
+        runTurn(String(text), (e) => record.push(e), typeof raw === "string" ? raw : undefined)
+          .catch((err) => {
+            console.error("turn error", err);
+            record.push({ type: "error", message: "문제가 생겼어요. 다시 말해 주세요." });
+          })
+          .finally(() => record.finish());
+        return streamTurn(id, record, 0);
       }
 
       if (req.method === "POST" && pathname === "/api/log") {
