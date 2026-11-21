@@ -1,22 +1,20 @@
-// Kkachi voice UI. Tap once, then talk: listen → think → speak → listen again. See docs/design.md.
+// Kkachi voice UI. Push to talk: hold the screen while speaking, release to send. See docs/design.md.
 "use strict";
 
 // ---- tuning ----
 const TARGET_RATE = 16000;
-const END_SILENCE_MS = 800;
-const MIN_SPEECH_MS = 250;
-const MAX_UTTER_MS = 15000;
-const PREROLL_FRAMES = 4;
-const RESUME_DELAY_MS = 300;
+const MIN_HOLD_MS = 300;     // shorter presses are accidental taps
+const MAX_HOLD_MS = 60000;   // send automatically after a minute
+const PREROLL_FRAMES = 2;    // ~170 ms before the press, so the first syllable is not cut
+const READY_HINT = "누르고 있는 동안 말하세요";
 
 const DEBUG = new URLSearchParams(location.search).has("debug");
 const $ = (id) => document.getElementById(id);
 
 // ---- state ----
-let ctx, stream, frameMs = 0, wakeLock = null;
+let ctx, stream, frameMs = 0;
 let state = "idle";
-let noiseFloor = 0.003, calibFrames = 0;
-let inSpeech = false, speechFrames = [], preroll = [], silentMs = 0, speechMs = 0;
+let recording = false, recordFrames = [], preroll = [], pressedAt = 0, holdTimer = null;
 let turnId = 0, currentSource = null;
 
 if (DEBUG) document.body.classList.add("debug");
@@ -33,7 +31,7 @@ function diag(msg, data) {
 
 function setState(s, hint = "") {
   state = s; document.body.dataset.state = s; $("hint").textContent = hint;
-  if (s !== "listening") $("orb").style.transform = "";
+  if (s !== "recording") $("orb").style.transform = "";
   diag("state", { s });
 }
 
@@ -50,71 +48,72 @@ const earcon = {
 };
 
 
-// ---- start: must run inside the tap gesture (iOS needs it for audio output and mic) ----
-async function start() {
+// ---- audio setup: the first press is the user gesture iOS needs for mic and playback ----
+async function ensureAudio() {
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (navigator.audioSession) { try { navigator.audioSession.type = "play-and-record"; } catch {} }
-    earcon.start();
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-    } catch (e) {
-      setState("error", "마이크를 쓸 수 없어요. 설정에서 마이크를 허용해 주세요.");
-      return;
-    }
-    const track = stream.getAudioTracks()[0];
-    for (const ev of ["mute", "unmute", "ended"]) track.addEventListener(ev, () => diag("track " + ev));
-    const source = ctx.createMediaStreamSource(stream);
-    const proc = ctx.createScriptProcessor(4096, 1, 1);
-    frameMs = (4096 / ctx.sampleRate) * 1000;
-    const sink = ctx.createGain(); sink.gain.value = 0;
-    source.connect(proc); proc.connect(sink); sink.connect(ctx.destination);
-    proc.onaudioprocess = (e) => onFrame(new Float32Array(e.inputBuffer.getChannelData(0)));
     diag("env", { standalone: matchMedia("(display-mode: standalone)").matches || !!navigator.standalone, rate: ctx.sampleRate });
-  } else {
-    await ctx.resume();
-    earcon.start();
   }
-  keepScreenOn();
-  listen();
+  if (ctx.state !== "running") await ctx.resume();
+  // iOS drops the mic when the screen turns off or the app goes to the background; reopen it.
+  const track = stream?.getAudioTracks()[0];
+  if (track && track.readyState === "live" && !track.muted) return true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  } catch (e) {
+    diag("mic error", { err: String(e) });
+    setState("error", "마이크를 쓸 수 없어요. 설정에서 마이크를 허용해 주세요.");
+    return false;
+  }
+  const t = stream.getAudioTracks()[0];
+  for (const ev of ["mute", "unmute", "ended"]) t.addEventListener(ev, () => diag("track " + ev));
+  const source = ctx.createMediaStreamSource(stream);
+  const proc = ctx.createScriptProcessor(4096, 1, 1);
+  frameMs = (4096 / ctx.sampleRate) * 1000;
+  const sink = ctx.createGain(); sink.gain.value = 0;
+  source.connect(proc); proc.connect(sink); sink.connect(ctx.destination);
+  proc.onaudioprocess = (e) => onFrame(new Float32Array(e.inputBuffer.getChannelData(0)));
+  return true;
 }
 
-async function keepScreenOn() {
-  try { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => (wakeLock = null)); } } catch {}
-}
+function ready(hint = READY_HINT) { setState("idle", hint); }
 
-function goIdle() {
-  turnId++; stopPlayback();
-  wakeLock?.release().catch(() => {});
-  setState("idle", "탭해서 시작");
-}
-
-function listen() {
-  inSpeech = false; speechFrames = []; preroll = []; silentMs = 0; speechMs = 0;
-  setState("listening", "듣고 있어요 · 탭하면 쉬어요");
-}
-
-// ---- VAD: energy against a calibrated noise floor ----
+// ---- capture: keep a short pre-roll, record only while pressed ----
 function onFrame(f) {
-  if (state !== "listening") return;
-  let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
-  const rms = Math.sqrt(sum / f.length);
-  if (calibFrames < 12) { noiseFloor = calibFrames === 0 ? rms : noiseFloor * 0.8 + rms * 0.2; calibFrames++; return; }
-  const th = Math.max(noiseFloor * 3, 0.012);
-  $("orb").style.transform = `scale(${1 + Math.min(rms / th, 4) * 0.08})`;
-
-  if (!inSpeech) {
+  if (!recording) {
     preroll.push(f); if (preroll.length > PREROLL_FRAMES) preroll.shift();
-    if (rms > th) { inSpeech = true; speechFrames = [...preroll]; speechMs = 0; silentMs = 0; }
-    else noiseFloor = noiseFloor * 0.95 + rms * 0.05;
     return;
   }
-  speechFrames.push(f); speechMs += frameMs;
-  silentMs = rms > th ? 0 : silentMs + frameMs;
-  if (silentMs >= END_SILENCE_MS || speechMs >= MAX_UTTER_MS) {
-    if (speechMs - silentMs < MIN_SPEECH_MS) { listen(); return; }
-    handleUtterance(speechFrames);
-  }
+  recordFrames.push(f);
+  let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
+  $("orb").style.transform = `scale(${1 + Math.min(Math.sqrt(sum / f.length) / 0.03, 4) * 0.08})`;
+}
+
+async function press() {
+  if (recording) return;
+  turnId++; stopPlayback(); // talking over Kkachi interrupts it
+  pressedAt = performance.now();
+  recording = true;
+  recordFrames = [];
+  const first = !ctx;
+  if (!(await ensureAudio())) { recording = false; return; }
+  if (first) { recording = false; ready("마이크 준비됐어요. 누른 채로 말하세요"); return; } // permission prompt ate this press
+  if (!recording) { ready(); return; } // released while the mic was reopening
+  recordFrames = [...preroll];
+  earcon.start();
+  setState("recording", "듣고 있어요 · 손을 떼면 보내요");
+  clearTimeout(holdTimer);
+  holdTimer = setTimeout(release, MAX_HOLD_MS);
+}
+
+function release() {
+  if (!recording) return;
+  recording = false;
+  clearTimeout(holdTimer);
+  if (state !== "recording") return;
+  if (performance.now() - pressedAt < MIN_HOLD_MS) { ready(); return; }
+  handleUtterance(recordFrames);
 }
 
 // ---- one turn ----
@@ -133,7 +132,7 @@ async function handleUtterance(frames) {
     return turnError(my, "잘 못 들었어요. 다시 말해 주세요.", e);
   }
   if (my !== turnId) return;
-  if (!text) { listen(); return; }
+  if (!text) { ready("잘 못 들었어요. 다시 눌러 말해 주세요"); return; }
   $("heard").textContent = `“${text}”`;
   $("reply").textContent = ""; $("chips").replaceChildren();
   diag("stt", { text, ms: Math.round(performance.now() - t0) });
@@ -152,7 +151,7 @@ async function handleUtterance(frames) {
         if (my !== turnId) return;
         if (!buf) continue;
         if (!firstSound) { firstSound = performance.now(); diag("first sound", { ms: Math.round(firstSound - t0) }); }
-        setState("speaking", "탭하면 멈춰요");
+        setState("speaking", "누르면 멈추고 다시 들어요");
         await play(buf);
       } else if (streamDone) return;
       else await new Promise((r) => setTimeout(r, 40));
@@ -178,8 +177,7 @@ async function handleUtterance(frames) {
   streamDone = true;
   await player;
   if (my !== turnId) return;
-  if (end) return goIdle();
-  setTimeout(() => { if (my === turnId) listen(); }, RESUME_DELAY_MS);
+  ready(end ? "필요하면 다시 눌러 말을 걸어주세요" : READY_HINT);
 }
 
 async function turnError(my, message, err) {
@@ -189,7 +187,7 @@ async function turnError(my, message, err) {
   earcon.error();
   const buf = await ttsBuffer(message);
   if (buf && my === turnId) await play(buf);
-  if (my === turnId) setTimeout(listen, 600);
+  if (my === turnId) ready();
 }
 
 function showChips(sources, changed) {
@@ -262,13 +260,12 @@ function encodeWav(frames, inRate, outRate) {
   return new Blob([buf], { type: "audio/wav" });
 }
 
-// ---- input: tap to start; tap while listening rests; tap while thinking/speaking interrupts ----
-$("stage").addEventListener("click", () => {
-  if (state === "idle" || state === "error") start();
-  else if (state === "listening") goIdle();
-  else if (state === "speaking" || state === "thinking") { turnId++; stopPlayback(); listen(); }
-});
+// ---- input: press and hold anywhere to talk ----
+const stage = $("stage");
+stage.addEventListener("pointerdown", (e) => { e.preventDefault(); stage.setPointerCapture?.(e.pointerId); press(); });
+for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) stage.addEventListener(ev, release);
+stage.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-press menu
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);
-  if (document.visibilityState === "visible" && state !== "idle") keepScreenOn();
+  if (document.visibilityState === "hidden") release();
 });
