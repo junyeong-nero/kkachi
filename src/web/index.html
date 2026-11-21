@@ -86,13 +86,13 @@
     scrollbar-width: thin; scrollbar-color: var(--line) transparent;
   }
   .turn { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 640px; margin: 0 auto; }
-  /* chat bubbles: yours dark on the right, Kkachi's light on the left */
+  /* chat bubbles: yours a light gray fill on the right, Kkachi's outlined on the left */
   .you, .kkachi {
     max-width: 85%; padding: 10px 14px; font-size: var(--t-base); line-height: 1.55;
     word-break: keep-all; overflow-wrap: anywhere;
   }
-  .you { align-self: flex-end; background: var(--text); color: var(--bg); border-radius: var(--r-md) var(--r-md) 4px var(--r-md); }
-  .kkachi { align-self: flex-start; background: var(--surface); border-radius: var(--r-md) var(--r-md) var(--r-md) 4px; }
+  .you { align-self: flex-end; background: var(--surface); color: var(--text); border-radius: var(--r-md) var(--r-md) 4px var(--r-md); }
+  .kkachi { align-self: flex-start; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) var(--r-md) 4px; }
   .kkachi[hidden] { display: none; }
   .kkachi .live { white-space: pre-wrap; }
   .kkachi .live:empty { display: none; }
@@ -104,7 +104,7 @@
   .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
   @keyframes dot { 30% { opacity: 1; transform: translateY(-2px); } 60%, 100% { opacity: .3; transform: none; } }
   .you.pending { padding: 13px 16px; }
-  .you.pending .dots { opacity: .8; }
+  .you.pending .dots { color: var(--muted); }
   .working { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--t-sm); min-height: 1.55em; }
   .working[hidden] { display: none; }
   .working .dots { color: var(--accent); }

@@ -14,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 // ---- state ----
 let ctx, stream, frameMs = 0;
 let state = "idle";
-let recording = false, recordFrames = [], preroll = [], pressedAt = 0, holdTimer = null;
+let recording = false, recordFrames = [], preroll = [], prerollCount = 0, pressedAt = 0, holdTimer = null;
 let turnId = 0, currentSource = null;
 
 if (DEBUG) document.body.classList.add("debug");
@@ -37,6 +37,7 @@ function setState(s, hint = "") {
 
 // ---- sounds ----
 function tone(freq, ms, vol = 0.12) {
+  if (!ctx) return;
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.frequency.value = freq; g.gain.setValueAtTime(vol, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + ms / 1000);
   o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + ms / 1000);
@@ -57,14 +58,24 @@ function audioOut() {
   if (ctx.state !== "running") ctx.resume();
 }
 
+// iOS stops the mic and leaves the AudioContext "interrupted" when the app is backgrounded or the
+// screen locks. Reusing either records silence, so tear both down and rebuild on the next press.
+function resetAudio() {
+  try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
+  try { ctx?.close(); } catch {}
+  stream = null; ctx = null; preroll = []; currentSource = null;
+}
+
+let micGranted = false; // after the first grant, a rebuilt mic records on the same press
+
 async function ensureAudio() {
+  if (ctx && ctx.state !== "running") { try { await ctx.resume(); } catch {} }
+  if (ctx && ctx.state !== "running") resetAudio(); // could not wake it: start over
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (navigator.audioSession) { try { navigator.audioSession.type = "play-and-record"; } catch {} }
-    diag("env", { standalone: matchMedia("(display-mode: standalone)").matches || !!navigator.standalone, rate: ctx.sampleRate });
+    diag("env", { standalone: matchMedia("(display-mode: standalone)").matches || !!navigator.standalone, rate: ctx.sampleRate, state: ctx.state });
   }
-  if (ctx.state !== "running") await ctx.resume();
-  // iOS drops the mic when the screen turns off or the app goes to the background; reopen it.
   const track = stream?.getAudioTracks()[0];
   if (track && track.readyState === "live" && !track.muted) return true;
   try {
@@ -75,8 +86,10 @@ async function ensureAudio() {
     setState("error", "마이크를 쓸 수 없어요. 설정에서 마이크를 허용해 주세요.");
     return false;
   }
+  micGranted = true;
   const t = stream.getAudioTracks()[0];
   for (const ev of ["mute", "unmute", "ended"]) t.addEventListener(ev, () => diag("track " + ev));
+  t.addEventListener("ended", () => { if (stream?.getAudioTracks()[0] === t) resetAudio(); });
   const source = ctx.createMediaStreamSource(stream);
   const proc = ctx.createScriptProcessor(4096, 1, 1);
   frameMs = (4096 / ctx.sampleRate) * 1000;
@@ -105,11 +118,12 @@ async function press() {
   pressedAt = performance.now();
   recording = true;
   recordFrames = [];
-  const first = !stream;
+  const firstGrant = !micGranted;
   if (!(await ensureAudio())) { recording = false; return; }
-  if (first) { recording = false; ready("마이크 준비됐어요. 누른 채로 말하세요"); return; } // permission prompt ate this press
+  if (firstGrant) { recording = false; ready("마이크 준비됐어요. 누른 채로 말하세요"); return; } // the permission prompt ate this press
   if (!recording) { ready(); return; } // released while the mic was reopening
   recordFrames = [...preroll];
+  prerollCount = recordFrames.length;
   earcon.start();
   setState("recording", "듣고 있어요 · 손을 떼면 보내요");
   clearTimeout(holdTimer);
@@ -122,6 +136,13 @@ function release() {
   clearTimeout(holdTimer);
   if (state !== "recording") return;
   if (performance.now() - pressedAt < MIN_HOLD_MS) { ready(); return; }
+  // No new audio while held: the audio pipeline is dead (iOS interruption). Do not send silence.
+  if (recordFrames.length - prerollCount < 2) {
+    diag("no audio while held", { frames: recordFrames.length, ctx: ctx?.state });
+    resetAudio();
+    ready("마이크를 다시 연결했어요. 다시 눌러 말해 주세요");
+    return;
+  }
   handleUtterance(recordFrames);
 }
 
@@ -281,11 +302,14 @@ async function ttsBuffer(text) {
   try {
     const r = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
     if (!r.ok) throw new Error("tts " + r.status);
-    return await ctx.decodeAudioData(await r.arrayBuffer());
+    const data = await r.arrayBuffer();
+    if (!ctx) return null; // audio was torn down (app backgrounded): keep the text, skip the sound
+    return await ctx.decodeAudioData(data);
   } catch (e) { diag("tts error", { err: String(e) }); return null; }
 }
 
 function play(buf) {
+  if (!ctx) return Promise.resolve();
   return new Promise((resolve) => {
     const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
     src.onended = () => { if (currentSource === src) currentSource = null; resolve(); };
@@ -502,5 +526,5 @@ else if (demo) {
 
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);
-  if (document.visibilityState === "hidden") release();
+  if (document.visibilityState === "hidden") { release(); resetAudio(); } // iOS will cut the mic anyway
 });
