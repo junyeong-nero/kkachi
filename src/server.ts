@@ -33,13 +33,6 @@ Bun.serve({
         if (["/icon.png", "/apple-touch-icon.png", "/favicon.png"].includes(pathname)) {
           return new Response(Bun.file(join(web, pathname.slice(1))), { headers: { "Content-Type": "image/png" } });
         }
-        // Resume a turn's events after the app lost the stream (see src/replay.ts).
-        const resume = /^\/api\/turn\/([\w-]+)$/.exec(pathname);
-        if (resume) {
-          const record = findTurn(resume[1]);
-          if (!record) return new Response("unknown turn", { status: 404 }); // server restarted, or too old
-          return streamTurn(resume[1], record, Number(new URL(req.url).searchParams.get("from")) || 0);
-        }
         if (pathname === "/api/settings") {
           return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
         }
@@ -87,17 +80,24 @@ Bun.serve({
       }
 
       // Server-sent events of TurnEvent, one JSON object per `data:` line. The turn runs to the end
-      // (and commits) even if the phone drops the stream; the app resumes it by id (X-Turn-Id).
+      // (and commits) even if the phone drops the stream. The app names the turn (id) and posts again
+      // with the same id to continue from the events it already has (see src/replay.ts).
       if (req.method === "POST" && pathname === "/api/turn") {
-        const { text } = await req.json();
-        const [id, record] = recordTurn();
+        const { text, from, id = crypto.randomUUID() } = await req.json(); // no id: an app page loaded before ids
+        if (typeof id !== "string" || !/^[\w-]{8,64}$/.test(id)) return new Response("bad turn id", { status: 400 });
+        const known = findTurn(id);
+        if (known) return streamTurn(known, Number(from) || 0);
+        // A continuation of a turn this server does not have (restarted mid-turn, or too old): do
+        // not run it again under the app's half-shown reply.
+        if (Number(from) > 0) return new Response("unknown turn", { status: 410 });
+        const record = recordTurn(id);
         runTurn(String(text), (e) => record.push(e))
           .catch((err) => {
             console.error("turn error", err);
             record.push({ type: "error", message: "문제가 생겼어요. 다시 말해 주세요." });
           })
           .finally(() => record.finish());
-        return streamTurn(id, record, 0);
+        return streamTurn(record, 0);
       }
 
       if (req.method === "POST" && pathname === "/api/log") {

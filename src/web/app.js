@@ -355,8 +355,10 @@ function stopPlayback() { try { currentSource?.stop(); } catch {} currentSource 
 
 // ---- a turn's server-sent events ----
 // iOS cuts a backgrounded app's connections, but the turn keeps running on the server. So the app
-// counts the events it got and, when the stream breaks or the app comes back, reconnects to the
-// same turn from there (GET /api/turn/<id>?from=<n>). Nothing is lost or shown twice.
+// names each turn itself and counts the events it got; when the stream breaks or the app comes back,
+// it posts the same id again with that count and the server continues from there. Because the id
+// is the app's own, this works even when the first response never arrived (backgrounded right after
+// sending). Nothing is lost, shown twice, or run twice.
 // The server sends a heartbeat every 15 s; silence longer than this means the stream is dead.
 const STREAM_IDLE_MS = 45_000;
 let liveStream = null; // the turn stream being read; returning to the app restarts it
@@ -368,21 +370,21 @@ const foreground = () => new Promise((resolve) => {
   document.addEventListener("visibilitychange", on);
 });
 
+const newId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
 async function followTurn(body, isCurrent, onEvent) {
-  let id = null, got = 0, failures = 0;
+  const id = newId();
+  let got = 0, failures = 0;
   const count = (e) => { got++; onEvent(e); };
   for (;;) {
     const before = got;
     try {
-      if (id === null) {
-        await readEvents("/api/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }, count, (r) => (id = r.headers.get("X-Turn-Id")));
-      } else {
-        await readEvents(`/api/turn/${id}?from=${got}`, {}, count);
-      }
+      const payload = JSON.stringify({ ...body, id, from: got });
+      await readEvents("/api/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: payload }, count);
       return; // the server closed the stream: the turn is over
     } catch (e) {
-      // Not started, gone from the server (restarted), or replaced by a newer turn: give up.
-      if (!id || e.status === 404 || !isCurrent()) throw e;
+      // Refused (bad request, or the server lost the turn: restarted) or replaced by a newer turn: give up.
+      if ((e.status >= 400 && e.status < 500) || !isCurrent()) throw e;
       failures = got > before ? 0 : failures + 1;
       if (failures > 4) throw e;
       diag("turn resume", { got, failures, err: String(e) });
@@ -393,7 +395,7 @@ async function followTurn(body, isCurrent, onEvent) {
   }
 }
 
-async function readEvents(url, init, onEvent, onResponse) {
+async function readEvents(url, init, onEvent) {
   const ctrl = new AbortController();
   liveStream = ctrl;
   let idle;
@@ -402,7 +404,6 @@ async function readEvents(url, init, onEvent, onResponse) {
   try {
     const r = await fetch(url, { ...init, signal: ctrl.signal });
     if (!r.ok || !r.body) throw Object.assign(new Error("turn " + r.status), { status: r.status });
-    onResponse?.(r);
     await readStream(r.body, onEvent, arm);
   } finally {
     clearTimeout(idle);

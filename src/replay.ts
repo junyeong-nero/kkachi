@@ -1,6 +1,7 @@
 // A turn outlives its HTTP stream: iOS cuts a backgrounded app's connections while the turn keeps
-// running here. Each turn's events are kept so the app can pick up where it left off
-// (GET /api/turn/<id>?from=<events already received>).
+// running here. Each turn's events are kept under an id the app makes up, so the app can pick up
+// where it left off (POST /api/turn again with the same id and the number of events it has) even
+// when the first response never reached it.
 import type { TurnEvent } from "./turn";
 
 const KEEP = 20; // recent turns kept in memory
@@ -19,18 +20,17 @@ export class TurnRecord {
 
 const turns = new Map<string, TurnRecord>();
 
-export function recordTurn(): [string, TurnRecord] {
-  const id = crypto.randomUUID();
+export function recordTurn(id: string): TurnRecord {
   const record = new TurnRecord();
   turns.set(id, record);
   for (const old of turns.keys()) { if (turns.size <= KEEP) break; turns.delete(old); } // oldest first
-  return [id, record];
+  return record;
 }
 
 export const findTurn = (id: string) => turns.get(id);
 
 /** Server-sent events of a turn from event `from` on, following it live until it finishes. */
-export function streamTurn(id: string, record: TurnRecord, from: number): Response {
+export function streamTurn(record: TurnRecord, from: number): Response {
   let open = true, heartbeat: ReturnType<typeof setInterval> | undefined;
   const stream = new ReadableStream({
     async start(controller) {
@@ -51,5 +51,5 @@ export function streamTurn(id: string, record: TurnRecord, from: number): Respon
     },
     cancel() { open = false; clearInterval(heartbeat); },
   });
-  return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Turn-Id": id } });
+  return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" } });
 }
