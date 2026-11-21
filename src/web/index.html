@@ -152,6 +152,9 @@
 
   /* composer: one text box for typing and dictation (the mic drops words into it to check first) */
   #dock { width: 100%; max-width: 640px; margin: 0 auto; padding: 8px 16px calc(12px + env(safe-area-inset-bottom)); }
+  /* typing: the on-screen keyboard covers the home-indicator area, but iOS keeps the safe-area inset,
+     which left a ~46pt gap between the text box and the keyboard */
+  #dock:focus-within { padding-bottom: 8px; }
   #status { font-size: var(--t-sm); color: var(--muted); text-align: center; margin: 0 0 8px; line-height: 1.4; }
   #status:empty { display: none; }
   body[data-state=recording] #status { color: var(--accent); font-weight: 600; }
