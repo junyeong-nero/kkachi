@@ -31,7 +31,7 @@ function diag(msg, data) {
 
 function setState(s, hint = "") {
   state = s; document.body.dataset.state = s; $("hint").textContent = hint;
-  if (s !== "recording") $("orb").style.transform = "";
+  if (s !== "recording") $("bird").style.setProperty("--level", "0");
   diag("state", { s });
 }
 
@@ -49,6 +49,14 @@ const earcon = {
 
 
 // ---- audio setup: the first press is the user gesture iOS needs for mic and playback ----
+function audioOut() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (navigator.audioSession) { try { navigator.audioSession.type = "play-and-record"; } catch {} }
+  }
+  if (ctx.state !== "running") ctx.resume();
+}
+
 async function ensureAudio() {
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -87,7 +95,7 @@ function onFrame(f) {
   }
   recordFrames.push(f);
   let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
-  $("orb").style.transform = `scale(${1 + Math.min(Math.sqrt(sum / f.length) / 0.03, 4) * 0.08})`;
+  $("bird").style.setProperty("--level", Math.min(Math.sqrt(sum / f.length) / 0.08, 1).toFixed(2));
 }
 
 async function press() {
@@ -96,7 +104,7 @@ async function press() {
   pressedAt = performance.now();
   recording = true;
   recordFrames = [];
-  const first = !ctx;
+  const first = !stream;
   if (!(await ensureAudio())) { recording = false; return; }
   if (first) { recording = false; ready("마이크 준비됐어요. 누른 채로 말하세요"); return; } // permission prompt ate this press
   if (!recording) { ready(); return; } // released while the mic was reopening
@@ -168,7 +176,7 @@ async function handleUtterance(frames) {
         if (state === "thinking") $("hint").textContent = writing ? "기억하는 중…" : "찾는 중…";
       }
       else if (e.type === "end") end = true;
-      else if (e.type === "done") showChips(e.sources, e.changed);
+      else if (e.type === "done") showChips(e.sources, e.changed, e.titles);
       else if (e.type === "error") { say(e.message); earcon.error(); }
     });
   } catch (e) {
@@ -191,11 +199,14 @@ async function turnError(my, message, err) {
   if (my === turnId) ready();
 }
 
-function showChips(sources, changed) {
+// Notes used for the answer; remembered ones (changed this turn) are highlighted.
+function showChips(sources, changed, titles = {}) {
   const chips = sources.map((p) => {
     const el = document.createElement("span");
-    el.className = "chip" + (changed.includes(p) ? " changed" : "");
-    el.textContent = (changed.includes(p) ? "✎ " : "📄 ") + p.replace(/\/index\.md$|\.md$/, "");
+    const remembered = changed.includes(p);
+    el.className = "chip" + (remembered ? " changed" : "");
+    const name = titles[p] ?? p.replace(/\/index\.md$|\.md$/, "").split("/").pop();
+    el.textContent = remembered ? `기억함: ${name}` : name;
     return el;
   });
   $("chips").replaceChildren(...chips);
@@ -261,11 +272,116 @@ function encodeWav(frames, inRate, outRate) {
   return new Blob([buf], { type: "audio/wav" });
 }
 
+// ---- top bar: refresh (a home-screen web app has no reload button) and settings ----
+$("refresh").addEventListener("click", () => location.reload());
+
+function toast(text) {
+  const el = $("toast");
+  el.textContent = text; el.classList.add("show");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 1800);
+}
+
+let saved = null;
+async function saveSettings(patch) {
+  const r = await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+  if (r.ok) { saved = (await r.json()).settings; toast("저장했어요"); } else toast("저장하지 못했어요");
+}
+
+const rateLabel = (v) => (v === 0 ? "보통" : `${v > 0 ? "+" : ""}${v}%`);
+const providerLabel = { openai: "OpenAI", anthropic: "Anthropic", "claude-pro-max-native": "Claude (구독)", openrouter: "OpenRouter 무료" };
+
+async function openSettings() {
+  const dlg = $("settings");
+  dlg.showModal();
+  const r = await fetch("/api/settings");
+  if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
+  const { settings: s, voices, thinking, models, fallbacks } = await r.json();
+  saved = s;
+
+  $("voices").replaceChildren(...voices.map((v) => {
+    const row = document.createElement("label");
+    row.className = "voice";
+    row.innerHTML = `<input type="radio" name="voice" value="${v.id}"><span><span class="name"></span><span class="sub"></span></span><button type="button" class="play">들어보기</button>`;
+    row.querySelector(".name").textContent = v.name;
+    row.querySelector(".sub").textContent = v.note;
+    const input = row.querySelector("input");
+    input.checked = v.id === s.voice;
+    input.addEventListener("change", () => saveSettings({ voice: v.id }));
+    row.querySelector(".play").addEventListener("click", (e) => { e.preventDefault(); preview(v.id); });
+    return row;
+  }));
+
+  const rate = $("rate");
+  rate.value = s.rate; $("rate-out").textContent = rateLabel(s.rate);
+  rate.oninput = () => ($("rate-out").textContent = rateLabel(Number(rate.value)));
+  rate.onchange = () => saveSettings({ rate: Number(rate.value) });
+
+  $("thinking").replaceChildren(...thinking.map((t) => {
+    const l = document.createElement("label");
+    l.innerHTML = `<input type="radio" name="thinking" value="${t.id}">`;
+    l.append(t.name);
+    const input = l.querySelector("input");
+    input.checked = t.id === s.thinking;
+    input.addEventListener("change", () => saveSettings({ thinking: t.id }));
+    return l;
+  }));
+
+  const select = $("model");
+  const groups = new Map();
+  for (const m of models) {
+    if (!groups.has(m.provider)) {
+      const g = document.createElement("optgroup");
+      g.label = providerLabel[m.provider] ?? m.provider;
+      groups.set(m.provider, g);
+    }
+    const o = new Option(m.name, m.id, false, m.id === s.model);
+    groups.get(m.provider).append(o);
+  }
+  select.replaceChildren(...groups.values());
+  select.onchange = () => saveSettings({ model: select.value });
+  const others = fallbacks.filter((m) => m !== s.model);
+  $("fallbacks").textContent = others.length ? `이 모델이 막히면 ${others.map((m) => m.split("/").pop()).join(", ")} 순서로 넘어가요.` : "";
+}
+
+async function preview(voice) {
+  audioOut();
+  stopPlayback();
+  try {
+    const r = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "안녕하세요, 까치예요. 오늘도 반가운 소식 전해 드릴게요.", voice, rate: Number($("rate").value) }) });
+    if (!r.ok) throw new Error("tts " + r.status);
+    play(await ctx.decodeAudioData(await r.arrayBuffer()));
+  } catch (e) { toast("목소리를 불러오지 못했어요"); }
+}
+
+$("open-settings").addEventListener("click", openSettings);
+$("new-conversation").addEventListener("click", async () => {
+  const r = await fetch("/api/new-conversation", { method: "POST" });
+  if (!r.ok) { toast("새 대화를 시작하지 못했어요"); return; }
+  turnId++; stopPlayback();
+  $("heard").textContent = ""; $("reply").textContent = ""; $("chips").replaceChildren();
+  $("settings").close();
+  ready();
+  toast("새 대화를 시작했어요");
+});
+
 // ---- input: press and hold anywhere to talk ----
 const stage = $("stage");
 stage.addEventListener("pointerdown", (e) => { e.preventDefault(); stage.setPointerCapture?.(e.pointerId); press(); });
 for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) stage.addEventListener(ev, release);
 stage.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-press menu
+// ?demo=<state> renders a sample screen for design review (no audio, no requests).
+const demo = new URLSearchParams(location.search).get("demo");
+if (demo === "settings") openSettings();
+else if (demo) {
+  setState(demo, demo === "recording" ? "듣고 있어요 · 손을 떼면 보내요" : "누르면 멈추고 다시 들어요");
+  $("bird").style.setProperty("--level", "0.7");
+  if (demo === "speaking") {
+    $("heard").textContent = "“친구 결혼식 언제였지?”";
+    $("reply").textContent = "다다음 주 금요일, 12월 4일이에요. 축가는 성시경의 「거리에서」예요.";
+    showChips(["a.md", "b.md"], ["b.md"], { "a.md": "친구 결혼식 축가", "b.md": "건강" });
+  }
+}
+
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);
   if (document.visibilityState === "hidden") release();

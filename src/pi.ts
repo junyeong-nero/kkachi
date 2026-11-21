@@ -3,6 +3,7 @@
 // own extension (pi/kkachi.ts) and system prompt. Every Pi command Kkachi uses lives in this file.
 import { join } from "node:path";
 import { config } from "./config";
+import { settings } from "./settings";
 
 export type PiEvent = { type: string; [k: string]: any };
 
@@ -50,7 +51,7 @@ export class Pi {
 
   // Spoken turns need speed more than depth. Ignored by models without reasoning levels.
   setThinking() {
-    return this.command({ type: "set_thinking_level", level: config.thinking }).catch(() => {});
+    return this.command({ type: "set_thinking_level", level: settings().thinking }).catch(() => {});
   }
 
   private async readStdout() {
@@ -137,6 +138,10 @@ export class Pi {
   newSession() { return this.command({ type: "new_session" }); }
 
   abort() { return this.command({ type: "abort" }).catch(() => {}); }
+
+  async availableModels(): Promise<{ provider: string; id: string; name?: string }[]> {
+    return (await this.command({ type: "get_available_models" }))?.models ?? [];
+  }
 
   stop() {
     try { (this.proc.stdin as import("bun").FileSink).end(); } catch {}

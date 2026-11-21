@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { config } from "./config";
+import { settings } from "./settings";
 import { sttHint } from "./vocabulary";
 
 const auth = (key: string): Record<string, string> => (key ? { Authorization: `Bearer ${key}` } : {});
@@ -25,14 +26,16 @@ export async function transcribe(audio: Blob): Promise<string> {
   return isHallucination(text) ? "" : text;
 }
 
-export async function synthesize(text: string): Promise<{ audio: ArrayBuffer; type: string }> {
-  return config.tts.provider === "edge" ? edgeTts(text) : openaiTts(text);
+/** voice/rate override the saved settings (used for previews in the settings sheet). */
+export async function synthesize(text: string, voice = settings().voice, rate = settings().rate): Promise<{ audio: ArrayBuffer; type: string }> {
+  return config.tts.provider === "edge" ? edgeTts(text, voice, rate) : openaiTts(text);
 }
 
 // Edge TTS via the edge-tts CLI (`uv tool install edge-tts`). Free but unofficial.
-async function edgeTts(text: string) {
+async function edgeTts(text: string, voice: string, rate: number) {
   const out = join(tmpdir(), `kkachi-tts-${crypto.randomUUID()}.mp3`);
-  const p = Bun.spawn(["edge-tts", "--voice", config.tts.voice, "--text", text, "--write-media", out], { stderr: "pipe" });
+  const rateArg = `--rate=${rate >= 0 ? "+" : ""}${rate}%`; // "=" form: argparse rejects a bare "-10%"
+  const p = Bun.spawn(["edge-tts", "--voice", voice, rateArg, "--text", text, "--write-media", out], { stderr: "pipe" });
   if ((await p.exited) !== 0) throw new Error(`edge-tts: ${await new Response(p.stderr).text()}`);
   const file = Bun.file(out);
   const audio = await file.arrayBuffer();

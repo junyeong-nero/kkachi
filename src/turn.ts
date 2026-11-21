@@ -1,17 +1,20 @@
 // One conversational turn: sync notes, prompt Pi, stream speakable sentences, collect sources,
 // commit and push. There are no fixed voice commands: the agent decides, using pi/kkachi.ts tools.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { config } from "./config";
 import { log } from "./log";
 import { commitTurn, filesIn, pull, pushIfAhead, stashLeftovers } from "./git";
 import { cancelTidy, scheduleTidy } from "./librarian";
-import { currentModel, isLimitError, markLimited } from "./models";
+import { currentModel, isLimitError, markLimited, modelOrder } from "./models";
+import { authedProviders, settings } from "./settings";
 import { Pi, type PiEvent } from "./pi";
 
 export type TurnEvent =
   | { type: "sentence"; text: string; silent?: boolean } // silent: shown on screen, not spoken
   | { type: "activity"; tool: string; path?: string }
   | { type: "end"; reason: "done" | "handoff" } // stop listening after speaking
-  | { type: "done"; sources: string[]; changed: string[]; commit: string | null }
+  | { type: "done"; sources: string[]; changed: string[]; titles: Record<string, string>; commit: string | null }
   | { type: "error"; message: string };
 
 let currentTurn: Promise<void> | null = null;
@@ -32,6 +35,32 @@ async function conversation(): Promise<Pi> {
   const model = currentModel();
   if (model !== agentModel) { await agent.setModel(model); agentModel = model; }
   return agent;
+}
+
+// ---- settings sheet hooks ----
+export async function applyThinking() { await agent?.setThinking(); }
+
+/** Start a fresh Pi session (the memory repo is untouched). */
+export async function newConversation() {
+  if (currentTurn) await agent?.abort();
+  await queue;
+  await (await conversation()).newSession();
+}
+
+/** Models the user can pick: providers they are signed in to; OpenRouter only its free models. */
+export async function modelChoices(): Promise<{ id: string; provider: string; name: string }[]> {
+  const authed = authedProviders();
+  const all = await (await conversation()).availableModels();
+  const list = all
+    .filter((m) => authed.has(m.provider))
+    .filter((m) => m.provider !== "openrouter" || m.id.endsWith(":free"))
+    .filter((m) => !/-\d{8}$/.test(m.id)) // dated snapshots duplicate their alias
+    .map((m) => ({ id: `${m.provider}/${m.id}`, provider: m.provider, name: m.name ?? m.id }));
+  if (!list.some((m) => m.id === settings().model)) {
+    const [provider, ...rest] = settings().model.split("/");
+    list.unshift({ id: settings().model, provider, name: rest.join("/") });
+  }
+  return list;
 }
 
 // Pi's default prompt (which carries the date) is replaced, so every prompt states the local time.
@@ -72,6 +101,17 @@ function relPath(p: string): string {
   return clean;
 }
 
+function noteTitles(paths: string[]): Record<string, string> {
+  const titles: Record<string, string> = {};
+  for (const p of paths) {
+    try {
+      const h1 = readFileSync(join(config.memoryDir, p), "utf8").match(/^# (.+)$/m)?.[1]?.trim();
+      if (h1) titles[p] = h1;
+    } catch {} // deleted or moved in this turn
+  }
+  return titles;
+}
+
 // A note shown as a source: a Markdown file inside the memory repo, not the rules or catalog.
 const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && !rel.startsWith("..") && rel !== "AGENTS.md" && rel !== "README.md" && rel !== "vocabulary.md";
 
@@ -102,7 +142,7 @@ async function doTurn(text: string, emit: (e: TurnEvent) => void, raw?: string) 
     const pi = await conversation();
     const limited = await streamTurn(pi, `[지금: ${now()}]\n${heard}`, text, emit);
     if (!limited) break;
-    if (!markLimited(agentModel, limited) || attempt + 1 >= config.models.length) {
+    if (!markLimited(agentModel, limited) || attempt + 1 >= modelOrder().length) {
       emit({ type: "error", message: "지금 모델들이 모두 바빠요. 잠시 뒤에 다시 말해 주세요." });
       break;
     }
@@ -183,7 +223,7 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
     console.error("commit/push failed", err);
     emit({ type: "sentence", text: "기억은 해두었는데 GitHub 에 올리지는 못했어요." });
   }
-  emit({ type: "done", sources: [...sources], changed: [...changed], commit });
+  emit({ type: "done", sources: [...sources], changed: [...changed], titles: noteTitles([...sources]), commit });
   if (end) emit({ type: "end", reason: end });
   if (end || tidyRequested) scheduleTidy();
   return null;

@@ -2,8 +2,10 @@ import { join } from "node:path";
 import { config } from "./config";
 import { log } from "./log";
 import { polish } from "./polish";
+import { modelOrder } from "./models";
+import { settings, THINKING, updateSettings, VOICES } from "./settings";
 import { synthesize, transcribe } from "./speech";
-import { runTurn, startConversation, type TurnEvent } from "./turn";
+import { applyThinking, modelChoices, newConversation, runTurn, startConversation, type TurnEvent } from "./turn";
 
 const web = join(import.meta.dir, "web");
 
@@ -17,9 +19,29 @@ Bun.serve({
     const { pathname } = new URL(req.url);
     try {
       if (req.method === "GET") {
-        if (pathname === "/") return new Response(Bun.file(join(web, "index.html")));
-        if (pathname === "/manifest.webmanifest") return new Response(Bun.file(join(web, "manifest.webmanifest")), { headers: { "Content-Type": "application/manifest+json" } });
-        if (pathname === "/app.js") return new Response(Bun.file(join(web, "app.js")), { headers: { "Content-Type": "text/javascript" } });
+        // no-cache: a home-screen web app otherwise keeps serving an old version after updates
+        const noCache = { "Cache-Control": "no-cache" };
+        if (pathname === "/") return new Response(Bun.file(join(web, "index.html")), { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
+        if (pathname === "/manifest.webmanifest") return new Response(Bun.file(join(web, "manifest.webmanifest")), { headers: { ...noCache, "Content-Type": "application/manifest+json" } });
+        if (pathname === "/app.js") return new Response(Bun.file(join(web, "app.js")), { headers: { ...noCache, "Content-Type": "text/javascript" } });
+        if (pathname === "/icon.svg") return new Response(Bun.file(join(web, "icon.svg")), { headers: { "Content-Type": "image/svg+xml" } });
+        if (pathname === "/icon.png") return new Response(Bun.file(join(web, "icon.png")), { headers: { "Content-Type": "image/png" } });
+        if (pathname === "/api/settings") {
+          return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
+        }
+      }
+
+      if (req.method === "POST" && pathname === "/api/settings") {
+        const next = updateSettings(await req.json());
+        await applyThinking(); // model changes apply on the next turn
+        log("settings", { ...next });
+        return Response.json({ settings: next });
+      }
+
+      if (req.method === "POST" && pathname === "/api/new-conversation") {
+        await newConversation();
+        log("new_conversation");
+        return new Response(null, { status: 204 });
       }
 
       if (req.method === "POST" && pathname === "/api/stt") {
@@ -35,10 +57,13 @@ Bun.serve({
       }
 
       if (req.method === "POST" && pathname === "/api/tts") {
-        const { text } = await req.json();
+        const { text, voice, rate } = await req.json();
         const t0 = performance.now();
         try {
-          const { audio, type } = await synthesize(String(text).slice(0, 1000));
+          const preview = typeof voice === "string" && VOICES.some((v) => v.id === voice);
+          const { audio, type } = preview
+            ? await synthesize(String(text).slice(0, 200), voice, typeof rate === "number" ? rate : settings().rate)
+            : await synthesize(String(text).slice(0, 1000));
           log("tts", { ms: Math.round(performance.now() - t0), chars: String(text).length, bytes: audio.byteLength });
           return new Response(audio, { headers: { "Content-Type": type } });
         } catch (err) {
@@ -78,4 +103,4 @@ Bun.serve({
   },
 });
 
-console.log(`Kkachi listening on http://127.0.0.1:${config.port} (memory: ${config.memoryDir}, models: ${config.models.join(", ")})`);
+console.log(`Kkachi listening on http://127.0.0.1:${config.port} (memory: ${config.memoryDir}, models: ${modelOrder().join(", ")})`);
