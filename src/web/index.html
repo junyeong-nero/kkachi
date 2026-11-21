@@ -64,11 +64,21 @@
   button { font-family: inherit; }
   :focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
 
+  /* iOS 26/27 home-screen web apps composite a blur over the band under the status bar, and no CSS
+     turns it off. A fixed, full-width, colored element at the top edge makes iOS paint the status bar
+     solid instead (no blur); the installed app also moves the header 16px down, clear of the band
+     (as ChatGPT does). */
+  .status-shield {
+    position: fixed; top: 0; left: 0; right: 0; height: max(env(safe-area-inset-top), 8px);
+    background: var(--bg); z-index: 20; pointer-events: none;
+  }
+
   /* header */
   .bar {
     display: grid; grid-template-columns: 44px 1fr 44px; align-items: center;
     padding: calc(6px + env(safe-area-inset-top)) 8px 4px;
   }
+  @media (display-mode: standalone) { .bar { padding-top: calc(16px + env(safe-area-inset-top)); } }
   .brand { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: var(--t-base); }
   .brand img { width: 24px; height: 24px; border-radius: 6px; }
   .icon-btn {
@@ -231,6 +241,7 @@
 </style>
 </head>
 <body data-state="idle">
+<div class="status-shield" aria-hidden="true"></div>
 <header class="bar">
   <button class="icon-btn" id="refresh" aria-label="새로고침">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>

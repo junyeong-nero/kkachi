@@ -36,7 +36,7 @@ Single source of truth for the app's visual system (`src/web/index.html`). Inter
 ## Craft decisions
 
 - **Layout**: header (refresh, logo, settings) / transcript / talk area. The whole talk area is the press target, so it can be hit without looking.
-- **Transcript**: last 30 turns of this page, as chat bubbles: yours dark (`text` on `bg`, inverted) on the right, Kkachi's `surface` gray on the left with the working dots and activity label inside it. Kkachi's bubble appears once your words are transcribed and is removed if the turn ends without words.
+- **Transcript**: last 30 turns of this page, as chat bubbles: yours a light `surface` fill on the right, Kkachi's outlined (`bg` with a `line` border) on the left (fill vs outline keeps them apart without heavy color) with the working dots and activity label inside it. Kkachi's bubble appears once your words are transcribed and is removed if the turn ends without words.
 - **First run**: example sentences to say, as plain quoted lines (not tappable-looking boxes), placed near the talk button.
 - **States**: mic idle / recording (teal, level ring) / thinking (dimmed) / speaking (bars) / disabled (mic permission denied). Icon buttons and settings controls have hover (pointer devices), active, focus-visible (3px teal ring).
 - **Keyboard**: hold Space to talk.
