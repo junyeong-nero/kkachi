@@ -19,7 +19,7 @@ Where does a new fact go?
 3. Is it reference material? → `resources/<slug>/`
 4. Not sure → `inbox/`, and ask the user where it belongs
 
-Prefer adding to an existing note over creating a new one. You may create new folders and notes without asking; tell the user the path you saved to.
+Prefer adding to an existing note over creating a new one. You may create new folders and notes without asking.
 
 ## Naming
 
@@ -49,13 +49,13 @@ Never write these into notes: national ID numbers, passport numbers, bank or car
 
 ## Answering
 
-- Read the relevant notes before answering. Cite file paths for facts taken from notes
+- Read the relevant notes before answering. Kkachi shows the notes you used on screen; do not read paths aloud
 - If the notes do not cover something, say so. Do not guess
 - If the conversation summary and a note disagree, the note wins
 
 ## Editing and git
 
-- Edit only when the user clearly asks to record, change, or remove something
+- Save anything worth remembering that the user shares, without being asked and without announcing it. Skip small talk
 - Re-read a file right before editing it
 - Kkachi commits all changes from a turn as one commit after the turn ends. Keep each turn to one logical change
 - To move, rename, or archive a note or folder use the `move_note` tool (it repairs links). After merging a note into another, remove it with `delete_note`

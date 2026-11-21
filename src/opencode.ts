@@ -57,14 +57,18 @@ async function api(method: string, path: string, body?: unknown) {
   return text ? JSON.parse(text) : null;
 }
 
-export async function createSession(agent = "kkachi"): Promise<string> {
-  const [providerID, ...rest] = config.model.split("/");
-  const s = await api("POST", "/api/session", {
-    agent,
-    location: { directory: config.memoryDir },
-    model: { providerID, id: rest.join("/") },
-  });
+function modelRef(model: string) {
+  const [providerID, ...rest] = model.split("/");
+  return { providerID, id: rest.join("/") };
+}
+
+export async function createSession(agent: string, model: string): Promise<string> {
+  const s = await api("POST", "/api/session", { agent, location: { directory: config.memoryDir }, model: modelRef(model) });
   return s.id ?? s.data.id;
+}
+
+export async function setSessionModel(sessionId: string, model: string) {
+  await api("POST", `/api/session/${sessionId}/model`, { model: modelRef(model) });
 }
 
 export async function sessionExists(id: string) {

@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
 import { commitAll, git, pushIfAhead, TIDY_PREFIX } from "./git";
+import { currentModel, markLimited } from "./models";
 import { createSession, prompt, subscribe } from "./opencode";
 
 const stateFile = join(config.dataDir, "librarian.json");
@@ -43,7 +44,8 @@ async function tidy() {
   const t0 = Date.now();
   console.log(`librarian: tidying (${changed.length} changed notes)`);
 
-  const sessionId = await createSession("librarian");
+  const model = currentModel();
+  const sessionId = await createSession("librarian", model);
   let summary = "";
   let done!: (ok: boolean) => void;
   const finished = new Promise<boolean>((res) => (done = res));
@@ -51,7 +53,10 @@ async function tidy() {
     if (e.data?.sessionID !== sessionId) return;
     if (e.type === "session.text.ended") summary = String(e.data.text ?? "").trim();
     if (e.type === "session.execution.succeeded") done(true);
-    if (e.type === "session.execution.failed" || e.type === "session.execution.interrupted") done(false);
+    if (e.type === "session.execution.failed" || e.type === "session.execution.interrupted") {
+      if (markLimited(model, e.data?.error)) again = true; // retry on the next model
+      done(false);
+    }
   });
   try {
     await prompt(sessionId, `Tidy the memory repo now. Notes changed since the last tidy:\n${changed.map((f) => `- ${f}`).join("\n")}`);

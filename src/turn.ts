@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { config } from "./config";
 import { commitTurn, pull, pushIfAhead } from "./git";
 import { idle as librarianIdle, scheduleTidy } from "./librarian";
-import { createSession, prompt, sessionExists, subscribe, type OcEvent } from "./opencode";
+import { currentModel, markLimited } from "./models";
+import { createSession, prompt, sessionExists, setSessionModel, subscribe, type OcEvent } from "./opencode";
 
 export type TurnEvent =
   | { type: "sentence"; text: string }
@@ -28,7 +29,7 @@ async function currentSession(): Promise<string> {
 }
 
 async function newSession() {
-  const sessionId = await createSession();
+  const sessionId = await createSession("kkachi", currentModel());
   await Bun.write(stateFile, JSON.stringify({ sessionId }));
   return sessionId;
 }
@@ -57,8 +58,8 @@ function relPath(p: string): string {
   return p;
 }
 
-// A note the agent used as a source: a Markdown file inside the memory repo, not the rules file.
-const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && rel !== "AGENTS.md";
+// A note the agent used as a source: a Markdown file inside the memory repo, not the rules or catalog.
+const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && rel !== "AGENTS.md" && rel !== "README.md";
 
 // Absolute .md paths mentioned in a tool result (grep output lists matching files).
 function notesIn(content: any): string[] {
@@ -79,13 +80,28 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
       return;
     }
     const sessionId = await currentSession();
-    await streamTurn(sessionId, text, emit);
+    // Retry on the next model when a free model hits its usage limit before saying anything.
+    for (let attempt = 0; attempt < config.models.length; attempt++) {
+      const model = currentModel();
+      if (sessionModel.get(sessionId) !== model) {
+        await setSessionModel(sessionId, model);
+        sessionModel.set(sessionId, model);
+      }
+      const limited = await streamTurn(sessionId, text, emit);
+      if (!limited || !markLimited(model, limited)) break;
+    }
   } finally {
     busy = false;
   }
 }
 
-async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) => void) {
+const sessionModel = new Map<string, string>();
+const isLimitError = (err: any) => /free-limit|rate-limit|quota/.test(String(err?.type ?? "")) || err?.status === 429;
+
+/** Runs one prompt. Returns the provider error if the model was usage-limited before any output. */
+async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) => void): Promise<any | null> {
+  let said = false;
+  const say = (e: TurnEvent) => { said = true; emit(e); };
   let buf = "";
   let muted = false; // set once the model starts a "Sources:" footer
   const toolNames = new Map<string, string>();
@@ -103,11 +119,11 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
       if (!m) break;
       const sentence = speakable(buf.slice(0, m.index + 1));
       buf = buf.slice(m.index + 1);
-      if (/[\p{L}\p{N}]/u.test(sentence)) emit({ type: "sentence", text: sentence });
+      if (/[\p{L}\p{N}]/u.test(sentence)) say({ type: "sentence", text: sentence });
     }
     if (final) {
       const rest = speakable(buf);
-      if (/[\p{L}\p{N}]/u.test(rest)) emit({ type: "sentence", text: rest });
+      if (/[\p{L}\p{N}]/u.test(rest)) say({ type: "sentence", text: rest });
       buf = "";
     }
   };
@@ -135,7 +151,7 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
         if (name.endsWith("end_conversation")) { ended = true; break; }
         if (name.endsWith("tidy_notes")) { tidyRequested = true; break; }
         const path = d.input?.path ?? d.input?.filePath;
-        emit({ type: "activity", tool: name, path: path ? relPath(path) || undefined : undefined });
+        say({ type: "activity", tool: name, path: path ? relPath(path) || undefined : undefined });
         break;
       }
       case "session.tool.success": {
@@ -163,8 +179,9 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
     flushSentences(true);
     if (outcome !== "succeeded") {
       console.error("turn", outcome, JSON.stringify(detail ?? {}).slice(0, 500));
+      if (outcome === "failed" && !said && isLimitError(detail?.error)) return detail.error;
       emit({ type: "error", message: outcome === "timeout" ? "답이 너무 오래 걸려요. 다시 말해 주세요." : "모델이 응답하지 않아요. 잠시 뒤에 다시 말해 주세요." });
-      return;
+      return null;
     }
     for (const c of changed) sources.add(c);
     let commit: string | null = null;
@@ -173,11 +190,12 @@ async function streamTurn(sessionId: string, text: string, emit: (e: TurnEvent) 
       await pushIfAhead(config.memoryDir); // also pushes an undo commit made by the MCP tool
     } catch (err) {
       console.error("commit/push failed", err);
-      emit({ type: "sentence", text: "노트는 고쳤지만 저장소에 올리지는 못했어요." });
+      emit({ type: "sentence", text: "기억은 해두었는데 GitHub 에 올리지는 못했어요." });
     }
     emit({ type: "done", sources: [...sources], changed: [...changed], commit });
     if (ended) emit({ type: "end" });
     if (ended || tidyRequested) scheduleTidy();
+    return null;
   } finally {
     close();
   }

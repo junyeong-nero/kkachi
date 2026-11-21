@@ -21,13 +21,21 @@ export const config = {
   memoryDir,
   dataDir,
   port: Number(env.KKACHI_PORT ?? 4300),
-  model: env.KKACHI_MODEL ?? "opencode/deepseek-v4.1-flash-free",
+  // Ordered fallback list (comma-separated). See docs/m0.md and src/models.ts.
+  models: (env.KKACHI_MODEL ?? "opencode/hy4-flash-free,opencode/tidepool-alpha-free,opencode/flint-40b-free,opencode/deepseek-v4.1-flash-free")
+    .split(",").map((m) => m.trim()).filter(Boolean),
   opencodeBin: env.KKACHI_OPENCODE_BIN ?? "opencode",
   stt: {
     baseUrl: env.KKACHI_STT_BASE_URL ?? "https://api.groq.com/openai/v1",
     apiKey: env.KKACHI_STT_API_KEY ?? env.GROQ_API_KEY ?? "",
     model: env.KKACHI_STT_MODEL ?? "whisper-large-v3-turbo",
     language: env.KKACHI_STT_LANGUAGE ?? "ko",
+  },
+  // Transcript cleanup before the agent (OpenAI-compatible chat API). KKACHI_POLISH_MODEL= disables it.
+  polish: {
+    baseUrl: env.KKACHI_POLISH_BASE_URL ?? "https://api.groq.com/openai/v1",
+    apiKey: env.KKACHI_POLISH_API_KEY ?? env.GROQ_API_KEY ?? "",
+    model: env.KKACHI_POLISH_MODEL ?? "openai/gpt-oss-120b",
   },
   tts: {
     provider: (env.KKACHI_TTS_PROVIDER ?? "edge") as "edge" | "openai",

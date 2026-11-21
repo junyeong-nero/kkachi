@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { config } from "./config";
 import { startOpencode } from "./opencode";
+import { polish } from "./polish";
 import { synthesize, transcribe } from "./speech";
 import { runTurn, type TurnEvent } from "./turn";
 
@@ -23,8 +24,11 @@ Bun.serve({
 
       if (req.method === "POST" && pathname === "/api/stt") {
         const t0 = performance.now();
-        const text = await transcribe(await req.blob());
-        return Response.json({ text, ms: Math.round(performance.now() - t0) });
+        const raw = await transcribe(await req.blob());
+        const t1 = performance.now();
+        const text = await polish(raw);
+        if (text !== raw) console.log(`polish: ${raw} → ${text}`);
+        return Response.json({ text, raw, sttMs: Math.round(t1 - t0), polishMs: Math.round(performance.now() - t1) });
       }
 
       if (req.method === "POST" && pathname === "/api/tts") {
@@ -64,4 +68,4 @@ Bun.serve({
   },
 });
 
-console.log(`Kkachi listening on http://127.0.0.1:${config.port} (memory: ${config.memoryDir}, model: ${config.model})`);
+console.log(`Kkachi listening on http://127.0.0.1:${config.port} (memory: ${config.memoryDir}, models: ${config.models.join(", ")})`);

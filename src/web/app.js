@@ -10,10 +10,10 @@ const PREROLL_FRAMES = 4;
 const RESUME_DELAY_MS = 300;
 const STILL_WORKING_AFTER_MS = 7000;
 
-// Short spoken reactions while Kkachi works, instead of beeps. Synthesized once, played instantly.
+// Short spoken reactions while Kkachi looks something up, instead of beeps. Synthesized once,
+// played instantly. Remembering stays silent: no filler for writes.
 const FILLERS = {
-  search: ["잠깐만요, 찾아볼게요.", "음, 확인해볼게요."],
-  write: ["네, 적어둘게요."],
+  search: ["잠깐만요, 찾아볼게요.", "음, 어디 보자."],
   wait: ["조금만 기다려 주세요."],
 };
 const fillerAudio = {};
@@ -191,8 +191,8 @@ async function handleUtterance(frames) {
       if (e.type === "sentence") say(e.text);
       else if (e.type === "activity") {
         const writing = e.tool === "edit" || e.tool === "write";
-        if (state === "thinking") $("hint").textContent = writing ? "노트에 적는 중…" : "노트 찾는 중…";
-        if (/read|grep|glob/.test(e.tool) || writing) react(writing ? "write" : "search");
+        if (state === "thinking") $("hint").textContent = writing ? "기억하는 중…" : "찾는 중…";
+        if (/^(read|grep|glob)$/.test(e.tool)) react("search");
       }
       else if (e.type === "end") end = true;
       else if (e.type === "done") showChips(e.sources, e.changed);
