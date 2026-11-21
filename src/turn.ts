@@ -11,7 +11,9 @@ import { authedProviders, settings } from "./settings";
 import { Pi, type PiEvent } from "./pi";
 
 export type TurnEvent =
-  | { type: "sentence"; text: string; silent?: boolean } // silent: shown on screen, not spoken
+  | { type: "delta"; text: string }                         // live text for the screen, as it streams
+  | { type: "retract" }                                     // the streamed text was narration before a tool call: drop it
+  | { type: "sentence"; text: string; silent?: boolean }    // a finished sentence to speak (silent: too long, screen only)
   | { type: "activity"; tool: string; path?: string }
   | { type: "end"; reason: "done" | "handoff" } // stop listening after speaking
   | { type: "done"; sources: string[]; changed: string[]; titles: Record<string, string>; commit: string | null }
@@ -76,8 +78,6 @@ export async function startConversation() {
 }
 
 // ---- speech text ----
-// Split into sentences at terminal punctuation followed by whitespace (not inside "server.ts"), or newlines.
-const sentences = (text: string) => text.split(/(?<=[.!?…。])\s+|\n+/);
 
 function speakable(s: string): string {
   return s
@@ -161,27 +161,52 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
   const sources = new Set<string>();
   const changed = new Set<string>();
 
-  // Speak only an assistant message that ends the run (stopReason "stop"). Text the model writes
-  // before calling tools is progress narration and stays silent.
-  const speakMessage = (message: any) => {
-    const body = (message.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
-    const spoken = body.split(/\n\s*(?:sources|출처)\s*:/i)[0];
-    let count = 0;
-    for (const part of sentences(spoken)) {
-      const sentence = speakable(part);
-      if (!/[\p{L}\p{N}]/u.test(sentence)) continue;
-      said = true;
-      if (!firstSentenceMs) firstSentenceMs = Math.round(performance.now() - t0);
-      emit({ type: "sentence", text: sentence, silent: ++count > MAX_SPOKEN_SENTENCES });
+  // Streaming, per assistant message: text goes to the screen as it arrives (delta) and each finished
+  // sentence goes to TTS at once. If the message then calls a tool, what it said was progress
+  // narration: tell the client to drop it (retract) and keep the rest of that message silent.
+  let shown = "", pending = "", spokenCount = 0, toolMessage = false, footer = false;
+
+  const speak = (part: string) => {
+    const sentence = speakable(part);
+    if (!/[\p{L}\p{N}]/u.test(sentence)) return;
+    if (!firstSentenceMs) firstSentenceMs = Math.round(performance.now() - t0);
+    emit({ type: "sentence", text: sentence, silent: ++spokenCount > MAX_SPOKEN_SENTENCES });
+  };
+  const flush = (final: boolean) => {
+    for (let m; (m = /[.!?…。](?=\s)|\n/.exec(pending)); ) {
+      speak(pending.slice(0, m.index + 1));
+      pending = pending.slice(m.index + 1);
     }
+    if (final) { speak(pending); pending = ""; }
   };
 
   const onEvent = (e: PiEvent) => {
     switch (e.type) {
+      case "message_start":
+        if (e.message?.role === "assistant") { shown = ""; pending = ""; spokenCount = 0; toolMessage = false; footer = false; }
+        break;
+      case "message_update": {
+        const u = e.assistantMessageEvent;
+        if (u?.type === "toolcall_start" && !toolMessage) {
+          toolMessage = true;
+          if (shown.trim()) emit({ type: "retract" });
+          shown = ""; pending = "";
+        }
+        if (u?.type !== "text_delta" || toolMessage || footer) break;
+        let delta: string = u.delta;
+        const cut = (shown + delta).search(/\n\s*(?:sources|출처)\s*:/i); // a "Sources:" footer is not for the ear
+        if (cut >= 0) { delta = delta.slice(0, Math.max(0, cut - shown.length)); footer = true; }
+        if (!delta) break;
+        said = true;
+        shown += delta; pending += delta;
+        emit({ type: "delta", text: delta });
+        flush(false);
+        break;
+      }
       case "message_end":
         if (e.message?.role !== "assistant") break;
         if (e.message.stopReason === "error") error = String(e.message.errorMessage ?? "error");
-        else if (e.message.stopReason === "stop") speakMessage(e.message);
+        else if (!toolMessage) flush(true);
         break;
       case "tool_execution_start": {
         const name: string = e.toolName;

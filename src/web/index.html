@@ -90,8 +90,19 @@
     font-size: var(--t-base); line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere;
   }
   .kkachi { font-size: var(--t-md); line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; max-width: 34em; }
-  .kkachi .unspoken { color: var(--muted); }
+  .kkachi .live { white-space: pre-wrap; }
   .kkachi.error { color: var(--danger); }
+
+  /* live progress: typing dots, and what Kkachi is doing right now */
+  .dots { display: inline-flex; gap: 4px; align-items: center; height: 1em; vertical-align: middle; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .3; animation: dot 1.2s var(--ease-out) infinite; }
+  .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+  @keyframes dot { 30% { opacity: 1; transform: translateY(-2px); } 60%, 100% { opacity: .3; transform: none; } }
+  .you.pending { color: var(--muted); padding: 13px 16px; }
+  .working { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--t-sm); min-height: 1.6em; }
+  .working[hidden] { display: none; }
+  .working .dots { color: var(--accent); }
+  .working .label:empty { display: none; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chips:empty { display: none; }
   .chip { font-size: var(--t-sm); color: var(--muted); background: var(--surface); border-radius: var(--r-sm); padding: 4px 9px; }
@@ -136,9 +147,18 @@
   @keyframes bar { to { transform: scaleY(2.6); } }
   body[data-state=speaking] #mic .mic-icon { display: none; }
   body[data-state=speaking] #mic .bars { display: flex; }
-  body[data-state=thinking] #mic { opacity: .6; }
+  /* thinking: a spinning arc around the button says "working", not "disabled" */
+  #mic::after {
+    content: ""; position: absolute; inset: -7px; border-radius: inherit;
+    border: 3px solid transparent; border-top-color: var(--accent); opacity: 0;
+    transition: opacity var(--dur) var(--ease-out);
+  }
+  body[data-state=thinking] #mic::after { opacity: 1; animation: spin 900ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) {
-    .bars i { animation: none; }
+    .bars i, .dots i { animation: none; }
+    .dots i { opacity: .7; }
+    body[data-state=thinking] #mic::after { animation: none; border-color: var(--accent); opacity: .5; }
     #mic, #mic::before { transition-property: opacity, background-color; }
     body[data-state=recording] #mic { transform: none; }
     #mic::before { transform: none; }

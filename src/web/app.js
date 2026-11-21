@@ -130,7 +130,8 @@ async function handleUtterance(frames) {
   const my = ++turnId;
   const t0 = performance.now();
   earcon.heard();
-  setState("thinking");
+  setState("thinking", "받아적는 중…");
+  const view = addTurn(); // shows up at once: your bubble is a placeholder until transcription returns
   let text, raw;
   try {
     const r = await fetch("/api/stt", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: encodeWav(frames, ctx.sampleRate, TARGET_RATE) });
@@ -139,30 +140,23 @@ async function handleUtterance(frames) {
     text = body.text;
     raw = body.raw;
   } catch (e) {
+    view.remove();
     return turnError(my, "잘 못 들었어요. 다시 말해 주세요.", e);
   }
-  if (my !== turnId) return;
-  if (!text) { ready("잘 못 들었어요. 다시 눌러 말해 주세요"); return; }
-  const view = addTurn(text);
+  if (my !== turnId) { view.remove(); return; }
+  if (!text) { view.remove(); ready("잘 못 들었어요. 다시 눌러 말해 주세요"); return; }
+  view.setYou(text);
+  setState("thinking", "생각하는 중 · 누르면 멈춰요");
   diag("stt", { text, ms: Math.round(performance.now() - t0) });
 
   const queue = [];       // Promise<AudioBuffer|null>, in play order
-  const spoken = [];
+  let skipBefore = 0;     // queue items before this index were retracted and are not played
   let streamDone = false, end = false, firstSound = 0;
-  // Every sentence is shown; only non-silent ones are spoken.
-  const say = (s, silent = false) => {
-    spoken.push(s);
-    const span = document.createElement("span");
-    if (silent) span.className = "unspoken";
-    span.textContent = (view.reply.childNodes.length ? " " : "") + s;
-    view.reply.append(span);
-    scrollDown();
-    if (!silent) queue.push(ttsBuffer(s));
-  };
 
   const player = (async () => {
     for (let i = 0; ; ) {
       if (my !== turnId) return;
+      if (i < skipBefore) { i = skipBefore; continue; }
       if (i < queue.length) {
         const buf = await queue[i++];
         if (my !== turnId) return;
@@ -178,15 +172,19 @@ async function handleUtterance(frames) {
   try {
     await readEvents("/api/turn", { text, raw }, (e) => {
       if (my !== turnId) return;
-      if (e.type === "sentence") say(e.text, e.silent);
+      if (e.type === "delta") view.stream(e.text);                       // live text on screen
+      else if (e.type === "sentence") { if (!e.silent) queue.push(ttsBuffer(e.text)); } // speak as soon as a sentence is complete
+      else if (e.type === "retract") { view.retract(); skipBefore = queue.length; stopPlayback(); }
       else if (e.type === "activity") {
-        const writing = e.tool === "edit" || e.tool === "write";
-        if (state === "thinking") $("status").textContent = writing ? "기억하는 중…" : "찾아보는 중…";
+        const label = activityLabel(e.tool, e.path);
+        view.working(label);
+        if (state === "thinking") $("status").textContent = `${label} · 누르면 멈춰요`;
       }
       else if (e.type === "end") end = true;
-      else if (e.type === "done") showChips(view.chips, e.sources, e.changed, e.titles);
-      else if (e.type === "error") { view.reply.classList.add("error"); say(e.message); earcon.error(); }
+      else if (e.type === "done") { view.finish(); showChips(view.chips, e.sources, e.changed, e.titles); }
+      else if (e.type === "error") { view.fail(e.message); queue.push(ttsBuffer(e.message)); earcon.error(); }
     });
+    view.finish();
   } catch (e) {
     streamDone = true;
     return turnError(my, "연결이 끊겼어요. 다시 말해 주세요.", e);
@@ -211,22 +209,52 @@ async function turnError(my, message, err) {
 const MAX_TURNS = 30;
 function scrollDown() { const log = $("log"); log.scrollTop = log.scrollHeight; }
 
-function addTurn(text) {
+const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html) n.innerHTML = html; return n; };
+const DOTS = '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+// What Kkachi is doing, in words, from the tool it is running.
+function activityLabel(tool = "", path = "") {
+  const note = /\.md$/.test(path) && !path.startsWith("/");
+  if (/^(read|grep|find|ls|glob)$/.test(tool)) return note ? "노트 찾는 중" : "파일 보는 중";
+  if (tool === "edit" || tool === "write") return note ? "기억하는 중" : "파일 고치는 중";
+  if (/web|search|fetch/i.test(tool)) return "웹에서 찾는 중";
+  if (/undo/.test(tool)) return "되돌리는 중";
+  if (/subagent/i.test(tool)) return "다른 에이전트에게 맡기는 중";
+  if (/mcp|browser/i.test(tool)) return "도구 쓰는 중";
+  return "작업하는 중";
+}
+
+// Markdown marks are noise on screen too (the agent is asked not to use them).
+const plain = (s) => s.replace(/\*\*|__|`/g, "").replace(/^#+\s*/gm, "");
+
+// One turn in the transcript. It appears the moment you release the button and fills in live.
+function addTurn() {
   $("intro")?.remove();
-  const turn = document.createElement("article");
-  turn.className = "turn";
-  const you = document.createElement("div");
-  you.className = "you"; you.textContent = text;
-  const reply = document.createElement("div");
-  reply.className = "kkachi";
-  const chips = document.createElement("div");
-  chips.className = "chips";
+  const turn = el("article", "turn");
+  const you = el("div", "you pending", DOTS);
+  you.setAttribute("aria-label", "받아적는 중");
+  const reply = el("div", "kkachi");
+  const live = el("span", "live");
+  const work = el("div", "working", `${DOTS}<span class="label"></span>`);
+  work.hidden = true; // only your bubble shows progress until the transcription is back
+  reply.append(live, work);
+  const chips = el("div", "chips");
   turn.append(you, reply, chips);
   const log = $("log");
   log.append(turn);
   while (log.querySelectorAll(".turn").length > MAX_TURNS) log.querySelector(".turn").remove();
   scrollDown();
-  return { reply, chips };
+  let raw = "";
+  return {
+    chips,
+    remove: () => turn.remove(),
+    setYou(text) { you.classList.remove("pending"); you.removeAttribute("aria-label"); you.textContent = text; work.hidden = false; scrollDown(); },
+    working(label) { work.hidden = false; work.querySelector(".label").textContent = label; scrollDown(); },
+    stream(delta) { work.hidden = true; raw += delta; live.textContent = plain(raw).trimStart(); scrollDown(); },
+    retract() { raw = ""; live.textContent = ""; work.hidden = false; },
+    finish() { work.hidden = true; },
+    fail(message) { work.hidden = true; reply.classList.add("error"); live.textContent = (live.textContent ? live.textContent + " " : "") + message; },
+  };
 }
 
 // Empty transcript shows real things to say (first-run guidance), from the HTML template.
@@ -424,14 +452,19 @@ const demo = new URLSearchParams(location.search).get("demo");
 if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.dataset.theme = "light";
 if (demo === "settings") openSettings();
 else if (demo) {
-  setState(demo, demo === "recording" ? "듣고 있어요 · 손을 떼면 보내요" : "누르면 멈추고 다시 들어요");
+  const hints = { recording: "듣고 있어요 · 손을 떼면 보내요", thinking: "노트 찾는 중 · 누르면 멈춰요", speaking: "누르면 멈추고 다시 들어요" };
+  setState(demo, hints[demo] ?? "");
   $("mic").style.setProperty("--level", "0.7");
+  const sample = (you, reply) => { const v = addTurn(); v.setYou(you); if (reply) { v.stream(reply); v.finish(); } return v; };
   if (demo === "speaking") {
-    let v = addTurn("오늘 서울 날씨 어때?");
-    v.reply.textContent = "서울은 지금 맑고 영하 1도예요.";
-    v = addTurn("친구 결혼식 언제였지?");
-    v.reply.textContent = "다다음 주 금요일, 12월 4일이에요. 축가는 성시경의 「거리에서」예요.";
+    sample("오늘 서울 날씨 어때?", "서울은 지금 맑고 영하 1도예요.");
+    const v = sample("친구 결혼식 언제였지?", "다다음 주 금요일, 12월 4일이에요. 축가는 성시경의 「거리에서」예요.");
     showChips(v.chips, ["a.md", "b.md"], ["b.md"], { "a.md": "친구 결혼식 축가", "b.md": "건강" });
+  }
+  if (demo === "thinking") {
+    sample("오늘 서울 날씨 어때?", "서울은 지금 맑고 영하 1도예요.");
+    sample("다음 주 일정 정리해줘").working("노트 찾는 중");
+    addTurn(); // a turn whose words are still being transcribed
   }
 }
 
