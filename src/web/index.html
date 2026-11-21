@@ -6,146 +6,198 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="까치" />
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#fcfcfd" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#16181c" media="(prefers-color-scheme: dark)" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.png" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css" />
 <title>까치</title>
 <style>
+  /* Tokens: see DESIGN.md. Color in OKLCH; accent is the teal sheen of a magpie's wing. */
   :root {
-    --bg: #ffffff;
-    --surface: #f3f4f6;
-    --line: #e5e7eb;
-    --text: #15171a;
-    --muted: #6b7280;
-    --accent: #2f5bd3;       /* magpie wing blue, used sparingly */
-    --accent-soft: #e8eefc;
-    --danger: #c2410c;
-    --button: #15171a;       /* the talk button */
-    --button-ink: #ffffff;
-    --font: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", system-ui, sans-serif;
+    --bg: oklch(0.992 0.002 240);
+    --surface: oklch(0.962 0.005 240);
+    --line: oklch(0.905 0.007 240);
+    --text: oklch(0.22 0.012 250);
+    --muted: oklch(0.49 0.014 250);
+    --accent: oklch(0.54 0.105 192);
+    --accent-soft: oklch(0.948 0.03 192);
+    --accent-ring: oklch(0.54 0.105 192 / .35);
+    --danger: oklch(0.53 0.17 35);
+    --button: var(--text);
+    --button-ink: var(--bg);
+    --shadow: 0 1px 2px oklch(0.2 0.02 250 / .12);
+
+    --font: "SUIT Variable", "Apple SD Gothic Neo", sans-serif;
+    --t-sm: 13px; --t-base: 16px; --t-md: 19px; --t-lg: 23px;   /* ratio 1.2 */
+    --r-sm: 8px; --r-md: 14px; --r-pill: 999px;
+    --ease-out: cubic-bezier(.22, 1, .36, 1);
+    --dur-fast: 120ms; --dur: 200ms;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme=light]) {
-      --bg: #111214; --surface: #1c1e22; --line: #2a2d33; --text: #eceef1; --muted: #9096a1;
-      --accent: #7b9cf0; --accent-soft: #1f2a44; --danger: #f08a5d; --button: #eceef1; --button-ink: #111214;
+      --bg: oklch(0.185 0.006 250);
+      --surface: oklch(0.235 0.008 250);
+      --line: oklch(0.31 0.01 250);
+      --text: oklch(0.94 0.005 250);
+      --muted: oklch(0.71 0.012 250);
+      --accent: oklch(0.76 0.095 190);
+      --accent-soft: oklch(0.3 0.045 192);
+      --accent-ring: oklch(0.76 0.095 190 / .4);
+      --danger: oklch(0.74 0.13 40);
+      --shadow: none;
     }
   }
+
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
-    background: var(--bg); color: var(--text); font-family: var(--font);
+    background: var(--bg); color: var(--text); font-family: var(--font); font-size: var(--t-base);
     display: flex; flex-direction: column; overflow: hidden;
     -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    caret-color: var(--accent);
   }
+  ::selection { background: var(--accent-soft); color: var(--text); }
   button { font-family: inherit; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  :focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
 
-  /* header: logo in the middle, two quiet controls */
-  header {
+  /* header */
+  .bar {
     display: grid; grid-template-columns: 44px 1fr 44px; align-items: center;
-    padding: calc(6px + env(safe-area-inset-top)) 10px 6px;
+    padding: calc(6px + env(safe-area-inset-top)) 8px 4px;
   }
-  .brand { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 17px; letter-spacing: -0.01em; }
-  .brand img { width: 26px; height: 26px; border-radius: 7px; }
+  .brand { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: var(--t-base); }
+  .brand img { width: 24px; height: 24px; border-radius: 6px; }
   .icon-btn {
-    width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--muted);
+    width: 44px; height: 44px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--muted);
     display: grid; place-items: center; cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
-  .icon-btn:active { background: var(--surface); color: var(--text); }
   .icon-btn svg { width: 22px; height: 22px; }
+  @media (hover: hover) { .icon-btn:hover { background: var(--surface); color: var(--text); } }
+  .icon-btn:active { background: var(--line); color: var(--text); }
 
   /* transcript */
   #log {
-    flex: 1; overflow-y: auto; padding: 12px 20px 24px; display: flex; flex-direction: column; gap: 22px;
-    user-select: text; -webkit-user-select: text; scroll-behavior: smooth;
+    flex: 1; overflow-y: auto; padding: 16px 20px 8px; display: flex; flex-direction: column; gap: 28px;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
   }
-  .turn { display: flex; flex-direction: column; gap: 10px; max-width: 640px; width: 100%; margin: 0 auto; }
+  .turn { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 640px; margin: 0 auto; }
   .you {
-    align-self: flex-end; max-width: 82%; background: var(--surface); padding: 10px 14px; border-radius: 18px 18px 6px 18px;
-    font-size: 16px; line-height: 1.45; word-break: keep-all; overflow-wrap: anywhere;
+    align-self: flex-end; max-width: 85%; background: var(--surface); padding: 10px 14px;
+    border-radius: var(--r-md) var(--r-md) 4px var(--r-md);
+    font-size: var(--t-base); line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere;
   }
-  .kkachi { font-size: 18px; line-height: 1.6; letter-spacing: -0.01em; word-break: keep-all; overflow-wrap: anywhere; }
+  .kkachi { font-size: var(--t-md); line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; max-width: 34em; }
   .kkachi .unspoken { color: var(--muted); }
   .kkachi.error { color: var(--danger); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { font-size: 13px; color: var(--muted); background: var(--surface); border-radius: 8px; padding: 4px 9px; }
-  .chip.changed { color: var(--accent); background: var(--accent-soft); }
-  .empty {
-    margin: auto; text-align: center; color: var(--muted); font-size: 15px; line-height: 1.6;
-    display: flex; flex-direction: column; align-items: center; gap: 14px;
-  }
-  .empty img { width: 56px; height: 56px; border-radius: 15px; }
-  .empty strong { color: var(--text); font-size: 20px; font-weight: 600; }
+  .chips:empty { display: none; }
+  .chip { font-size: var(--t-sm); color: var(--muted); background: var(--surface); border-radius: var(--r-sm); padding: 4px 9px; }
+  .chip.changed { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 
-  /* talk area: the whole bottom area is the press target */
+  /* first run: real things to say, near where you talk */
+  .intro { margin-top: auto; width: 100%; max-width: 640px; margin-inline: auto; padding-bottom: 8px; }
+  .intro h1 { font-size: var(--t-lg); font-weight: 700; letter-spacing: -0.015em; margin: 0 0 14px; line-height: 1.3; }
+  /* examples are things to say, not buttons: plain quoted lines, no tappable-looking boxes */
+  .intro ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .intro li { font-size: var(--t-md); line-height: 1.45; color: var(--muted); }
+  .intro p { font-size: var(--t-sm); color: var(--muted); margin: 14px 0 0; line-height: 1.5; }
+
+  /* talk area: everything below the transcript is the press target */
   #talk {
     touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
-    display: flex; flex-direction: column; align-items: center; gap: 12px;
-    padding: 14px 20px calc(18px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 12px 20px calc(16px + env(safe-area-inset-bottom));
   }
-  #status { font-size: 14px; color: var(--muted); min-height: 1.3em; }
-  body[data-state=recording] #status { color: var(--accent); }
+  #status { font-size: var(--t-sm); color: var(--muted); min-height: 1.4em; text-align: center; }
+  body[data-state=recording] #status { color: var(--accent); font-weight: 600; }
   body[data-state=error] #status { color: var(--danger); }
   #mic {
-    position: relative; width: 76px; height: 76px; border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--button); color: var(--button-ink); display: grid; place-items: center;
-    transition: transform .15s ease, background-color .2s ease;
+    position: relative; width: 72px; height: 72px; border-radius: var(--r-pill); border: 0; cursor: pointer;
+    background: var(--button); color: var(--button-ink); display: grid; place-items: center; box-shadow: var(--shadow);
+    transition: transform var(--dur) var(--ease-out), background-color var(--dur) var(--ease-out), opacity var(--dur) var(--ease-out);
   }
-  #mic svg { width: 28px; height: 28px; }
-  #mic::before { /* voice-level ring */
-    content: ""; position: absolute; inset: -8px; border-radius: 50%; border: 3px solid var(--accent);
-    opacity: 0; transform: scale(calc(1 + var(--level, 0) * .35)); transition: transform .08s linear, opacity .15s;
+  #mic svg { width: 26px; height: 26px; }
+  @media (hover: hover) { #mic:hover { opacity: .88; } }
+  #mic:disabled { opacity: .35; cursor: not-allowed; }
+  /* signature: the voice-level ring while you hold */
+  #mic::before {
+    content: ""; position: absolute; inset: -7px; border-radius: inherit; border: 3px solid var(--accent);
+    opacity: 0; transform: scale(calc(1 + var(--level, 0) * .3));
+    transition: transform 80ms linear, opacity var(--dur) var(--ease-out);
   }
-  body[data-state=recording] #mic { background: var(--accent); color: #fff; transform: scale(1.08); }
-  body[data-state=recording] #mic::before { opacity: .45; }
-  .bars { display: none; gap: 4px; align-items: center; height: 26px; }
-  .bars i { display: block; width: 4px; height: 8px; border-radius: 2px; background: currentColor; animation: bar .9s ease-in-out infinite; }
-  .bars i:nth-child(2) { animation-delay: .15s; } .bars i:nth-child(3) { animation-delay: .3s; } .bars i:nth-child(4) { animation-delay: .45s; }
-  @keyframes bar { 50% { height: 24px; } }
+  body[data-state=recording] #mic { background: var(--accent); color: oklch(0.99 0 0); transform: scale(1.06); }
+  body[data-state=recording] #mic::before { opacity: .5; }
+  .bars { display: none; gap: 4px; align-items: center; height: 24px; }
+  .bars i { display: block; width: 4px; height: 8px; border-radius: 2px; background: currentColor; animation: bar 900ms var(--ease-out) infinite alternate; }
+  .bars i:nth-child(2) { animation-delay: 150ms; } .bars i:nth-child(3) { animation-delay: 300ms; } .bars i:nth-child(4) { animation-delay: 450ms; }
+  @keyframes bar { to { transform: scaleY(2.6); } }
   body[data-state=speaking] #mic .mic-icon { display: none; }
   body[data-state=speaking] #mic .bars { display: flex; }
-  body[data-state=thinking] #mic { animation: wait 1.4s ease-in-out infinite; }
-  @keyframes wait { 50% { opacity: .55; } }
-  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+  body[data-state=thinking] #mic { opacity: .6; }
+  @media (prefers-reduced-motion: reduce) {
+    .bars i { animation: none; }
+    #mic, #mic::before { transition-property: opacity, background-color; }
+    body[data-state=recording] #mic { transform: none; }
+    #mic::before { transform: none; }
+  }
 
   /* settings sheet */
   dialog#settings {
     margin: auto 0 0; width: 100%; max-width: 100%; max-height: 88vh; border: 0; padding: 0;
-    border-radius: 20px 20px 0 0; background: var(--bg); color: var(--text); overflow: auto;
+    border-radius: var(--r-md) var(--r-md) 0 0; background: var(--bg); color: var(--text); overflow: auto;
   }
-  @media (min-width: 640px) { dialog#settings { margin: auto; max-width: 520px; border-radius: 20px; } }
-  dialog#settings::backdrop { background: rgba(0, 0, 0, .35); }
-  dialog#settings[open] { animation: rise .2s ease-out; }
-  @keyframes rise { from { transform: translateY(24px); } }
-  .sheet { padding: 16px 20px calc(24px + env(safe-area-inset-bottom)); }
-  .sheet header { padding: 0; grid-template-columns: 1fr auto; margin-bottom: 2px; }
-  .sheet h1 { font-size: 19px; font-weight: 700; margin: 0; }
-  .sheet h2 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 22px 0 8px; }
-  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; line-height: 1.45; }
-  .text-btn { border: 0; background: transparent; color: var(--accent); font-size: 16px; font-weight: 600; padding: 8px 4px; cursor: pointer; }
-  .group { background: var(--surface); border-radius: 14px; overflow: hidden; }
+  @media (min-width: 640px) { dialog#settings { margin: auto; max-width: 520px; border-radius: var(--r-md); } }
+  dialog#settings::backdrop { background: oklch(0.2 0.02 250 / .4); }
+  dialog#settings[open] { animation: rise var(--dur) var(--ease-out); }
+  @keyframes rise { from { transform: translateY(16px); } }
+  @media (prefers-reduced-motion: reduce) { dialog#settings[open] { animation: none; } }
+  .sheet { padding: 14px 20px calc(24px + env(safe-area-inset-bottom)); }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; }
+  .sheet h2 { font-size: var(--t-md); font-weight: 700; margin: 0; }
+  .sheet h3 { font-size: var(--t-sm); font-weight: 600; color: var(--muted); margin: 24px 0 8px; }
+  .note { font-size: var(--t-sm); color: var(--muted); margin: 8px 0 0; line-height: 1.5; }
+  .text-btn {
+    border: 0; background: transparent; color: var(--accent); font-size: var(--t-base); font-weight: 700;
+    padding: 10px 6px; border-radius: var(--r-sm); cursor: pointer;
+  }
+  .group { background: var(--surface); border-radius: var(--r-md); overflow: hidden; }
   .voice { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
   .voice + .voice { border-top: 1px solid var(--line); }
   .voice input { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; }
-  .voice .name { font-size: 16px; font-weight: 500; }
-  .voice .sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
-  .play { border: 0; background: var(--bg); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
-  .row { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 14px; padding: 12px 14px; }
+  .voice .name { font-size: var(--t-base); font-weight: 600; }
+  .voice .sub { display: block; font-size: var(--t-sm); color: var(--muted); margin-top: 2px; }
+  .play {
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: var(--r-pill);
+    padding: 7px 12px; font-size: var(--t-sm); cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+  @media (hover: hover) { .play:hover { background: var(--surface); } }
+  .play:active { background: var(--line); }
+  .row { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: var(--r-md); padding: 12px 14px; }
   input[type=range] { flex: 1; accent-color: var(--accent); }
-  output { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }
-  .segment { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border-radius: 12px; padding: 3px; }
-  .segment label { text-align: center; padding: 9px 0; border-radius: 9px; font-size: 15px; cursor: pointer; position: relative; }
+  output { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: var(--t-sm); }
+  .segment { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border-radius: var(--r-md); padding: 3px; }
+  .segment label { text-align: center; padding: 10px 0; border-radius: 11px; font-size: var(--t-base); cursor: pointer; color: var(--muted); }
   .segment input { position: absolute; opacity: 0; pointer-events: none; }
-  .segment label:has(input:checked) { background: var(--bg); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); font-weight: 600; }
-  select { width: 100%; font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 14px; border: 0; background: var(--surface); color: var(--text); }
-  .plain-btn { width: 100%; font: inherit; font-size: 16px; padding: 13px; border-radius: 14px; border: 0; background: var(--surface); color: var(--text); cursor: pointer; }
+  .segment label:has(input:checked) { background: var(--bg); color: var(--text); box-shadow: var(--shadow); }
+  .segment label:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--accent-ring); }
+  select { width: 100%; font: inherit; font-size: var(--t-base); padding: 12px 14px; border-radius: var(--r-md); border: 0; background: var(--surface); color: var(--text); }
+  .plain-btn {
+    width: 100%; font: inherit; font-size: var(--t-base); font-weight: 600; padding: 13px; border-radius: var(--r-md);
+    border: 0; background: var(--surface); color: var(--text); cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+  @media (hover: hover) { .plain-btn:hover { background: var(--line); } }
+  .plain-btn:disabled { opacity: .5; cursor: progress; }
+  .loading { padding: 14px; font-size: var(--t-sm); color: var(--muted); }
+
   #toast {
-    position: fixed; left: 50%; top: calc(60px + env(safe-area-inset-top)); transform: translateX(-50%);
-    background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 14px;
-    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10;
+    position: fixed; left: 50%; top: calc(56px + env(safe-area-inset-top)); transform: translateX(-50%);
+    background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: var(--r-sm); font-size: var(--t-sm);
+    opacity: 0; transition: opacity var(--dur) var(--ease-out); pointer-events: none; z-index: 10;
   }
   #toast.show { opacity: 1; }
   #diag { display: none; font: 11px/1.35 ui-monospace, monospace; color: var(--muted); padding: 8px 12px; max-height: 22vh; overflow: auto; white-space: pre-wrap; }
@@ -153,7 +205,7 @@
 </style>
 </head>
 <body data-state="idle">
-<header>
+<header class="bar">
   <button class="icon-btn" id="refresh" aria-label="새로고침">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
   </button>
@@ -163,17 +215,11 @@
   </button>
 </header>
 
-<main id="log" aria-live="polite">
-  <div class="empty" id="empty">
-    <img src="/icon.svg" alt="" />
-    <strong>무엇을 도와드릴까요?</strong>
-    <span>아래 버튼을 누른 채로 말하세요.<br />손을 떼면 까치가 답해요.</span>
-  </div>
-</main>
+<main id="log" aria-live="polite"></main>
 
 <section id="talk" aria-label="말하기">
   <div id="status">누르고 있는 동안 말하세요</div>
-  <button id="mic" aria-label="누르고 말하기">
+  <button id="mic" aria-label="누르고 있는 동안 말하기 (Space)">
     <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
     <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
   </button>
@@ -181,33 +227,45 @@
 <div id="toast" role="status"></div>
 <div id="diag"></div>
 
-<dialog id="settings" aria-label="설정">
+<template id="intro-template">
+  <section class="intro" id="intro">
+    <h1>까치에게 이렇게 말해 보세요</h1>
+    <ul>
+      <li>“다음 주 금요일 저녁에 엄마랑 약속 있어”</li>
+      <li>“친구 결혼식 언제였지?”</li>
+      <li>“오늘 서울 날씨 어때?”</li>
+    </ul>
+    <p>들은 일정과 결정은 까치가 알아서 기억해요.</p>
+  </section>
+</template>
+
+<dialog id="settings" aria-labelledby="settings-title">
   <form class="sheet" method="dialog">
-    <header>
-      <h1>설정</h1>
+    <div class="sheet-head">
+      <h2 id="settings-title">설정</h2>
       <button class="text-btn" value="close">완료</button>
-    </header>
+    </div>
 
-    <h2>목소리</h2>
-    <div class="group" id="voices"></div>
+    <h3>목소리</h3>
+    <div class="group" id="voices"><div class="loading">불러오는 중…</div></div>
 
-    <h2>말 빠르기</h2>
+    <h3>말 빠르기</h3>
     <div class="row">
       <input type="range" id="rate" min="-30" max="60" step="10" aria-label="말 빠르기" />
       <output id="rate-out"></output>
     </div>
 
-    <h2>생각 깊이</h2>
+    <h3>생각 깊이</h3>
     <div class="segment" id="thinking" role="radiogroup" aria-label="생각 깊이"></div>
     <p class="note">빠르게는 답이 일찍 오고, 꼼꼼하게는 어려운 일을 더 잘해요.</p>
 
-    <h2>모델</h2>
-    <select id="model" aria-label="모델"></select>
+    <h3>모델</h3>
+    <select id="model" aria-label="모델"><option>불러오는 중…</option></select>
     <p class="note" id="fallbacks"></p>
 
-    <h2>대화</h2>
+    <h3>대화</h3>
     <button type="button" class="plain-btn" id="new-conversation">새 대화 시작</button>
-    <p class="note">대화 흐름만 비워요. 기억해 둔 내용은 그대로 남아요.</p>
+    <p class="note">대화 흐름만 비워요. 기억해 둔 내용은 그대로예요.</p>
   </form>
 </dialog>
 

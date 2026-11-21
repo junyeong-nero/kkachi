@@ -71,6 +71,7 @@ async function ensureAudio() {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   } catch (e) {
     diag("mic error", { err: String(e) });
+    $("mic").disabled = true;
     setState("error", "마이크를 쓸 수 없어요. 설정에서 마이크를 허용해 주세요.");
     return false;
   }
@@ -211,7 +212,7 @@ const MAX_TURNS = 30;
 function scrollDown() { const log = $("log"); log.scrollTop = log.scrollHeight; }
 
 function addTurn(text) {
-  $("empty")?.remove();
+  $("intro")?.remove();
   const turn = document.createElement("article");
   turn.className = "turn";
   const you = document.createElement("div");
@@ -228,13 +229,9 @@ function addTurn(text) {
   return { reply, chips };
 }
 
+// Empty transcript shows real things to say (first-run guidance), from the HTML template.
 function clearTranscript() {
-  const log = $("log");
-  log.replaceChildren();
-  const empty = document.createElement("div");
-  empty.className = "empty"; empty.id = "empty";
-  empty.innerHTML = '<img src="/icon.svg" alt="" /><strong>무엇을 도와드릴까요?</strong><span>아래 버튼을 누른 채로 말하세요.<br />손을 떼면 까치가 답해요.</span>';
-  log.append(empty);
+  $("log").replaceChildren($("intro-template").content.cloneNode(true));
 }
 
 // Notes used for the answer; remembered ones (changed this turn) are highlighted.
@@ -409,6 +406,19 @@ const talk = $("talk");
 talk.addEventListener("pointerdown", (e) => { e.preventDefault(); talk.setPointerCapture?.(e.pointerId); press(); });
 for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) talk.addEventListener(ev, release);
 talk.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-press menu
+
+// Keyboard: hold Space to talk (not while typing in the settings sheet).
+const typing = (el) => el?.closest?.("dialog[open], input, select, textarea");
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" || e.repeat || typing(e.target)) return;
+  e.preventDefault(); press();
+});
+document.addEventListener("keyup", (e) => {
+  if (e.code !== "Space" || typing(e.target)) return;
+  e.preventDefault(); release();
+});
+
+clearTranscript();
 // ?demo=<state> renders a sample screen for design review (no audio, no requests).
 const demo = new URLSearchParams(location.search).get("demo");
 if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.dataset.theme = "light";

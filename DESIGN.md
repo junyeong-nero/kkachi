@@ -1,0 +1,56 @@
+# DESIGN.md — Kkachi web app
+
+Single source of truth for the app's visual system (`src/web/index.html`). Interaction design (voice flow, states, latency) lives in [docs/design.md](docs/design.md).
+
+## Discovery
+
+- **Artifact**: mobile AI/conversational interface, voice-first (Operate mode). Used one-handed on a phone, often without looking.
+- **Who / job**: one person talking to their own assistant. Primary action: hold to talk.
+- **Brief**: clean and neutral like other AI products; the magpie (까치) appears only as the app icon and logo, the way Kitsune uses its fox. An earlier full-screen magpie illustration was rejected as kitschy.
+- **Adjectives**: calm, clear, quick, trustworthy. Essence: *quiet voice tool*.
+
+## Commitments
+
+- **Aesthetic**: plain neutral surfaces, one accent, content first. Familiar chat patterns (your words right, Kkachi's answer left) because Operate mode rewards familiarity.
+- **Signature move**: the hold-to-talk button that draws your live voice level as a ring, and "remembered" chips in the same magpie-wing teal. Teal only ever means "Kkachi is listening" or "Kkachi remembered this".
+- **Symbol**: geometric perched magpie in a rounded square (`src/web/icon.svg`), used for the app icon and the header logo only.
+
+## Tokens
+
+| Role | Light | Dark |
+|---|---|---|
+| bg | `oklch(0.992 0.002 240)` | `oklch(0.185 0.006 250)` |
+| surface | `oklch(0.962 0.005 240)` | `oklch(0.235 0.008 250)` |
+| line | `oklch(0.905 0.007 240)` | `oklch(0.31 0.01 250)` |
+| text | `oklch(0.22 0.012 250)` | `oklch(0.94 0.005 250)` |
+| muted | `oklch(0.49 0.014 250)` | `oklch(0.71 0.012 250)` |
+| accent (magpie teal, H≈192) | `oklch(0.54 0.105 192)` | `oklch(0.76 0.095 190)` |
+| accent-soft | `oklch(0.948 0.03 192)` | `oklch(0.3 0.045 192)` |
+| danger | `oklch(0.53 0.17 35)` | `oklch(0.74 0.13 40)` |
+
+- **Type**: SUIT Variable (Korean-native sans; not Inter/Pretendard by reflex). Scale ratio 1.2 from 16px: 13 / 16 / 19 / 23. Korean line breaks with `word-break: keep-all`.
+- **Radius**: 8px (chips, small controls), 14px (bubbles, groups, sheet), pill (buttons, mic).
+- **Shadow**: one soft elevation `0 1px 2px` in light mode only; dark mode uses lightness steps.
+- **Motion**: `--ease-out: cubic-bezier(.22,1,.36,1)`, 120ms / 200ms. Only transform, opacity, color. Reduced motion keeps color and opacity changes, drops movement.
+
+## Craft decisions
+
+- **Layout**: header (refresh, logo, settings) / transcript / talk area. The whole talk area is the press target, so it can be hit without looking.
+- **Transcript**: last 30 turns of this page. Sentences shown but not spoken (answers longer than two sentences) are muted.
+- **First run**: example sentences to say, as plain quoted lines (not tappable-looking boxes), placed near the talk button.
+- **States**: mic idle / recording (teal, level ring) / thinking (dimmed) / speaking (bars) / disabled (mic permission denied). Icon buttons and settings controls have hover (pointer devices), active, focus-visible (3px teal ring).
+- **Keyboard**: hold Space to talk.
+- **Browser surfaces**: selection, caret, and scrollbar use the palette.
+- **Dark mode**: designed per token, follows the system; `?theme=light` forces light for review.
+
+## Slop audit (2026-11-21)
+
+Checked against samber `frontend-design-deslop` slop-checklist, impeccable `craft-floor`, and anthropics `frontend-design`.
+
+Fixed: indigo-band accent (#2F5BD3, H≈265) → teal; Pretendard (Inter-derived) → SUIT; "무엇을 도와드릴까요?" category-default copy and centered icon-tile empty state → example sentences; instruction repeated in two slots; mixed radii and an 18px bubble; missing hover/disabled states; pointer-only mic → Space key; default selection and scrollbar; muted chip contrast below 4.5:1; keyword easing.
+
+Kept on purpose: centered single column and chat bubbles (familiar Operate-mode pattern the brief asks for); one font family (one family with weight steps suits a quiet tool).
+
+## Changelog
+
+- 2026-11-21: clean AI-app direction, magpie as icon only, deslop pass.
