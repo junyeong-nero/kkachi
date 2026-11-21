@@ -26,7 +26,7 @@ Bun.serve({
         const raw = await transcribe(await req.blob());
         const t1 = performance.now();
         const text = await polish(raw);
-        if (text !== raw) console.log(`polish: ${raw} → ${text}`);
+        if (text !== raw) console.log(`polish: ${raw} → ${text || "(noise, dropped)"}`);
         return Response.json({ text, raw, sttMs: Math.round(t1 - t0), polishMs: Math.round(performance.now() - t1) });
       }
 

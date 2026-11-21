@@ -22,13 +22,16 @@ export const config = {
   dataDir,
   port: Number(env.KKACHI_PORT ?? 4300),
   // Ordered fallback list of Pi models (provider/model, comma-separated). See src/models.ts.
+  // Default: the Pi subscription model first, free OpenRouter models if it is limited.
   models: (env.KKACHI_MODEL ?? [
+    "openai/gpt-6.2-sol",
     "openrouter/particle-ai/particle-1:free",
     "openrouter/nvidia/nemotron-3.5-super-vl:free",
     "openrouter/recursive/flint-v1.0:free",
   ].join(","))
     .split(",").map((m) => m.trim()).filter(Boolean),
   piBin: env.KKACHI_PI_BIN ?? "pi",
+  thinking: env.KKACHI_THINKING ?? "low", // Pi thinking level: off | minimal | low | medium | high
   timeZone: env.KKACHI_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
   stt: {
     baseUrl: env.KKACHI_STT_BASE_URL ?? "https://api.groq.com/openai/v1",

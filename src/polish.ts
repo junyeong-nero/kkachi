@@ -1,10 +1,18 @@
 // Clean up a speech-recognition transcript with a small, fast LLM before the agent sees it:
-// fix misheard words, spacing, numbers. Falls back to the raw transcript on any failure.
+// fix misheard words, spacing, numbers, and drop noise. Returns "" for noise (the client then
+// just keeps listening). Falls back to the raw transcript if the LLM fails.
 import { config } from "./config";
 
 const TIMEOUT_MS = 2500;
+const NOISE = "<noise>";
+
+// Cheap pre-filter: only filler syllables ("아 아 아", "음...", "어어"), no LLM call needed.
+// Not 응/네/예: those are real answers ("KE123 맞죠?" → "응").
+const FILLER_ONLY = /^[아어오우으음엄흠허하호에\s.,!?~…·-]*$/;
+
 const SYSTEM = `You fix speech-recognition transcripts of Korean (sometimes mixed with English) spoken to a voice assistant.
 Return only the corrected transcript, nothing else.
+- If the transcript is not real speech to the assistant (noise, filler sounds or repeated syllables like "아 아 아 아", "음 음", "어어어", video/TV phrases like "구독과 좋아요"), return exactly ${NOISE}. Short replies such as "응", "네", "아니", "그래" are real speech
 - Fix misrecognized words when context makes the intended word clear (place names, people, common phrases), spacing, and punctuation
 - Write times and dates naturally (일곱 시 → 7시, 삼월 십사일 → 3월 14일)
 - Keep the meaning, tone, and wording otherwise. Do not add, remove, summarize, or answer anything
@@ -13,7 +21,8 @@ Return only the corrected transcript, nothing else.
 
 export async function polish(raw: string): Promise<string> {
   const { baseUrl, apiKey, model } = config.polish;
-  if (!raw || !model) return raw;
+  if (!raw || FILLER_ONLY.test(raw)) return "";
+  if (!model) return raw;
   try {
     const body: Record<string, unknown> = {
       model,
@@ -29,6 +38,7 @@ export async function polish(raw: string): Promise<string> {
     });
     if (!r.ok) throw new Error(`polish ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const out = String(((await r.json()) as any).choices?.[0]?.message?.content ?? "").trim();
+    if (out.includes(NOISE)) return "";
     // Guard against the model answering instead of correcting.
     return out && out.length <= raw.length * 2 + 20 ? out : raw;
   } catch (err) {

@@ -45,6 +45,12 @@ export class Pi {
     this.readStdout();
     this.readStderr();
     await this.command({ type: "set_auto_retry", enabled: false }); // Kkachi falls back to another model instead
+    await this.setThinking();
+  }
+
+  // Spoken turns need speed more than depth. Ignored by models without reasoning levels.
+  setThinking() {
+    return this.command({ type: "set_thinking_level", level: config.thinking }).catch(() => {});
   }
 
   private async readStdout() {
@@ -104,9 +110,10 @@ export class Pi {
     return () => this.listeners.delete(listener);
   }
 
-  setModel(model: string) {
+  async setModel(model: string) {
     const [provider, ...rest] = model.split("/");
-    return this.command({ type: "set_model", provider, modelId: rest.join("/") });
+    await this.command({ type: "set_model", provider, modelId: rest.join("/") });
+    await this.setThinking();
   }
 
   /** Send a prompt and resolve when Pi settles (no more automatic work). */
