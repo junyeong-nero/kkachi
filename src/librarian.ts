@@ -26,6 +26,12 @@ export function scheduleTidy() {
   })().finally(() => (running = null));
 }
 
+/** Run a tidy now and wait for it (used after importing notes: `bun -e 'import("./src/librarian").then(m => m.tidyNow())'`). */
+export async function tidyNow() {
+  scheduleTidy();
+  await running;
+}
+
 /** Stop a running tidy and discard its changes. Resolves once the repo is clean again. */
 export async function cancelTidy() {
   if (!running) return;

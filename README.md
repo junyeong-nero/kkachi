@@ -40,4 +40,12 @@ Phone (mic/speaker) → Tailscale Serve (HTTPS) → Kkachi web app (Bun, localho
 
 Your notes live in a separate git repo that you own, created from `templates/memory/`. Its `AGENTS.md` tells Kkachi how to organize notes. Pushing to a private remote is optional.
 
+Already keep notes in a PARA-style folder (e.g. an Obsidian vault with `00_inbox`, `01_projects`, ...)? Import them, then let the librarian build the catalog:
+
+```sh
+bun scripts/import-notes.ts <your-notes-repo> <memory-repo> --dry-run   # preview the new paths
+bun scripts/import-notes.ts <your-notes-repo> <memory-repo>             # copy, strip NN_ numbers, convert [[wikilinks]]
+bun -e 'await (await import("./src/librarian")).tidyNow(); process.exit(0)'
+```
+
 Do not store secrets (ID numbers, bank accounts, passwords) in it.
