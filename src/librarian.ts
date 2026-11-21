@@ -26,6 +26,9 @@ export function scheduleTidy() {
   })().finally(() => (running = null));
 }
 
+/** Resolves when no tidy is running (the conversation review waits for it, so they never overlap). */
+export const tidyIdle = () => running ?? Promise.resolve();
+
 /** Run a tidy now and wait for it (used after importing notes: `bun -e 'import("./src/librarian").then(m => m.tidyNow())'`). */
 export async function tidyNow() {
   scheduleTidy();

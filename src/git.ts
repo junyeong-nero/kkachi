@@ -1,6 +1,7 @@
 // Git operations on the memory repo. The agent has no shell; Kkachi does all git work here.
 const COMMIT_PREFIX = "kkachi: ";
 export const TIDY_PREFIX = COMMIT_PREFIX + "정리 — ";
+export const REVIEW_PREFIX = COMMIT_PREFIX + "대화 정리 — ";
 
 export async function git(dir: string, ...args: string[]) {
   const p = Bun.spawn(["git", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
@@ -43,12 +44,12 @@ export async function pushIfAhead(dir: string) {
   if ((await git(dir, "rev-list", "--count", "@{upstream}..HEAD")) !== "0") await git(dir, "push", "--quiet");
 }
 
-// Revert the latest conversation commit (skipping librarian tidy commits above it).
+// Revert the latest conversation commit (skipping background tidy and review commits above it).
 // Returns its subject, null if there is nothing to undo, or throws if it no longer reverts cleanly.
 export async function undoLast(dir: string) {
   for (const line of (await git(dir, "log", "-20", "--format=%H %s")).split("\n")) {
     const sha = line.slice(0, 40), subject = line.slice(41);
-    if (subject.startsWith(TIDY_PREFIX)) continue;
+    if (subject.startsWith(TIDY_PREFIX) || subject.startsWith(REVIEW_PREFIX)) continue;
     if (!subject.startsWith(COMMIT_PREFIX) || subject.startsWith(COMMIT_PREFIX + "undo")) return null;
     try {
       await git(dir, "revert", "--no-edit", "--no-commit", sha);

@@ -7,6 +7,7 @@ import { log } from "./log";
 import { commitTurn, filesIn, pull, pushIfAhead, stashLeftovers } from "./git";
 import { cancelTidy, scheduleTidy } from "./librarian";
 import { currentModel, isLimitError, markLimited, modelOrder } from "./models";
+import { cancelReview, recordTurn as queueForReview, resumeReviews } from "./review";
 import { authedProviders, settings } from "./settings";
 import { Pi, type PiEvent } from "./pi";
 
@@ -75,6 +76,7 @@ export async function startConversation() {
   // `git stash list`) so they never leak into the next turn's commit.
   if (await stashLeftovers(config.memoryDir)) console.error("memory repo had uncommitted changes; stashed them");
   await conversation();
+  resumeReviews();
 }
 
 // ---- speech text ----
@@ -119,7 +121,22 @@ const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && !
 // (it still commits whatever it already changed), then run the new one.
 export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
   if (currentTurn) await agent?.abort();
-  const turn = queue.then(() => doTurn(text, emit));
+  const turn = queue.then(async () => {
+    await Promise.all([cancelReview(), cancelTidy()]); // a foreground turn has priority over both jobs
+    const t = new Date().toISOString();
+    let reply = "", saved: string[] = [];
+    try {
+      await doTurn(text, (e) => {
+        if (e.type === "delta") reply += e.text;
+        if (e.type === "aside") reply = ""; // keep the answer, not progress before a tool call
+        if (e.type === "done") saved = e.changed;
+        emit(e);
+      });
+    } finally {
+      // Once per submitted turn, not once per model fallback or stream reconnect.
+      queueForReview({ t, user: text, reply, saved });
+    }
+  });
   queue = turn.catch(() => {});
   currentTurn = turn;
   try { await turn; } finally { if (currentTurn === turn) currentTurn = null; }
@@ -127,8 +144,6 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
 let queue: Promise<void> = Promise.resolve();
 
 async function doTurn(text: string, emit: (e: TurnEvent) => void) {
-  // The cleaned-up transcript can be wrong about English terms; give the agent the original too.
-  await cancelTidy(); // the user comes first; the librarian retries after this conversation
   try {
     await pull(config.memoryDir);
   } catch (err) {

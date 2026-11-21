@@ -1,6 +1,7 @@
 // Pi (https://github.com/earendil-works/pi) as Kkachi's agent runtime, over RPC mode (JSONL on
 // stdin/stdout). Kkachi shares the user's Pi setup (extensions, skills, MCP, auth) and adds its
 // own extension (pi/kkachi.ts) and system prompt. Every Pi command Kkachi uses lives in this file.
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
 import { settings } from "./settings";
@@ -13,6 +14,7 @@ export interface PiOptions {
   // replace: this prompt instead of Pi's, with only the memory repo's AGENTS.md (background jobs).
   mode: "append" | "replace";
   session: "continue" | "none";
+  reviewWorktree?: string; // isolated checkout; reviews need only the built-in note tools
 }
 
 // Dialog requests block Pi until answered. A voice UI cannot show them, so they are cancelled.
@@ -29,20 +31,21 @@ export class Pi {
 
   async start(model: string) {
     // Extensions, skills, MCP and auth are always the user's own Pi setup.
+    const dir = this.opts.reviewWorktree ?? config.memoryDir;
     const prompt = join(config.root, "prompts", this.opts.prompt);
     const promptArgs = this.opts.mode === "append"
       ? ["--append-system-prompt", prompt] // cwd is the memory repo, so its AGENTS.md loads as project context
-      : ["--system-prompt", await Bun.file(prompt).text(), "--no-context-files", "--append-system-prompt", join(config.memoryDir, "AGENTS.md")];
+      : ["--system-prompt", readFileSync(prompt, "utf8"), "--no-context-files", "--append-system-prompt", join(dir, "AGENTS.md")];
     const args = [
       config.piBin, "--mode", "rpc",
       "--model", model,
       ...promptArgs,
-      "-e", join(config.root, "pi", "kkachi.ts"),
+      ...(this.opts.reviewWorktree ? ["--tools", "read,ls,find,grep,edit,write"] : ["-e", join(config.root, "pi", "kkachi.ts")]),
       ...(this.opts.session === "continue" ? ["--session-dir", join(config.dataDir, "pi-sessions"), "--continue"] : ["--no-session"]),
     ];
     this.proc = Bun.spawn(args, {
-      cwd: config.memoryDir,
-      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: config.memoryDir },
+      cwd: dir,
+      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });
     this.exited = this.proc.exited;
@@ -146,6 +149,12 @@ export class Pi {
 
   async availableModels(): Promise<{ provider: string; id: string; name?: string }[]> {
     return (await this.command({ type: "get_available_models" }))?.models ?? [];
+  }
+
+  /** Stop an isolated worker before its scratch directory is removed, even during startup. */
+  async terminate() {
+    if (this.proc && this.proc.exitCode === null) this.proc.kill("SIGKILL");
+    await this.exited;
   }
 
   stop() {
