@@ -12,7 +12,7 @@ import { Pi, type PiEvent } from "./pi";
 
 export type TurnEvent =
   | { type: "delta"; text: string }                         // live text for the screen, as it streams
-  | { type: "retract" }                                     // the streamed text was narration before a tool call: drop it
+  | { type: "aside" }                                       // the text so far was narration before a tool call: keep it, muted, and stop speaking it
   | { type: "sentence"; text: string; silent?: boolean }    // a finished sentence to speak (silent: too long, screen only)
   | { type: "activity"; tool: string; path?: string }
   | { type: "end"; reason: "done" | "handoff" } // stop listening after speaking
@@ -29,7 +29,7 @@ let agentModel = "";
 async function conversation(): Promise<Pi> {
   if (!agent) {
     agentModel = currentModel();
-    const pi = new Pi({ prompt: "kkachi.md", session: "continue" });
+    const pi = new Pi({ prompt: "kkachi.md", mode: "append", session: "continue" });
     await pi.start(agentModel);
     pi.exited.then((code) => { console.error(`pi exited (${code}); restarting on next turn`); if (agent === pi) agent = null; });
     agent = pi;
@@ -189,17 +189,19 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
         const u = e.assistantMessageEvent;
         if (u?.type === "toolcall_start" && !toolMessage) {
           toolMessage = true;
-          if (shown.trim()) emit({ type: "retract" });
+          if (shown.trim()) emit({ type: "aside" });
           shown = ""; pending = "";
         }
-        if (u?.type !== "text_delta" || toolMessage || footer) break;
-        let delta: string = u.delta;
-        const cut = (shown + delta).search(/\n\s*(?:sources|출처)\s*:/i); // a "Sources:" footer is not for the ear
-        if (cut >= 0) { delta = delta.slice(0, Math.max(0, cut - shown.length)); footer = true; }
+        if (u?.type !== "text_delta" || toolMessage) break;
+        const delta: string = u.delta;
         if (!delta) break;
         said = true;
-        shown += delta; pending += delta;
-        emit({ type: "delta", text: delta });
+        shown += delta;
+        emit({ type: "delta", text: delta }); // the screen gets everything
+        if (footer) break;                     // the ear does not: no "Sources:" footer
+        const cut = shown.search(/\n\s*(?:sources|출처)\s*:/i);
+        pending += cut >= 0 ? delta.slice(0, Math.max(0, cut - (shown.length - delta.length))) : delta;
+        if (cut >= 0) footer = true;
         flush(false);
         break;
       }

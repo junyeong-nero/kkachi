@@ -1,6 +1,6 @@
 # Kkachi (까치)
 
-A self-hosted, voice-only assistant for your phone. Tap once, then just talk. It remembers what you tell it in your own Markdown notes (a git repo), and it can do anything your [Pi](https://github.com/earendil-works/pi) coding agent can: search the web, use MCP servers (browser, calendar, ...), and work on code.
+A self-hosted assistant for your phone. Hold to talk, or type. Replies come back as text and can be read aloud. It remembers what you tell it in your own Markdown notes (a git repo), and it can do anything your [Pi](https://github.com/earendil-works/pi) coding agent can: search the web, use MCP servers (browser, calendar, ...), and work on code.
 
 > **Status: early prototype.** Runs on macOS; setup is still manual. See [docs/plan.md](docs/plan.md) and [docs/design.md](docs/design.md) (Korean).
 

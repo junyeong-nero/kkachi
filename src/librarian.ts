@@ -81,7 +81,7 @@ async function tidy() {
   const model = currentModel();
   console.log(`librarian: tidying ${changed.length} changed notes with ${model}`);
 
-  const pi = new Pi({ prompt: "librarian.md", session: "none" });
+  const pi = new Pi({ prompt: "librarian.md", mode: "replace", session: "none" });
   current = pi;
   await pi.start(model);
   let error = "";

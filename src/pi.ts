@@ -8,7 +8,10 @@ import { settings } from "./settings";
 export type PiEvent = { type: string; [k: string]: any };
 
 export interface PiOptions {
-  prompt: string; // file in prompts/ that replaces Pi's default (coding) system prompt
+  prompt: string; // file in prompts/
+  // append: the user's own Pi (default prompt, global and project AGENTS.md) plus this prompt.
+  // replace: this prompt instead of Pi's, with only the memory repo's AGENTS.md (background jobs).
+  mode: "append" | "replace";
   session: "continue" | "none";
 }
 
@@ -25,15 +28,15 @@ export class Pi {
   constructor(private opts: PiOptions) {}
 
   async start(model: string) {
-    // Voice mode replaces Pi's coding prompt and the user's global AGENTS.md (its progress-update
-    // and formatting rules fight a spoken reply). Extensions, skills, MCP and auth stay shared.
-    // The memory repo's AGENTS.md is attached explicitly.
+    // Extensions, skills, MCP and auth are always the user's own Pi setup.
+    const prompt = join(config.root, "prompts", this.opts.prompt);
+    const promptArgs = this.opts.mode === "append"
+      ? ["--append-system-prompt", prompt] // cwd is the memory repo, so its AGENTS.md loads as project context
+      : ["--system-prompt", await Bun.file(prompt).text(), "--no-context-files", "--append-system-prompt", join(config.memoryDir, "AGENTS.md")];
     const args = [
       config.piBin, "--mode", "rpc",
       "--model", model,
-      "--system-prompt", await Bun.file(join(config.root, "prompts", this.opts.prompt)).text(),
-      "--no-context-files",
-      "--append-system-prompt", join(config.memoryDir, "AGENTS.md"),
+      ...promptArgs,
       "-e", join(config.root, "pi", "kkachi.ts"),
       ...(this.opts.session === "continue" ? ["--session-dir", join(config.dataDir, "pi-sessions"), "--continue"] : ["--no-session"]),
     ];

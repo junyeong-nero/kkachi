@@ -101,12 +101,31 @@
     max-width: 85%; padding: 10px 14px; font-size: var(--t-base); line-height: 1.55;
     word-break: keep-all; overflow-wrap: anywhere;
   }
+  .kkachi { max-width: 100%; min-width: 0; }
   .you { align-self: flex-end; background: var(--surface); color: var(--text); border-radius: var(--r-md) var(--r-md) 4px var(--r-md); }
   .kkachi { align-self: flex-start; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) var(--r-md) 4px; }
   .kkachi[hidden] { display: none; }
-  .kkachi .live { white-space: pre-wrap; }
-  .kkachi .live:empty { display: none; }
-  .kkachi.error { color: var(--danger); }
+  .kkachi > * + * { margin-top: 10px; }
+  .kkachi .err { color: var(--danger); margin-bottom: 0; }
+  .kkachi .err:only-child { margin: 0; }
+  /* Markdown replies */
+  .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
+  .md p, .md ul, .md ol, .md pre, .md table, .md blockquote { margin: 0 0 .7em; }
+  .md ul, .md ol { padding-left: 1.3em; }
+  .md li + li { margin-top: .2em; }
+  .md h1, .md h2, .md h3, .md h4 { font-size: var(--t-base); font-weight: 700; margin: 1em 0 .4em; line-height: 1.4; }
+  .md h1, .md h2 { font-size: var(--t-md); }
+  .md a { color: var(--accent); text-underline-offset: 2px; }
+  .md code { font: .9em/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface); border-radius: 5px; padding: .1em .35em; }
+  .md pre { background: var(--surface); border-radius: var(--r-sm); padding: 10px 12px; overflow-x: auto; }
+  .md pre code { background: none; padding: 0; font-size: .85em; }
+  .md table { display: block; overflow-x: auto; border-collapse: collapse; font-size: var(--t-sm); }
+  .md th, .md td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; vertical-align: top; }
+  .md th { background: var(--surface); font-weight: 600; }
+  .md blockquote { border-left: 3px solid var(--line); padding-left: 10px; color: var(--muted); }
+  .md hr { border: 0; border-top: 1px solid var(--line); margin: 1em 0; }
+  /* narration before a tool call ("노트를 찾아볼게요"): kept, but quiet */
+  .md.aside { color: var(--muted); font-size: var(--t-sm); }
 
   /* live progress: typing dots, and what Kkachi is doing right now */
   .dots { display: inline-flex; gap: 4px; align-items: center; height: 1em; vertical-align: middle; }
@@ -131,6 +150,26 @@
   .intro ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .intro li { font-size: var(--t-md); line-height: 1.45; color: var(--muted); }
   .intro p { font-size: var(--t-sm); color: var(--muted); margin: 14px 0 0; line-height: 1.5; }
+
+  /* input: one of the two docks, by mode (per device, set in the settings sheet) */
+  body[data-input=keyboard] #talk, body[data-input=voice] #compose { display: none; }
+  #compose {
+    display: flex; align-items: flex-end; gap: 8px; width: 100%; max-width: 640px; margin: 0 auto;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  #say {
+    flex: 1; resize: none; font: inherit; font-size: max(16px, var(--t-base)); line-height: 1.45; /* 16px+: iOS does not zoom */
+    padding: 10px 14px; border-radius: 22px; border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    max-height: 160px; outline: none;
+  }
+  #say:focus { border-color: var(--accent); }
+  #send {
+    flex: none; width: 44px; height: 44px; border-radius: var(--r-pill); border: 0; cursor: pointer;
+    background: var(--button); color: var(--button-ink); display: grid; place-items: center;
+    transition: opacity var(--dur) var(--ease-out);
+  }
+  #send svg { width: 20px; height: 20px; }
+  #send:disabled { opacity: .3; cursor: default; }
 
   /* talk area: everything below the transcript is the press target */
   #talk {
@@ -216,6 +255,7 @@
   input[type=range] { flex: 1; accent-color: var(--accent); }
   output { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: var(--t-sm); }
   .segment { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border-radius: var(--r-md); padding: 3px; }
+  .segment.two { grid-template-columns: repeat(2, 1fr); }
   .segment label { text-align: center; padding: 10px 0; border-radius: 11px; font-size: var(--t-base); cursor: pointer; color: var(--muted); }
   .segment input { position: absolute; opacity: 0; pointer-events: none; }
   .segment label:has(input:checked) { background: var(--bg); color: var(--text); box-shadow: var(--shadow); }
@@ -240,7 +280,7 @@
   body.debug #diag { display: block; }
 </style>
 </head>
-<body data-state="idle">
+<body data-state="idle" data-input="voice">
 <div class="status-shield" aria-hidden="true"></div>
 <header class="bar">
   <button class="icon-btn" id="refresh" aria-label="새로고침">
@@ -261,6 +301,12 @@
     <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
   </button>
 </section>
+<form id="compose" autocomplete="off">
+  <textarea id="say" rows="1" placeholder="까치에게 보내기" enterkeyhint="send" aria-label="메시지"></textarea>
+  <button id="send" type="submit" aria-label="보내기" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+  </button>
+</form>
 <div id="toast" role="status"></div>
 <div id="diag"></div>
 
@@ -283,8 +329,30 @@
       <button class="text-btn" value="close">완료</button>
     </div>
 
-    <h3>목소리</h3>
-    <div class="group" id="voices"><div class="loading">불러오는 중…</div></div>
+    <h3>입력 방식</h3>
+    <div class="segment two" role="radiogroup" aria-label="입력 방식">
+      <label><input type="radio" name="input" value="voice">음성</label>
+      <label><input type="radio" name="input" value="keyboard">키보드</label>
+    </div>
+    <p class="note">음성은 누르고 있는 동안 말하고, 키보드는 글로 보내요. 이 기기에만 적용돼요.</p>
+
+    <h3>읽어 주기</h3>
+    <div class="segment two" role="radiogroup" aria-label="읽어 주기">
+      <label><input type="radio" name="speak" value="off">끄기</label>
+      <label><input type="radio" name="speak" value="on">켜기</label>
+    </div>
+    <p class="note">켜면 답의 첫 두 문장을 소리로 읽어 줘요. 이 기기에만 적용돼요.</p>
+
+    <div id="voice-settings" hidden>
+      <h3>목소리</h3>
+      <div class="group" id="voices"><div class="loading">불러오는 중…</div></div>
+
+      <h3>말 빠르기</h3>
+      <div class="row">
+        <input type="range" id="rate" min="-30" max="60" step="10" aria-label="말 빠르기" />
+        <output id="rate-out"></output>
+      </div>
+    </div>
 
     <h3>글자 크기</h3>
     <div class="row">
@@ -292,12 +360,6 @@
       <output id="text-size-out"></output>
     </div>
     <p class="note">본문 글자 크기예요. 다른 글자도 같은 비율로 바뀌고, 이 기기에만 적용돼요.</p>
-
-    <h3>말 빠르기</h3>
-    <div class="row">
-      <input type="range" id="rate" min="-30" max="60" step="10" aria-label="말 빠르기" />
-      <output id="rate-out"></output>
-    </div>
 
     <h3>생각 깊이</h3>
     <div class="segment" id="thinking" role="radiogroup" aria-label="생각 깊이"></div>
@@ -313,6 +375,8 @@
   </form>
 </dialog>
 
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/purify.min.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

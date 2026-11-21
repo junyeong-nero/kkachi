@@ -1,4 +1,5 @@
-// Kkachi voice UI. Push to talk: hold the screen while speaking, release to send. See docs/design.md.
+// Kkachi UI. Voice (hold to talk, release to send) or keyboard input; replies render as Markdown and
+// can be read aloud. See DESIGN.md.
 "use strict";
 
 // ---- tuning ----
@@ -10,6 +11,10 @@ const READY_HINT = "누르고 있는 동안 말하세요";
 
 const DEBUG = new URLSearchParams(location.search).has("debug");
 const $ = (id) => document.getElementById(id);
+
+// Per-device preferences (a phone and a laptop want different ones), kept in localStorage.
+const inputMode = () => (localStorage.getItem("kkachi.input") === "keyboard" ? "keyboard" : "voice");
+const readAloud = () => localStorage.getItem("kkachi.speak") === "on";
 
 // ---- state ----
 let ctx, stream, frameMs = 0;
@@ -53,7 +58,7 @@ const earcon = {
 function audioOut() {
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (navigator.audioSession) { try { navigator.audioSession.type = "play-and-record"; } catch {} }
+    if (navigator.audioSession) { try { navigator.audioSession.type = inputMode() === "voice" ? "play-and-record" : "playback"; } catch {} }
   }
   if (ctx.state !== "running") ctx.resume();
 }
@@ -99,7 +104,7 @@ async function ensureAudio() {
   return true;
 }
 
-function ready(hint = READY_HINT) { setState("idle", hint); }
+function ready(hint = READY_HINT) { setState("idle", inputMode() === "voice" ? hint : ""); }
 
 // ---- capture: keep a short pre-roll, record only while pressed ----
 function onFrame(f) {
@@ -169,12 +174,27 @@ async function handleUtterance(frames) {
   view.setYou(text);
   setState("thinking", "생각하는 중 · 누르면 멈춰요");
   diag("stt", { text, ms: Math.round(performance.now() - t0) });
+  await runTurn(my, view, { text, raw }, t0);
+}
 
+// A typed message: no transcription, straight to the turn.
+function handleText(text) {
+  const my = ++turnId;
+  stopPlayback();
+  if (readAloud()) audioOut(); // the send tap is the gesture iOS needs before it plays sound
+  const view = addTurn();
+  view.setYou(text);
+  setState("thinking", "");
+  runTurn(my, view, { text }, performance.now());
+}
+
+async function runTurn(my, view, body, t0) {
+  const speak = readAloud();
   const queue = [];       // Promise<AudioBuffer|null>, in play order
-  let skipBefore = 0;     // queue items before this index were retracted and are not played
+  let skipBefore = 0;     // queue items before this index were narration before a tool call: not played
   let streamDone = false, end = false, firstSound = 0;
 
-  const player = (async () => {
+  const player = !speak ? Promise.resolve() : (async () => {
     for (let i = 0; ; ) {
       if (my !== turnId) return;
       if (i < skipBefore) { i = skipBefore; continue; }
@@ -191,11 +211,11 @@ async function handleUtterance(frames) {
   })();
 
   try {
-    await readEvents("/api/turn", { text, raw }, (e) => {
+    await readEvents("/api/turn", body, (e) => {
       if (my !== turnId) return;
       if (e.type === "delta") view.stream(e.text);                       // live text on screen
-      else if (e.type === "sentence") { if (!e.silent) queue.push(ttsBuffer(e.text)); } // speak as soon as a sentence is complete
-      else if (e.type === "retract") { view.retract(); skipBefore = queue.length; stopPlayback(); }
+      else if (e.type === "sentence") { if (speak && !e.silent) queue.push(ttsBuffer(e.text)); } // speak as soon as a sentence is complete
+      else if (e.type === "aside") { view.aside(); if (speak) { skipBefore = queue.length; stopPlayback(); } }
       else if (e.type === "activity") {
         const label = activityLabel(e.tool, e.path);
         view.working(label);
@@ -203,11 +223,12 @@ async function handleUtterance(frames) {
       }
       else if (e.type === "end") end = true;
       else if (e.type === "done") { view.finish(); showChips(view.chips, e.sources, e.changed, e.titles); }
-      else if (e.type === "error") { view.fail(e.message); queue.push(ttsBuffer(e.message)); earcon.error(); }
+      else if (e.type === "error") { view.fail(e.message); if (speak) queue.push(ttsBuffer(e.message)); earcon.error(); }
     });
     view.finish();
   } catch (e) {
     streamDone = true;
+    if (my === turnId) view.fail("연결이 끊겼어요. 다시 보내 주세요.");
     return turnError(my, "연결이 끊겼어요. 다시 말해 주세요.", e);
   }
   streamDone = true;
@@ -221,7 +242,7 @@ async function turnError(my, message, err) {
   if (my !== turnId) return;
   setState("error", message);
   earcon.error();
-  const buf = await ttsBuffer(message);
+  const buf = readAloud() ? await ttsBuffer(message) : null;
   if (buf && my === turnId) await play(buf);
   if (my === turnId) ready();
 }
@@ -245,36 +266,52 @@ function activityLabel(tool = "", path = "") {
   return "작업하는 중";
 }
 
-// Markdown marks are noise on screen too (the agent is asked not to use them).
-const plain = (s) => s.replace(/\*\*|__|`/g, "").replace(/^#+\s*/gm, "");
+// Replies are Markdown, sanitized before they touch the page (they can quote web pages).
+if (window.DOMPurify) {
+  DOMPurify.addHook("afterSanitizeAttributes", (n) => { if (n.tagName === "A") { n.target = "_blank"; n.rel = "noopener noreferrer"; } });
+}
+function renderMarkdown(target, text) {
+  if (window.marked && window.DOMPurify) target.innerHTML = DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: true }));
+  else target.textContent = text; // vendor scripts failed to load: plain text still works
+}
 
-// One turn in the transcript. It appears the moment you release the button and fills in live.
+// One turn in the transcript. It appears the moment you send and fills in live.
 function addTurn() {
   $("intro")?.remove();
   const turn = el("article", "turn");
   const you = el("div", "you pending", DOTS);
   you.setAttribute("aria-label", "받아적는 중");
   const reply = el("div", "kkachi");
-  const live = el("span", "live");
   const work = el("div", "working", `${DOTS}<span class="label"></span>`);
-  reply.hidden = true; // Kkachi's bubble appears once your words are transcribed
-  reply.append(live, work);
+  let block = el("div", "md"); // the message being written; earlier ones (narration before tool calls) are asides
+  reply.hidden = true; // Kkachi's bubble appears once your words are known
+  reply.append(block, work);
   const chips = el("div", "chips");
   turn.append(you, reply, chips);
   const log = $("log");
   log.append(turn);
   while (log.querySelectorAll(".turn").length > MAX_TURNS) log.querySelector(".turn").remove();
   scrollDown();
-  let raw = "";
+  let raw = "", frame = 0;
+  const render = () => { cancelAnimationFrame(frame); frame = 0; renderMarkdown(block, raw.trimStart()); scrollDown(); };
   return {
     chips,
     remove: () => turn.remove(),
     setYou(text) { you.classList.remove("pending"); you.removeAttribute("aria-label"); you.textContent = text; reply.hidden = false; work.hidden = false; scrollDown(); },
     working(label) { work.hidden = false; work.querySelector(".label").textContent = label; scrollDown(); },
-    stream(delta) { work.hidden = true; raw += delta; live.textContent = plain(raw).trimStart(); scrollDown(); },
-    retract() { raw = ""; live.textContent = ""; work.hidden = false; },
-    finish() { work.hidden = true; if (!live.textContent) reply.hidden = true; }, // no words (only actions): no empty bubble
-    fail(message) { work.hidden = true; reply.hidden = false; reply.classList.add("error"); live.textContent = (live.textContent ? live.textContent + " " : "") + message; },
+    stream(delta) { work.hidden = true; raw += delta; if (!frame) frame = requestAnimationFrame(render); }, // one render per frame
+    aside() {
+      render();
+      if (raw.trim()) { block.classList.add("aside"); block = el("div", "md"); reply.insertBefore(block, work); }
+      raw = ""; work.hidden = false;
+    },
+    finish() {
+      if (frame) render();
+      work.hidden = true;
+      if (!raw.trim()) block.remove();
+      if (!reply.querySelector(".md, .err")) reply.hidden = true; // only actions, no words: no empty bubble
+    },
+    fail(message) { if (frame) render(); work.hidden = true; reply.hidden = false; reply.append(el("p", "err")); reply.lastChild.textContent = message; scrollDown(); },
   };
 }
 
@@ -409,9 +446,35 @@ function renderTextSize() {
   input.onchange = () => localStorage.setItem("kkachi.fontSize", input.value);
 }
 
+// Input mode and read-aloud: radio groups in the sheet, stored on this device.
+function renderDevicePrefs() {
+  const bind = (name, current, apply) => {
+    for (const input of document.querySelectorAll(`input[name=${name}]`)) {
+      input.checked = input.value === current;
+      input.onchange = () => { apply(input.value); toast("저장했어요"); };
+    }
+  };
+  bind("input", inputMode(), (v) => { localStorage.setItem("kkachi.input", v); applyInputMode(); });
+  bind("speak", readAloud() ? "on" : "off", (v) => { localStorage.setItem("kkachi.speak", v); applySpeak(); });
+  applySpeak();
+}
+
+function applySpeak() {
+  $("voice-settings").hidden = !readAloud();
+  if (!readAloud()) stopPlayback();
+}
+
+function applyInputMode() {
+  const mode = inputMode();
+  document.body.dataset.input = mode;
+  if (mode === "keyboard") { release(); resetAudio(); } // let go of the mic (iOS shows it as in use)
+  if (state === "idle" || state === "error") ready();
+}
+
 async function openSettings() {
   const dlg = $("settings");
   renderTextSize();
+  renderDevicePrefs();
   dlg.showModal();
   const r = await fetch("/api/settings");
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
@@ -491,21 +554,40 @@ talk.addEventListener("pointerdown", (e) => { e.preventDefault(); talk.setPointe
 for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) talk.addEventListener(ev, release);
 talk.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-press menu
 
-// Keyboard: hold Space to talk (not while typing in the settings sheet).
+// Voice mode on a computer: hold Space to talk (not while typing in the settings sheet).
 const typing = (el) => el?.closest?.("dialog[open], input, select, textarea");
 document.addEventListener("keydown", (e) => {
-  if (e.code !== "Space" || e.repeat || typing(e.target)) return;
+  if (e.code !== "Space" || e.repeat || typing(e.target) || inputMode() !== "voice") return;
   e.preventDefault(); press();
 });
 document.addEventListener("keyup", (e) => {
-  if (e.code !== "Space" || typing(e.target)) return;
+  if (e.code !== "Space" || typing(e.target) || inputMode() !== "voice") return;
   e.preventDefault(); release();
 });
 
+// ---- input: keyboard ----
+// Enter sends, Shift+Enter is a new line. Enter that ends a Korean IME composition is not a send.
+const say = $("say"), send = $("send");
+const grow = () => { say.style.height = "auto"; say.style.height = `${Math.min(say.scrollHeight, 160)}px`; send.disabled = !say.value.trim(); };
+say.addEventListener("input", grow);
+say.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+  e.preventDefault(); $("compose").requestSubmit();
+});
+$("compose").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = say.value.trim();
+  if (!text) return;
+  say.value = ""; grow();
+  handleText(text);
+});
+
+applyInputMode();
 clearTranscript();
 // ?demo=<state> renders a sample screen for design review (no audio, no requests).
 const demo = new URLSearchParams(location.search).get("demo");
 if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.dataset.theme = "light";
+if (new URLSearchParams(location.search).get("input") === "keyboard") document.body.dataset.input = "keyboard";
 if (demo === "settings") openSettings();
 else if (demo) {
   const hints = { recording: "듣고 있어요 · 손을 떼면 보내요", thinking: "노트 찾는 중 · 누르면 멈춰요", speaking: "누르면 멈추고 다시 들어요" };
@@ -521,6 +603,15 @@ else if (demo) {
     sample("오늘 서울 날씨 어때?", "서울은 지금 맑고 영하 1도예요.");
     sample("다음 주 일정 정리해줘").working("노트 찾는 중");
     addTurn(); // a turn whose words are still being transcribed
+  }
+  if (demo === "text") {
+    const v = addTurn();
+    v.setYou("이번 주 일정이랑 할 일 정리해줘");
+    v.stream("노트에서 이번 주 일정을 찾아볼게요.");
+    v.aside();
+    v.stream("이번 주 일정이에요.\n\n| 날짜 | 일정 |\n|---|---|\n| 11월 24일 (화) 19:00 | 엄마 졸업 연주회 |\n| 11월 27일 (금) | 팀 회식 |\n\n**할 일**\n- 연주회 꽃다발 예약\n- `kkachi` 아이콘 수정\n\n연주회는 대경선으로 가면 돼요. 자세한 건 [노트](https://example.com)에 있어요.");
+    v.finish();
+    showChips(v.chips, ["a.md"], [], { "a.md": "엄마 졸업 연주회" });
   }
 }
 
