@@ -354,21 +354,18 @@ async function saveSettings(patch) {
 const rateLabel = (v) => (v === 0 ? "보통" : `${v > 0 ? "+" : ""}${v}%`);
 const providerLabel = { openai: "OpenAI", anthropic: "Anthropic", "claude-pro-max-native": "Claude (구독)", openrouter: "OpenRouter 무료" };
 
-// Text size is a per-device preference (a phone and a laptop want different sizes), kept in localStorage.
-const TEXT_SIZES = [{ id: "0.9", name: "작게" }, { id: "1", name: "보통" }, { id: "1.15", name: "크게" }, { id: "1.3", name: "아주 크게" }];
-const applyTextSize = (scale) => document.documentElement.style.setProperty("--scale", scale);
-applyTextSize(localStorage.getItem("kkachi.textSize") ?? "1");
+// Text size is a per-device preference (a phone and a laptop want different sizes), kept in
+// localStorage as the body font size in px; every other size scales with it.
+const BASE_PX = 16;
+const textSize = () => Number(localStorage.getItem("kkachi.fontSize")) || BASE_PX;
+const applyTextSize = (px) => document.documentElement.style.setProperty("--scale", String(px / BASE_PX));
+applyTextSize(textSize());
 
 function renderTextSize() {
-  const current = localStorage.getItem("kkachi.textSize") ?? "1";
-  $("text-size").replaceChildren(...TEXT_SIZES.map((t) => {
-    const l = el("label", "", '<input type="radio" name="text-size">');
-    l.append(t.name);
-    const input = l.querySelector("input");
-    input.value = t.id; input.checked = t.id === current;
-    input.addEventListener("change", () => { localStorage.setItem("kkachi.textSize", t.id); applyTextSize(t.id); });
-    return l;
-  }));
+  const input = $("text-size"), out = $("text-size-out");
+  input.value = textSize(); out.textContent = `${textSize()}px`;
+  input.oninput = () => { const px = Number(input.value); out.textContent = `${px}px`; applyTextSize(px); }; // live preview
+  input.onchange = () => localStorage.setItem("kkachi.fontSize", input.value);
 }
 
 async function openSettings() {
