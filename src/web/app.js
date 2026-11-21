@@ -63,12 +63,31 @@ function audioOut() {
   if (ctx.state !== "running") ctx.resume();
 }
 
+// Music from other apps: while a web page captures the mic, iOS puts it in a play-and-record session
+// that does not mix, so the music pauses (a page cannot change that). So the mic is open only while
+// you hold the button, and with read-aloud off the page lets go of audio entirely afterwards and
+// returns to the default session, so the music can come back.
+const setSession = (type) => { if (navigator.audioSession) { try { navigator.audioSession.type = type; } catch {} } };
+let micNodes = [];
+
+function releaseMic() {
+  try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
+  for (const n of micNodes) { try { n.disconnect(); } catch {} n.onaudioprocess = null; }
+  stream = null; micNodes = []; preroll = [];
+}
+
+// After each utterance. Read-aloud keeps the AudioContext for the spoken reply.
+function doneWithMic() {
+  if (readAloud()) releaseMic();
+  else { resetAudio(); setSession("auto"); }
+}
+
 // iOS stops the mic and leaves the AudioContext "interrupted" when the app is backgrounded or the
 // screen locks. Reusing either records silence, so tear both down and rebuild on the next press.
 function resetAudio() {
-  try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
+  releaseMic();
   try { ctx?.close(); } catch {}
-  stream = null; ctx = null; preroll = []; currentSource = null;
+  ctx = null; currentSource = null;
 }
 
 let micGranted = false; // after the first grant, a rebuilt mic records on the same press
@@ -78,7 +97,7 @@ async function ensureAudio() {
   if (ctx && ctx.state !== "running") resetAudio(); // could not wake it: start over
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (navigator.audioSession) { try { navigator.audioSession.type = "play-and-record"; } catch {} }
+    setSession(readAloud() ? "play-and-record" : "auto"); // "auto" lets iOS pick, and drop back after capture
     diag("env", { standalone: matchMedia("(display-mode: standalone)").matches || !!navigator.standalone, rate: ctx.sampleRate, state: ctx.state });
   }
   const track = stream?.getAudioTracks()[0];
@@ -102,6 +121,7 @@ async function ensureAudio() {
   frameMs = (4096 / ctx.sampleRate) * 1000;
   const sink = ctx.createGain(); sink.gain.value = 0;
   source.connect(proc); proc.connect(sink); sink.connect(ctx.destination);
+  micNodes = [source, proc, sink];
   proc.onaudioprocess = (e) => onFrame(new Float32Array(e.inputBuffer.getChannelData(0)));
   return true;
 }
@@ -127,8 +147,8 @@ async function press() {
   recordFrames = [];
   const firstGrant = !micGranted;
   if (!(await ensureAudio())) { recording = false; return; }
-  if (firstGrant) { recording = false; ready("마이크 준비됐어요. 누른 채로 말하세요"); return; } // the permission prompt ate this press
-  if (!recording) { ready(); return; } // released while the mic was reopening
+  if (firstGrant) { recording = false; doneWithMic(); ready("마이크 준비됐어요. 누른 채로 말하세요"); return; } // the permission prompt ate this press
+  if (!recording) { doneWithMic(); ready(); return; } // released while the mic was opening
   recordFrames = [...preroll];
   prerollCount = recordFrames.length;
   earcon.start();
@@ -141,20 +161,22 @@ function release() {
   if (!recording) return;
   recording = false;
   clearTimeout(holdTimer);
-  if (state !== "recording") return;
+  if (state !== "recording") return; // still opening the mic: press() finishes up
+  const frames = recordFrames, rate = ctx?.sampleRate ?? 48000, ctxState = ctx?.state;
+  doneWithMic(); // let go of the mic right away (other apps' music)
   if (performance.now() - pressedAt < MIN_HOLD_MS) { ready(); return; }
   // No new audio while held: the audio pipeline is dead (iOS interruption). Do not send silence.
-  if (recordFrames.length - prerollCount < 2) {
-    diag("no audio while held", { frames: recordFrames.length, ctx: ctx?.state });
+  if (frames.length - prerollCount < 2) {
+    diag("no audio while held", { frames: frames.length, ctx: ctxState });
     resetAudio();
     ready("마이크를 다시 연결했어요. 다시 눌러 말해 주세요");
     return;
   }
-  handleUtterance(recordFrames);
+  handleUtterance(frames, rate);
 }
 
 // ---- one turn ----
-async function handleUtterance(frames) {
+async function handleUtterance(frames, rate) {
   const my = ++turnId;
   const t0 = performance.now();
   earcon.heard();
@@ -162,7 +184,7 @@ async function handleUtterance(frames) {
   const view = addTurn(); // shows up at once: your bubble is a placeholder until transcription returns
   let text, raw;
   try {
-    const r = await fetch("/api/stt", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: encodeWav(frames, ctx.sampleRate, TARGET_RATE) });
+    const r = await fetch("/api/stt", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: encodeWav(frames, rate, TARGET_RATE) });
     const body = await r.json();
     if (!r.ok) throw new Error(body.error);
     text = body.text;
@@ -501,7 +523,7 @@ function renderDevicePrefs() {
 
 function applySpeak() {
   $("voice-settings").hidden = !readAloud();
-  if (!readAloud()) stopPlayback();
+  if (!readAloud() && !recording) { stopPlayback(); resetAudio(); setSession("auto"); } // nothing holds audio now
 }
 
 function applyInputMode() {
