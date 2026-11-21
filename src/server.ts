@@ -24,8 +24,10 @@ Bun.serve({
         if (pathname === "/") return new Response(Bun.file(join(web, "index.html")), { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
         if (pathname === "/manifest.webmanifest") return new Response(Bun.file(join(web, "manifest.webmanifest")), { headers: { ...noCache, "Content-Type": "application/manifest+json" } });
         if (pathname === "/app.js") return new Response(Bun.file(join(web, "app.js")), { headers: { ...noCache, "Content-Type": "text/javascript" } });
-        if (pathname === "/icon.svg") return new Response(Bun.file(join(web, "icon.svg")), { headers: { "Content-Type": "image/svg+xml" } });
-        if (pathname === "/icon.png") return new Response(Bun.file(join(web, "icon.png")), { headers: { "Content-Type": "image/png" } });
+        // App icon generated with Codex image generation (assets/icon/, see DESIGN.md)
+        if (["/icon.png", "/apple-touch-icon.png", "/favicon.png"].includes(pathname)) {
+          return new Response(Bun.file(join(web, pathname.slice(1))), { headers: { "Content-Type": "image/png" } });
+        }
         if (pathname === "/api/settings") {
           return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
         }
