@@ -30,8 +30,8 @@ function diag(msg, data) {
 }
 
 function setState(s, hint = "") {
-  state = s; document.body.dataset.state = s; $("hint").textContent = hint;
-  if (s !== "recording") $("bird").style.setProperty("--level", "0");
+  state = s; document.body.dataset.state = s; $("status").textContent = hint;
+  if (s !== "recording") $("mic").style.setProperty("--level", "0");
   diag("state", { s });
 }
 
@@ -95,7 +95,7 @@ function onFrame(f) {
   }
   recordFrames.push(f);
   let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
-  $("bird").style.setProperty("--level", Math.min(Math.sqrt(sum / f.length) / 0.08, 1).toFixed(2));
+  $("mic").style.setProperty("--level", Math.min(Math.sqrt(sum / f.length) / 0.08, 1).toFixed(2));
 }
 
 async function press() {
@@ -142,15 +142,22 @@ async function handleUtterance(frames) {
   }
   if (my !== turnId) return;
   if (!text) { ready("잘 못 들었어요. 다시 눌러 말해 주세요"); return; }
-  $("heard").textContent = `“${text}”`;
-  $("reply").textContent = ""; $("chips").replaceChildren();
+  const view = addTurn(text);
   diag("stt", { text, ms: Math.round(performance.now() - t0) });
 
   const queue = [];       // Promise<AudioBuffer|null>, in play order
   const spoken = [];
   let streamDone = false, end = false, firstSound = 0;
   // Every sentence is shown; only non-silent ones are spoken.
-  const say = (s, silent = false) => { spoken.push(s); $("reply").textContent = spoken.join(" "); if (!silent) queue.push(ttsBuffer(s)); };
+  const say = (s, silent = false) => {
+    spoken.push(s);
+    const span = document.createElement("span");
+    if (silent) span.className = "unspoken";
+    span.textContent = (view.reply.childNodes.length ? " " : "") + s;
+    view.reply.append(span);
+    scrollDown();
+    if (!silent) queue.push(ttsBuffer(s));
+  };
 
   const player = (async () => {
     for (let i = 0; ; ) {
@@ -173,11 +180,11 @@ async function handleUtterance(frames) {
       if (e.type === "sentence") say(e.text, e.silent);
       else if (e.type === "activity") {
         const writing = e.tool === "edit" || e.tool === "write";
-        if (state === "thinking") $("hint").textContent = writing ? "기억하는 중…" : "찾는 중…";
+        if (state === "thinking") $("status").textContent = writing ? "기억하는 중…" : "찾아보는 중…";
       }
       else if (e.type === "end") end = true;
-      else if (e.type === "done") showChips(e.sources, e.changed, e.titles);
-      else if (e.type === "error") { say(e.message); earcon.error(); }
+      else if (e.type === "done") showChips(view.chips, e.sources, e.changed, e.titles);
+      else if (e.type === "error") { view.reply.classList.add("error"); say(e.message); earcon.error(); }
     });
   } catch (e) {
     streamDone = true;
@@ -199,8 +206,39 @@ async function turnError(my, message, err) {
   if (my === turnId) ready();
 }
 
+// ---- transcript ----
+const MAX_TURNS = 30;
+function scrollDown() { const log = $("log"); log.scrollTop = log.scrollHeight; }
+
+function addTurn(text) {
+  $("empty")?.remove();
+  const turn = document.createElement("article");
+  turn.className = "turn";
+  const you = document.createElement("div");
+  you.className = "you"; you.textContent = text;
+  const reply = document.createElement("div");
+  reply.className = "kkachi";
+  const chips = document.createElement("div");
+  chips.className = "chips";
+  turn.append(you, reply, chips);
+  const log = $("log");
+  log.append(turn);
+  while (log.querySelectorAll(".turn").length > MAX_TURNS) log.querySelector(".turn").remove();
+  scrollDown();
+  return { reply, chips };
+}
+
+function clearTranscript() {
+  const log = $("log");
+  log.replaceChildren();
+  const empty = document.createElement("div");
+  empty.className = "empty"; empty.id = "empty";
+  empty.innerHTML = '<img src="/icon.svg" alt="" /><strong>무엇을 도와드릴까요?</strong><span>아래 버튼을 누른 채로 말하세요.<br />손을 떼면 까치가 답해요.</span>';
+  log.append(empty);
+}
+
 // Notes used for the answer; remembered ones (changed this turn) are highlighted.
-function showChips(sources, changed, titles = {}) {
+function showChips(container, sources, changed, titles = {}) {
   const chips = sources.map((p) => {
     const el = document.createElement("span");
     const remembered = changed.includes(p);
@@ -209,7 +247,8 @@ function showChips(sources, changed, titles = {}) {
     el.textContent = remembered ? `기억함: ${name}` : name;
     return el;
   });
-  $("chips").replaceChildren(...chips);
+  container.replaceChildren(...chips);
+  scrollDown();
 }
 
 // ---- audio out ----
@@ -358,27 +397,31 @@ $("new-conversation").addEventListener("click", async () => {
   const r = await fetch("/api/new-conversation", { method: "POST" });
   if (!r.ok) { toast("새 대화를 시작하지 못했어요"); return; }
   turnId++; stopPlayback();
-  $("heard").textContent = ""; $("reply").textContent = ""; $("chips").replaceChildren();
+  clearTranscript();
   $("settings").close();
   ready();
   toast("새 대화를 시작했어요");
 });
 
 // ---- input: press and hold anywhere to talk ----
-const stage = $("stage");
-stage.addEventListener("pointerdown", (e) => { e.preventDefault(); stage.setPointerCapture?.(e.pointerId); press(); });
-for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) stage.addEventListener(ev, release);
-stage.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-press menu
+// The whole bottom area (status + button) is the target, so it is easy to hit without looking.
+const talk = $("talk");
+talk.addEventListener("pointerdown", (e) => { e.preventDefault(); talk.setPointerCapture?.(e.pointerId); press(); });
+for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) talk.addEventListener(ev, release);
+talk.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-press menu
 // ?demo=<state> renders a sample screen for design review (no audio, no requests).
 const demo = new URLSearchParams(location.search).get("demo");
+if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.dataset.theme = "light";
 if (demo === "settings") openSettings();
 else if (demo) {
   setState(demo, demo === "recording" ? "듣고 있어요 · 손을 떼면 보내요" : "누르면 멈추고 다시 들어요");
-  $("bird").style.setProperty("--level", "0.7");
+  $("mic").style.setProperty("--level", "0.7");
   if (demo === "speaking") {
-    $("heard").textContent = "“친구 결혼식 언제였지?”";
-    $("reply").textContent = "다다음 주 금요일, 12월 4일이에요. 축가는 성시경의 「거리에서」예요.";
-    showChips(["a.md", "b.md"], ["b.md"], { "a.md": "친구 결혼식 축가", "b.md": "건강" });
+    let v = addTurn("오늘 서울 날씨 어때?");
+    v.reply.textContent = "서울은 지금 맑고 영하 1도예요.";
+    v = addTurn("친구 결혼식 언제였지?");
+    v.reply.textContent = "다다음 주 금요일, 12월 4일이에요. 축가는 성시경의 「거리에서」예요.";
+    showChips(v.chips, ["a.md", "b.md"], ["b.md"], { "a.md": "친구 결혼식 축가", "b.md": "건강" });
   }
 }
 
