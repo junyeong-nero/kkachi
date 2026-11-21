@@ -181,6 +181,10 @@
   body[data-state=recording] #status { color: var(--accent); font-weight: 600; }
   body[data-state=error] #status { color: var(--danger); }
   #mic {
+    /* margin reserves room for the rings drawn outside the button: the level ring reaches ~24px out
+       (7px inset, x1.3 at full level, x1.06 while recording), the thinking arc 7px. Fixed, so the
+       layout does not jump between states and the rings never touch the hint text above. */
+    margin: 22px 0 14px;
     position: relative; width: 72px; height: 72px; border-radius: var(--r-pill); border: 0; cursor: pointer;
     background: var(--button); color: var(--button-ink); display: grid; place-items: center; box-shadow: var(--shadow);
     transition: transform var(--dur) var(--ease-out), background-color var(--dur) var(--ease-out), opacity var(--dur) var(--ease-out);
