@@ -13,7 +13,7 @@ Single source of truth for the app's visual system (`src/web/index.html`). Inter
 
 - **Aesthetic**: plain neutral surfaces, one accent, content first. Familiar chat patterns (your words right, Kkachi's answer left) because Operate mode rewards familiarity.
 - **Signature move**: the hold-to-talk button that draws your live voice level as a ring, and "remembered" chips in the same magpie-wing teal. Teal only ever means "Kkachi is listening" or "Kkachi remembered this".
-- **Symbol**: flat perched magpie in profile (black, white belly and shoulder, one teal wing patch) on off-white, generated with Codex image generation. Used for the app icon and the header logo only. Source and the two unused candidates (head-and-shoulders on ink, in flight on pale teal) are in `assets/icon/`; `src/web/icon.png` (512), `apple-touch-icon.png` (180), `favicon.png` (64) are resized from `icon-a.png`.
+- **Symbol**: flat magpie head-and-shoulders mark (black, white belly and wing, one teal wing patch) on deep ink `#16181C`, generated with Codex image generation. Used for the app icon and the header logo only. Source and the two unused candidates (perched profile on off-white, in flight on pale teal) are in `assets/icon/`; `src/web/icon.png` (512), `apple-touch-icon.png` (180), `favicon.png` (64) are resized from `icon-b.png`.
 
 ## Tokens
 
@@ -54,4 +54,4 @@ Kept on purpose: centered single column and chat bubbles (familiar Operate-mode 
 ## Changelog
 
 - 2026-11-21: clean AI-app direction, magpie as icon only, deslop pass.
-- 2026-11-21: hand-drawn SVG icon replaced by a Codex-generated icon (candidate A of three).
+- 2026-11-21: hand-drawn SVG icon replaced by a Codex-generated icon (candidate A of three), then switched to candidate B at the user's choice.
