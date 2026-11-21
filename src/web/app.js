@@ -8,15 +8,6 @@ const MIN_SPEECH_MS = 250;
 const MAX_UTTER_MS = 15000;
 const PREROLL_FRAMES = 4;
 const RESUME_DELAY_MS = 300;
-const STILL_WORKING_AFTER_MS = 7000;
-
-// Short spoken reactions while Kkachi looks something up, instead of beeps. Synthesized once,
-// played instantly. Remembering stays silent: no filler for writes.
-const FILLERS = {
-  search: ["잠깐만요, 찾아볼게요.", "음, 어디 보자."],
-  wait: ["조금만 기다려 주세요."],
-};
-const fillerAudio = {};
 
 const DEBUG = new URLSearchParams(location.search).has("debug");
 const $ = (id) => document.getElementById(id);
@@ -26,7 +17,7 @@ let ctx, stream, frameMs = 0, wakeLock = null;
 let state = "idle";
 let noiseFloor = 0.003, calibFrames = 0;
 let inSpeech = false, speechFrames = [], preroll = [], silentMs = 0, speechMs = 0;
-let turnId = 0, currentSource = null, waitTimer = null;
+let turnId = 0, currentSource = null;
 
 if (DEBUG) document.body.classList.add("debug");
 const diagLines = [];
@@ -56,17 +47,6 @@ const earcon = {
   error: () => tone(220, 260),
 };
 
-function prepareFillers() {
-  for (const [kind, lines] of Object.entries(FILLERS)) {
-    fillerAudio[kind] = lines.map(() => null);
-    lines.forEach((line, i) => ttsBuffer(line).then((b) => (fillerAudio[kind][i] = b)));
-  }
-}
-function filler(kind) {
-  const ready = (fillerAudio[kind] ?? []).filter(Boolean);
-  return ready.length ? ready[Math.floor(Math.random() * ready.length)] : null;
-}
-function clearWaitTimer() { clearTimeout(waitTimer); waitTimer = null; }
 
 // ---- start: must run inside the tap gesture (iOS needs it for audio output and mic) ----
 async function start() {
@@ -88,7 +68,6 @@ async function start() {
     const sink = ctx.createGain(); sink.gain.value = 0;
     source.connect(proc); proc.connect(sink); sink.connect(ctx.destination);
     proc.onaudioprocess = (e) => onFrame(new Float32Array(e.inputBuffer.getChannelData(0)));
-    prepareFillers();
     diag("env", { standalone: matchMedia("(display-mode: standalone)").matches || !!navigator.standalone, rate: ctx.sampleRate });
   } else {
     await ctx.resume();
@@ -103,7 +82,7 @@ async function keepScreenOn() {
 }
 
 function goIdle() {
-  turnId++; stopPlayback(); clearWaitTimer();
+  turnId++; stopPlayback();
   wakeLock?.release().catch(() => {});
   setState("idle", "탭해서 시작");
 }
@@ -159,16 +138,8 @@ async function handleUtterance(frames) {
 
   const queue = [];       // Promise<AudioBuffer|null>, in play order
   const spoken = [];
-  let streamDone = false, end = false, firstSound = 0, reacted = false;
+  let streamDone = false, end = false, firstSound = 0;
   const say = (s) => { spoken.push(s); $("reply").textContent = spoken.join(" "); queue.push(ttsBuffer(s)); };
-  // A filler plays only if nothing has been queued yet, and at most once per turn plus one "still working".
-  const react = (kind) => {
-    if (queue.length || reacted) return;
-    const buf = filler(kind);
-    if (buf) { reacted = true; queue.push(Promise.resolve(buf)); }
-  };
-  clearWaitTimer();
-  waitTimer = setTimeout(() => { if (my === turnId && !spoken.length) { reacted = false; react("wait"); } }, STILL_WORKING_AFTER_MS);
 
   const player = (async () => {
     for (let i = 0; ; ) {
@@ -192,7 +163,6 @@ async function handleUtterance(frames) {
       else if (e.type === "activity") {
         const writing = e.tool === "edit" || e.tool === "write";
         if (state === "thinking") $("hint").textContent = writing ? "기억하는 중…" : "찾는 중…";
-        if (/^(read|grep|glob)$/.test(e.tool)) react("search");
       }
       else if (e.type === "end") end = true;
       else if (e.type === "done") showChips(e.sources, e.changed);
@@ -203,7 +173,6 @@ async function handleUtterance(frames) {
     return turnError(my, "연결이 끊겼어요. 다시 말해 주세요.", e);
   }
   streamDone = true;
-  clearWaitTimer();
   await player;
   if (my !== turnId) return;
   if (end) return goIdle();
@@ -213,7 +182,6 @@ async function handleUtterance(frames) {
 async function turnError(my, message, err) {
   diag("turn error", { err: String(err) });
   if (my !== turnId) return;
-  clearWaitTimer();
   setState("error", message);
   earcon.error();
   const buf = await ttsBuffer(message);
@@ -295,7 +263,7 @@ function encodeWav(frames, inRate, outRate) {
 $("stage").addEventListener("click", () => {
   if (state === "idle" || state === "error") start();
   else if (state === "listening") goIdle();
-  else if (state === "speaking" || state === "thinking") { turnId++; stopPlayback(); clearWaitTimer(); listen(); }
+  else if (state === "speaking" || state === "thinking") { turnId++; stopPlayback(); listen(); }
 });
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);
