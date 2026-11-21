@@ -13,7 +13,8 @@ export function currentModel(): string {
 export function markLimited(model: string, error: any): boolean {
   const type = String(error?.type ?? "");
   if (!/free-limit|rate-limit|quota/.test(type) && error?.status !== 429) return false;
-  const retryMs = Number(error?.retryAfterMs) || 60 * 60_000;
+  // Daily free limits come with retryAfterMs; upstream rate limits (shared free pools) clear quickly.
+  const retryMs = Number(error?.retryAfterMs) || (/rate-limit/.test(type) ? 5 * 60_000 : 60 * 60_000);
   exhaustedUntil.set(model, Date.now() + retryMs);
   console.error(`model ${model} limited (${type}); retry after ${Math.round(retryMs / 60_000)} min`);
   return currentModel() !== model;

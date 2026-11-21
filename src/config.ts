@@ -22,7 +22,15 @@ export const config = {
   dataDir,
   port: Number(env.KKACHI_PORT ?? 4300),
   // Ordered fallback list (comma-separated). See docs/m0.md and src/models.ts.
-  models: (env.KKACHI_MODEL ?? "opencode/hy4-flash-free,opencode/tidepool-alpha-free,opencode/flint-40b-free,opencode/deepseek-v4.1-flash-free")
+  // opencode and OpenRouter free limits are separate, so mixing them stretches the free budget.
+  models: (env.KKACHI_MODEL ?? [
+    "openrouter/particle-ai/particle-1:free",
+    "opencode/hy4-flash-free",
+    "openrouter/nvidia/nemotron-3.5-super-vl:free",
+    "opencode/tidepool-alpha-free",
+    "opencode/flint-40b-free",
+    "opencode/deepseek-v4.1-flash-free",
+  ].join(","))
     .split(",").map((m) => m.trim()).filter(Boolean),
   opencodeBin: env.KKACHI_OPENCODE_BIN ?? "opencode",
   stt: {
