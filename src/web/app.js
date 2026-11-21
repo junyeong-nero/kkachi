@@ -122,12 +122,13 @@ async function handleUtterance(frames) {
   const t0 = performance.now();
   earcon.heard();
   setState("thinking");
-  let text;
+  let text, raw;
   try {
     const r = await fetch("/api/stt", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: encodeWav(frames, ctx.sampleRate, TARGET_RATE) });
     const body = await r.json();
     if (!r.ok) throw new Error(body.error);
     text = body.text;
+    raw = body.raw;
   } catch (e) {
     return turnError(my, "잘 못 들었어요. 다시 말해 주세요.", e);
   }
@@ -159,7 +160,7 @@ async function handleUtterance(frames) {
   })();
 
   try {
-    await readEvents("/api/turn", { text }, (e) => {
+    await readEvents("/api/turn", { text, raw }, (e) => {
       if (my !== turnId) return;
       if (e.type === "sentence") say(e.text, e.silent);
       else if (e.type === "activity") {

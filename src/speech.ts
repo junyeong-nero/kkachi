@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { config } from "./config";
+import { sttHint } from "./vocabulary";
 
 const auth = (key: string): Record<string, string> => (key ? { Authorization: `Bearer ${key}` } : {});
 
@@ -15,7 +16,8 @@ export async function transcribe(audio: Blob): Promise<string> {
   const form = new FormData();
   form.append("file", new File([audio], "speech.wav", { type: audio.type || "audio/wav" }));
   form.append("model", model);
-  form.append("language", language);
+  if (language) form.append("language", language);
+  form.append("prompt", sttHint()); // spell English terms in Korean speech correctly
   const r = await fetch(`${baseUrl}/audio/transcriptions`, { method: "POST", headers: auth(apiKey), body: form });
   const body: any = await r.json();
   if (!r.ok) throw new Error(`stt ${r.status}: ${body.error?.message ?? JSON.stringify(body)}`);

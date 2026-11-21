@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname, join, normalize, relative } from "node:path";
 import { git } from "./git";
 
-const PROTECTED = new Set(["AGENTS.md", "README.md", ".gitignore"]);
+const PROTECTED = new Set(["AGENTS.md", "README.md", "vocabulary.md", ".gitignore"]);
 
 function clean(dir: string, p: string): string {
   const rel = normalize(p.replace(/^\/+/, "").replace(/^\.\//, "")).replace(/\/+$/, "");

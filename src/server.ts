@@ -49,13 +49,13 @@ Bun.serve({
 
       // Server-sent events of TurnEvent, one JSON object per `data:` line.
       if (req.method === "POST" && pathname === "/api/turn") {
-        const { text } = await req.json();
+        const { text, raw } = await req.json();
         const stream = new ReadableStream({
           async start(controller) {
             const enc = new TextEncoder();
             const emit = (e: TurnEvent) => controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
             try {
-              await runTurn(String(text), emit);
+              await runTurn(String(text), emit, typeof raw === "string" ? raw : undefined);
             } catch (err) {
               console.error("turn error", err);
               emit({ type: "error", message: "문제가 생겼어요. 다시 말해 주세요." });

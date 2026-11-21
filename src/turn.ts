@@ -73,20 +73,22 @@ function relPath(p: string): string {
 }
 
 // A note shown as a source: a Markdown file inside the memory repo, not the rules or catalog.
-const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && !rel.startsWith("..") && rel !== "AGENTS.md" && rel !== "README.md";
+const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && !rel.startsWith("..") && rel !== "AGENTS.md" && rel !== "README.md" && rel !== "vocabulary.md";
 
 // A new utterance supersedes the one still being handled: abort it, wait for it to wind down
 // (it still commits whatever it already changed), then run the new one.
-export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
+export async function runTurn(text: string, emit: (e: TurnEvent) => void, raw?: string) {
   if (currentTurn) await agent?.abort();
-  const turn = queue.then(() => doTurn(text, emit));
+  const turn = queue.then(() => doTurn(text, emit, raw));
   queue = turn.catch(() => {});
   currentTurn = turn;
   try { await turn; } finally { if (currentTurn === turn) currentTurn = null; }
 }
 let queue: Promise<void> = Promise.resolve();
 
-async function doTurn(text: string, emit: (e: TurnEvent) => void) {
+async function doTurn(text: string, emit: (e: TurnEvent) => void, raw?: string) {
+  // The cleaned-up transcript can be wrong about English terms; give the agent the original too.
+  const heard = raw && raw.trim() !== text.trim() ? `${text}\n(음성 인식 원문: ${raw})` : text;
   await cancelTidy(); // the user comes first; the librarian retries after this conversation
   try {
     await pull(config.memoryDir);
@@ -98,7 +100,7 @@ async function doTurn(text: string, emit: (e: TurnEvent) => void) {
   // Retry on the next model when a model is rate-limited before saying anything.
   for (let attempt = 0; ; attempt++) {
     const pi = await conversation();
-    const limited = await streamTurn(pi, `[지금: ${now()}]\n${text}`, text, emit);
+    const limited = await streamTurn(pi, `[지금: ${now()}]\n${heard}`, text, emit);
     if (!limited) break;
     if (!markLimited(agentModel, limited) || attempt + 1 >= config.models.length) {
       emit({ type: "error", message: "지금 모델들이 모두 바빠요. 잠시 뒤에 다시 말해 주세요." });

@@ -21,6 +21,8 @@ Where does a new fact go?
 
 Prefer adding to an existing note over creating a new one. You may create new folders and notes without asking.
 
+Special files at the root, never moved, merged, or listed in the catalog: `AGENTS.md`, `README.md` (catalog), `vocabulary.md` (terms for speech recognition, one per line).
+
 ## Naming
 
 - Folders and files: lowercase English kebab-case (`trip-2027/`, `plan.md`)
