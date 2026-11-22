@@ -14,6 +14,7 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (process.argv.includes('--tools')) {
     const turns = readFileSync(join(data, 'conversation.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     if (turns.some(t => t.user.includes('green tea'))) writeFileSync('tea.md', '# Tea\nGreen tea.\n');
+    if (turns.some(t => t.issue === 'search_rate_limit')) writeFileSync('search.md', '# Search\nProvider limit interrupted search.\n');
     writeFileSync(join(data, 'review-started'), process.cwd());
     if (existsSync(join(data, 'hold'))) continue; // leave the worker mid-edit until cancelled
     if (existsSync(join(data, 'invalid'))) writeFileSync('AGENTS.md', 'not a note');
@@ -23,6 +24,11 @@ for await (const line of createInterface({ input: process.stdin })) {
   }
   send({ type: 'message_start', message: { role: 'assistant' } });
   send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: answer } });
-  send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: answer }] } });
+  if (!process.argv.includes('--no-session') && cmd.message.includes('[test 429]')) {
+    send({ type: 'tool_execution_start', toolName: 'mcp__kitsune_browser', toolCallId: 'test', args: {} });
+    send({ type: 'message_end', message: { role: 'assistant', stopReason: 'error', errorMessage: '429: private provider detail' } });
+  } else {
+    send({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: answer }] } });
+  }
   send({ type: 'agent_settled' });
 }

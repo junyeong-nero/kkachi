@@ -7,7 +7,7 @@ import { log } from "./log";
 import { commitTurn, filesIn, pull, pushIfAhead, stashLeftovers } from "./git";
 import { cancelTidy, scheduleTidy } from "./librarian";
 import { currentModel, isLimitError, markLimited, modelOrder } from "./models";
-import { cancelReview, recordTurn as queueForReview, resumeReviews } from "./review";
+import { cancelReview, recordTurn as queueForReview, resumeReviews, type ReviewIssue } from "./review";
 import { authedProviders, settings } from "./settings";
 import { Pi, type PiEvent } from "./pi";
 
@@ -18,7 +18,7 @@ export type TurnEvent =
   | { type: "activity"; tool: string; path?: string }
   | { type: "end"; reason: "done" | "handoff" } // stop listening after speaking
   | { type: "done"; sources: string[]; changed: string[]; titles: Record<string, string>; commit: string | null }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; issue?: ReviewIssue };
 
 let currentTurn: Promise<void> | null = null;
 const MAX_SPOKEN_SENTENCES = 2; // long replies are tiring to listen to; the rest is shown on screen
@@ -125,16 +125,18 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
     await Promise.all([cancelReview(), cancelTidy()]); // a foreground turn has priority over both jobs
     const t = new Date().toISOString();
     let reply = "", saved: string[] = [];
+    let issue: ReviewIssue | undefined;
     try {
       await doTurn(text, (e) => {
         if (e.type === "delta") reply += e.text;
         if (e.type === "aside") reply = ""; // keep the answer, not progress before a tool call
         if (e.type === "done") saved = e.changed;
+        if (e.type === "error") issue = e.issue;
         emit(e);
       });
     } finally {
       // Once per submitted turn, not once per model fallback or stream reconnect.
-      queueForReview({ t, user: text, reply, saved });
+      queueForReview({ t, user: text, reply, saved, issue });
     }
   });
   queue = turn.catch(() => {});
@@ -170,7 +172,7 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
   let said = false;
   let error = "";
   let end: "done" | "handoff" | null = null;
-  let tidyRequested = false;
+  let tidyRequested = false, usedSearch = false;
   const toolArgs = new Map<string, { name: string; path?: string }>();
   const sources = new Set<string>();
   const changed = new Set<string>();
@@ -226,6 +228,7 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
         break;
       case "tool_execution_start": {
         const name: string = e.toolName;
+        if (/browser|web_search|fetch_content|source_check|get_search_content/i.test(name === "mcp" ? e.args?.tool ?? "" : name)) usedSearch = true;
         tools++;
         if (name === "end_conversation") { end = "done"; break; }
         if (name === "handoff") { end = "handoff"; break; }
@@ -249,7 +252,9 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
   log("turn", { model: agentModel, text, firstSentenceMs, totalMs: Math.round(performance.now() - t0), tools, aborted, error: error ? error.slice(0, 200) : undefined });
   if (error) {
     if (!said && isLimitError(error)) return error;
-    emit({ type: "error", message: "모델이 응답하지 않아요. 잠시 뒤에 다시 말해 주세요." });
+    // Keep a non-sensitive failure category for memory review, not the provider's raw error or tool arguments.
+    const issue = !aborted && usedSearch && isLimitError(error) ? "search_rate_limit" : undefined;
+    emit({ type: "error", message: "모델이 응답하지 않아요. 잠시 뒤에 다시 말해 주세요.", issue });
     return null;
   }
 

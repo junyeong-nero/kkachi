@@ -11,7 +11,8 @@ import { Pi } from "./pi";
 
 const IDLE_MS = 30 * 60_000;
 const pendingFile = join(config.dataDir, "conversation.jsonl");
-type TurnRecord = { t: string; user: string; reply: string; saved: string[] };
+export type ReviewIssue = "search_rate_limit";
+type TurnRecord = { t: string; user: string; reply: string; saved: string[]; issue?: ReviewIssue };
 let timer: ReturnType<typeof setTimeout>, running: Promise<void> | undefined, cancel: AbortController | undefined;
 
 function schedule(ms: number) {

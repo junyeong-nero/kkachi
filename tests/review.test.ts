@@ -72,6 +72,20 @@ test("an overdue journal survives a restart; a no-op review makes no review comm
   expect(git(repo, "rev-parse", "HEAD")).toBe(head);
 });
 
+test("an interrupted search reaches idle review without a save request; an unchanged note needs no second commit", async () => {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    jest.useFakeTimers();
+    await turns.runTurn("[test 429] find listings", () => {});
+    const entry = readFileSync(journal, "utf8");
+    expect(JSON.parse(entry).issue).toBe("search_rate_limit");
+    expect(entry).not.toContain("private provider detail");
+    jest.advanceTimersByTime(idle); jest.useRealTimers();
+    await until(() => !existsSync(journal));
+    await review.cancelReview(); await library.tidyIdle();
+  }
+  expect(git(bare, "rev-list", "--count", "main", "--", "search.md")).toBe("1");
+});
+
 test("reject edits to repo rules and keep the batch for retry", async () => {
   writeFileSync(join(data, "invalid"), "");
   const head = git(repo, "rev-parse", "HEAD");

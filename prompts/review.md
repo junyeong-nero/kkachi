@@ -9,4 +9,6 @@ The request points to a private, read-only transcript of the conversation since 
 3. Write it where AGENTS.md says, in the user's language. Record what was said and decided; never invent, embellish, or guess. Turn relative dates ("다음 주 화요일") into absolute dates using that turn's time; never take dates from examples in the rules
 4. Do not rewrite README.md, do not move or delete notes (the librarian tidies after you), and do not commit (Kkachi commits after you)
 
+A turn marked `issue: "search_rate_limit"` means the model hit a provider limit after starting a web search, not that the phone disconnected. If the user's project tracks Kkachi search issues, record the missing issue as a project follow-up without waiting for a request. Check the existing follow-ups first: a repeat alone is not a new fact. Do not record the search query, infer a purchase plan, or claim the issue was fixed.
+
 If nothing is worth adding, change nothing. Work quickly. When done, reply with one short line in Korean naming what you saved (it becomes the commit message), for example "맥 미니 기본형 구매 결정, 외장 SSD 후보 저장", or "새로 저장할 내용 없음".
