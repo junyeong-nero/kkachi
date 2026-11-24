@@ -5,6 +5,7 @@ import { execFile } from "node:child_process";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { DEVICE_TOOLS } from "../src/device-tools";
 
 const root = process.env.KKACHI_ROOT!;
 
@@ -67,4 +68,30 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({ path: Type.String() }),
     async execute(_id, params) { return text(await runCli("delete_note", params)); },
   });
+
+  // Devices (spare phones and tablets): the same tools Kkachi serves over MCP, called through it.
+  for (const tool of DEVICE_TOOLS) {
+    pi.registerTool({
+      name: tool.name,
+      label: tool.name,
+      description: tool.description,
+      parameters: Type.Unsafe(tool.inputSchema),
+      async execute(_id, params) { return text(await callDevices(tool.name, params)); },
+    });
+  }
+}
+
+async function callDevices(name: string, args: unknown): Promise<string> {
+  try {
+    const r = await fetch(`${process.env.KKACHI_URL}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    });
+    const { result, error } = await r.json();
+    const out = result?.content?.map((c: any) => c.text).join("\n") ?? error?.message ?? `HTTP ${r.status}`;
+    return result && !result.isError ? out : `Error: ${out}`;
+  } catch (err) {
+    return `Error: Kkachi's device service is unreachable (${(err as Error).message})`;
+  }
 }

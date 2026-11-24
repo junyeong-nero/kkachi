@@ -280,6 +280,12 @@
   @media (hover: hover) { .plain-btn:hover { background: var(--line); } }
   .plain-btn:disabled { opacity: .5; cursor: progress; }
   .loading { padding: 14px; font-size: var(--t-sm); color: var(--muted); }
+  .device { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; }
+  .device + .device { border-top: 1px solid var(--line); }
+  .device .name { font-size: var(--t-base); font-weight: 600; }
+  .device .sub { display: block; font-size: var(--t-sm); color: var(--muted); margin-top: 2px; }
+  .device .play.allow { background: var(--button); color: var(--button-ink); border-color: transparent; font-weight: 700; }
+  #device-url { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
 
   #toast {
     position: fixed; left: 50%; top: calc(56px + env(safe-area-inset-top)); transform: translateX(-50%);
@@ -376,6 +382,10 @@
     <h3>모델</h3>
     <select id="model" aria-label="모델"><option>불러오는 중…</option></select>
     <p class="note" id="fallbacks"></p>
+
+    <h3>기기</h3>
+    <div class="group" id="devices"><div class="loading">불러오는 중…</div></div>
+    <p class="note">안 쓰는 폰이나 태블릿에서 <b id="device-url"></b> 을 열면 여기 나타나요. 허용하면 까치가 그 기기로 말할 수 있어요 ("거실에서 밥 먹으라고 말해줘").</p>
 
     <h3>대화</h3>
     <button type="button" class="plain-btn" id="new-conversation">새 대화 시작</button>

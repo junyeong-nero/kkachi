@@ -46,7 +46,7 @@ export class Pi {
     ];
     this.proc = Bun.spawn(args, {
       cwd: dir,
-      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir },
+      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}` },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });
     this.exited = this.proc.exited;

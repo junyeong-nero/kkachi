@@ -9,6 +9,8 @@ import { synthesize, transcribe } from "./speech";
 import { applyThinking, modelChoices, newConversation, runTurn, startConversation } from "./turn";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
+import { allowDevice, deviceSocket, forgetDevice, listDevices } from "./devices";
+import { handleMcp } from "./mcp";
 
 const web = join(import.meta.dir, "web");
 
@@ -29,15 +31,23 @@ Bun.serve({
   port: config.port,
   hostname: "127.0.0.1", // reach it through Tailscale Serve only
   idleTimeout: 255,
-  async fetch(req) {
+  websocket: deviceSocket,
+  async fetch(req, server) {
     const { pathname } = new URL(req.url);
     try {
+      if (pathname === "/mcp") return await handleMcp(req);
+      if (pathname === "/api/device/ws") {
+        return server.upgrade(req, { data: {} }) ? undefined : new Response("expected a WebSocket", { status: 400 });
+      }
       if (req.method === "GET") {
         // no-cache: a home-screen web app otherwise keeps serving an old version after updates
         const noCache = { "Cache-Control": "no-cache" };
         if (pathname === "/") return new Response(Bun.file(join(web, "index.html")), { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
         if (pathname === "/manifest.webmanifest") return new Response(Bun.file(join(web, "manifest.webmanifest")), { headers: { ...noCache, "Content-Type": "application/manifest+json" } });
         if (pathname === "/app.js") return new Response(Bun.file(join(web, "app.js")), { headers: { ...noCache, "Content-Type": "text/javascript" } });
+        // A spare phone or tablet joins as a device here (see src/devices.ts)
+        if (pathname === "/device") return new Response(Bun.file(join(web, "device.html")), { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
+        if (pathname === "/api/devices") return Response.json({ devices: listDevices() });
         // Markdown rendering for replies: marked (MIT) and DOMPurify (Apache-2.0/MPL-2.0), vendored unmodified
         if (["/vendor/marked.min.js", "/vendor/purify.min.js"].includes(pathname)) {
           return new Response(Bun.file(join(web, pathname.slice(1))), { headers: { "Content-Type": "text/javascript", "Cache-Control": "max-age=86400" } });
@@ -56,6 +66,12 @@ Bun.serve({
         await applyThinking(); // model changes apply on the next turn
         log("settings", { ...next });
         return Response.json({ settings: next });
+      }
+
+      const deviceAction = req.method === "POST" && pathname.match(/^\/api\/devices\/(\w+)\/(allow|forget)$/);
+      if (deviceAction) {
+        const ok = deviceAction[2] === "allow" ? allowDevice(deviceAction[1]) : forgetDevice(deviceAction[1]);
+        return ok ? Response.json({ devices: listDevices() }) : new Response("no such device", { status: 404 });
       }
 
       if (req.method === "POST" && pathname === "/api/new-conversation") {

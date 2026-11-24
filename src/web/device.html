@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="까치 기기" />
+<meta name="theme-color" content="#16181c" />
+<link rel="icon" href="/favicon.png" type="image/png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css" />
+<title>까치 기기</title>
+<style>
+  /* A spare phone or tablet that Kkachi can speak through. Tokens from DESIGN.md (dark only: it
+     sits in a room all day, so it stays dim). */
+  :root {
+    --bg: oklch(0.185 0.006 250); --surface: oklch(0.235 0.008 250); --line: oklch(0.31 0.01 250);
+    --text: oklch(0.94 0.005 250); --muted: oklch(0.71 0.012 250);
+    --accent: oklch(0.76 0.095 190); --accent-soft: oklch(0.3 0.045 192); --accent-ring: oklch(0.76 0.095 190 / .4);
+    --danger: oklch(0.74 0.13 40);
+    --font: "SUIT Variable", "Apple SD Gothic Neo", sans-serif;
+    --r-md: 14px; --r-pill: 999px; --ease-out: cubic-bezier(.22, 1, .36, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased;
+    display: grid; place-items: center; padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+    -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+  }
+  main { width: 100%; max-width: 520px; text-align: center; }
+  .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 16px; font-weight: 600; }
+  .brand img { width: 24px; height: 24px; border-radius: 7px; }
+  h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; margin: 16px 0 8px; line-height: 1.2; overflow-wrap: anywhere; }
+  #status { font-size: 17px; color: var(--muted); margin: 0; line-height: 1.5; }
+  #status.ok { color: var(--text); }
+  #status.err { color: var(--danger); }
+  #said { font-size: 26px; line-height: 1.45; margin: 40px 0 0; min-height: 1.45em; word-break: keep-all; overflow-wrap: anywhere; color: var(--muted); }
+  #said.speaking { color: var(--text); } /* the words being spoken now; earlier ones fade */
+  form, #start { margin-top: 32px; }
+  input {
+    width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: var(--r-md); text-align: center;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text); outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  button {
+    font: inherit; font-size: 18px; font-weight: 700; padding: 16px 28px; border-radius: var(--r-pill); border: 0;
+    background: var(--text); color: var(--bg); cursor: pointer; margin-top: 12px;
+  }
+  button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+  .note { font-size: 14px; color: var(--muted); margin: 16px 0 0; line-height: 1.5; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand"><img src="/favicon.png" alt="" />까치 기기</div>
+  <h1 id="name">새 기기</h1>
+  <p id="status" role="status"></p>
+
+  <form id="setup" hidden>
+    <input id="name-input" maxlength="40" placeholder="이 기기 이름 (예: 거실)" aria-label="이 기기 이름" required />
+    <button type="submit">시작</button>
+  </form>
+  <div id="start" hidden>
+    <button type="button" id="start-btn">탭해서 시작</button>
+    <p class="note">소리를 내려면 화면을 한 번 눌러야 해요.</p>
+  </div>
+  <p id="said" aria-live="polite"></p>
+  <p class="note" id="lock-note" hidden>이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.</p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const store = { get: (k) => localStorage.getItem("kkachi.device." + k), set: (k, v) => localStorage.setItem("kkachi.device." + k, v), del: (k) => localStorage.removeItem("kkachi.device." + k) };
+let ws = null, audio = null, wakeLock = null, retry = 0, joined = false, allowed = false;
+
+function status(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
+const armed = () => audio?.state === "running";
+const showReady = () => allowed && status(armed() ? "연결됨 · 까치가 이 기기로 말할 수 있어요" : "연결됨 · 화면을 한 번 눌러 주세요", "ok");
+
+// Sound needs one tap (iOS). The same tap keeps the screen on, which keeps the page alive.
+async function arm() {
+  audio ??= new (window.AudioContext || window.webkitAudioContext)();
+  await audio.resume().catch(() => {});
+  const silent = audio.createBufferSource(); silent.buffer = audio.createBuffer(1, 1, 22050); silent.connect(audio.destination); silent.start();
+  await keepAwake();
+  $("start").hidden = armed();
+  ws?.readyState === 1 && ws.send(JSON.stringify({ type: "state", armed: armed() }));
+  showReady();
+}
+async function keepAwake() {
+  if (!("wakeLock" in navigator)) { $("lock-note").hidden = false; return; }
+  try { wakeLock = await navigator.wakeLock.request("screen"); } catch { $("lock-note").hidden = false; }
+}
+
+function connect() {
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/device/ws`);
+  ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: "hello", name: store.get("name"), token: store.get("token"), armed: armed() })); };
+  ws.onmessage = (e) => onMessage(JSON.parse(e.data));
+  ws.onclose = () => {
+    if (!joined) return;
+    status("까치에 다시 연결하는 중…");
+    setTimeout(connect, Math.min(10_000, 1000 * 2 ** retry++));
+  };
+}
+
+async function onMessage(m) {
+  if (m.type === "pending" || m.type === "ready") {
+    store.set("token", m.token);
+    $("name").textContent = m.name;
+    allowed = m.type === "ready";
+    if (!allowed) status("휴대폰 까치 앱의 설정 → 기기에서 이 기기를 허용해 주세요.");
+    showReady();
+  }
+  if (m.type === "forgotten") {
+    joined = false; allowed = false; store.del("token"); ws.close();
+    status("이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.", "err");
+  }
+  if (m.type === "speak") {
+    try {
+      if (!armed()) throw new Error("needs a tap");
+      const bytes = Uint8Array.from(atob(m.audio), (c) => c.charCodeAt(0));
+      const buffer = await audio.decodeAudioData(bytes.buffer);
+      $("said").textContent = m.text; $("said").className = "speaking";
+      const src = audio.createBufferSource(); src.buffer = buffer; src.connect(audio.destination);
+      await new Promise((resolve) => { src.onended = resolve; src.start(); });
+      $("said").className = "";
+      ws.send(JSON.stringify({ type: "done", id: m.id }));
+    } catch (err) {
+      ws.send(JSON.stringify({ type: "failed", id: m.id, error: String(err.message || err) }));
+      if (!armed()) $("start").hidden = false;
+    }
+  }
+}
+
+function join() {
+  joined = true;
+  $("name").textContent = store.get("name");
+  $("setup").hidden = true; $("start").hidden = false;
+  status("연결하는 중…");
+  connect();
+}
+
+$("setup").addEventListener("submit", (e) => { e.preventDefault(); store.set("name", $("name-input").value.trim()); join(); arm(); });
+$("start-btn").addEventListener("click", arm);
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible") return;
+  if (audio) await audio.resume().catch(() => {}); // iOS suspends audio in the background
+  if (wakeLock?.released !== false) await keepAwake(); // the lock is released when the page is hidden
+  $("start").hidden = armed() || !joined;
+  ws?.readyState === 1 && ws.send(JSON.stringify({ type: "state", armed: armed() }));
+  showReady();
+});
+
+const preset = new URLSearchParams(location.search).get("name");
+if (preset && !store.get("name")) store.set("name", preset);
+if (store.get("name")) join();
+else { $("setup").hidden = false; status("이 기기를 어디에 둘지 이름을 붙여 주세요."); $("name-input").focus(); }
+</script>
+</body>
+</html>

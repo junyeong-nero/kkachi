@@ -503,11 +503,32 @@ function applySpeak() {
   if (!readAloud() && !recording) { stopPlayback(); resetAudio(); setSession("auto"); } // nothing holds audio now
 }
 
+// Spare phones and tablets joined at /device: allow new ones, forget old ones.
+function renderDevices(devices) {
+  $("device-url").textContent = `${location.origin}/device`;
+  if (!devices.length) { $("devices").replaceChildren(el("div", "loading", "아직 없어요")); return; }
+  $("devices").replaceChildren(...devices.map((d) => {
+    const row = el("div", "device", '<span><span class="name"></span><span class="sub"></span></span><button type="button" class="play"></button>');
+    row.querySelector(".name").textContent = d.name;
+    row.querySelector(".sub").textContent = !d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있음" : d.armed ? "연결됨" : "연결됨 · 기기 화면을 한 번 눌러 주세요";
+    const btn = row.querySelector("button");
+    btn.textContent = d.allowed ? "삭제" : "허용";
+    if (!d.allowed) btn.classList.add("allow");
+    btn.addEventListener("click", async () => {
+      if (d.allowed && !confirm(`'${d.name}' 기기를 삭제할까요?`)) return;
+      const r = await fetch(`/api/devices/${d.id}/${d.allowed ? "forget" : "allow"}`, { method: "POST" });
+      if (r.ok) renderDevices((await r.json()).devices); else toast("바꾸지 못했어요");
+    });
+    return row;
+  }));
+}
+
 async function openSettings() {
   const dlg = $("settings");
   renderTextSize();
   renderDevicePrefs();
   dlg.showModal();
+  fetch("/api/devices").then((r) => r.json()).then((j) => renderDevices(j.devices)).catch(() => {});
   const r = await fetch("/api/settings");
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
   const { settings: s, voices, thinking, models, fallbacks } = await r.json();
