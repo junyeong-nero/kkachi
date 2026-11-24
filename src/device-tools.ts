@@ -1,4 +1,4 @@
-// The device tools, defined once. Served over MCP at /mcp (src/mcp.ts) for any agent, and
+// The device tools, defined once. Served over MCP at /mcp/devices (src/mcp.ts) for any agent, and
 // registered as Pi tools by pi/kkachi.ts for Kkachi's own agent. Plain data: Pi loads this file too.
 export const DEVICE_TOOLS = [
   {

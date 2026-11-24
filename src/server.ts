@@ -10,7 +10,7 @@ import { applyThinking, modelChoices, newConversation, runTurn, startConversatio
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
 import { allowDevice, deviceSocket, forgetDevice, listDevices } from "./devices";
-import { handleMcp } from "./mcp";
+import { handleMcp, SERVICES } from "./mcp";
 
 const web = join(import.meta.dir, "web");
 
@@ -50,7 +50,8 @@ Bun.serve({
     if (!trusted(req)) return new Response("forbidden", { status: 403 });
     const { pathname } = new URL(req.url);
     try {
-      if (pathname === "/mcp") return await handleMcp(req);
+      const mcp = pathname.match(/^\/mcp\/(\w+)$/);
+      if (mcp && SERVICES[mcp[1]]) return await handleMcp(SERVICES[mcp[1]], req);
       if (pathname === "/api/device/ws") {
         return server.upgrade(req, { data: {} }) ? undefined : new Response("expected a WebSocket", { status: 400 });
       }

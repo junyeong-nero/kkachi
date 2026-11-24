@@ -147,6 +147,13 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void, images
 }
 let queue: Promise<void> = Promise.resolve();
 
+/** Run fn once the turns already queued are done, so a memory change made over MCP never lands in a turn's commit. */
+export function afterTurns<T>(fn: () => Promise<T>): Promise<T> {
+  const op = queue.then(fn);
+  queue = op.then(() => {}, () => {});
+  return op;
+}
+
 async function doTurn(text: string, said: string, images: PiImage[], emit: (e: TurnEvent) => void) {
   try {
     await pull(config.memoryDir);

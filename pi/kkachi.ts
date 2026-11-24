@@ -83,7 +83,7 @@ export default function (pi: ExtensionAPI) {
 
 async function callDevices(name: string, args: unknown): Promise<string> {
   try {
-    const r = await fetch(`${process.env.KKACHI_URL}/mcp`, {
+    const r = await fetch(`${process.env.KKACHI_URL}/mcp/devices`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),

@@ -1,19 +1,19 @@
-// Structural note operations for the agents (via src/mcp.ts): move and delete, with link repair.
+// Structural note operations for the agents (pi/kkachi.ts, src/memory-mcp.ts): move and delete, with link repair.
 // Paths are repo-relative. Everything is a git operation, so any change can be reverted.
 import { existsSync, mkdirSync, statSync } from "node:fs";
-import { dirname, join, normalize, relative } from "node:path";
+import { dirname, join, normalize, relative } from "node:path/posix"; // git paths use "/", also on Windows
 import { git } from "./git";
 
 const PROTECTED = new Set(["AGENTS.md", "README.md", "vocabulary.md", ".gitignore"]);
 
-function clean(dir: string, p: string): string {
+export function clean(dir: string, p: string): string {
   const rel = normalize(p.replace(/^\/+/, "").replace(/^\.\//, "")).replace(/\/+$/, "");
   if (!rel || rel === "." || rel.startsWith("..") || rel.startsWith(".git")) throw new Error(`invalid path: ${p}`);
   if (relative(dir, join(dir, rel)).startsWith("..")) throw new Error(`path leaves the repo: ${p}`);
   return rel;
 }
 
-async function mdFiles(dir: string) {
+export async function mdFiles(dir: string) {
   return (await git(dir, "ls-files", "--cached", "--others", "--exclude-standard", "*.md")).split("\n").filter(Boolean);
 }
 

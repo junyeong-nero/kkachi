@@ -1,8 +1,9 @@
-import { afterAll, afterEach, beforeAll, expect, jest, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, jest, setDefaultTimeout, test } from "bun:test";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+setDefaultTimeout(30_000); // each test starts several Pi stand-ins; on Windows that alone takes about 5 s
 const root = mkdtempSync(join(tmpdir(), "kkachi-test-"));
 const repo = join(root, "memory"), data = join(root, "data"), bare = join(root, "remote");
 const journal = join(data, "conversation.jsonl"), marker = join(data, "review-started");

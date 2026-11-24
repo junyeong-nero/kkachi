@@ -35,14 +35,15 @@ export async function tidyNow() {
   await running;
 }
 
-/** Stop a running tidy and discard its changes. Resolves once the repo is clean again. */
+/** Stop a running tidy and discard its changes. Resolves once the repo is clean again; true if one was running. */
 export async function cancelTidy() {
-  if (!running) return;
+  if (!running) return false;
   cancelled = true;
   again = false;
   await current?.abort();
   current?.stop();
   await running;
+  return true;
 }
 
 async function discard() {

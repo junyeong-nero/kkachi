@@ -1,5 +1,5 @@
 // Git operations on the memory repo. The agent has no shell; Kkachi does all git work here.
-const COMMIT_PREFIX = "kkachi: ";
+export const COMMIT_PREFIX = "kkachi: ";
 export const TIDY_PREFIX = COMMIT_PREFIX + "정리 — ";
 export const REVIEW_PREFIX = COMMIT_PREFIX + "대화 정리 — ";
 
