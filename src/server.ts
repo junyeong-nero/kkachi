@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { checkSetup } from "./check";
 import { config } from "./config";
 import { log } from "./log";
 import { polish } from "./polish";
@@ -10,6 +11,7 @@ import { findTurn, recordTurn, streamTurn } from "./replay";
 
 const web = join(import.meta.dir, "web");
 
+checkSetup();
 await startConversation();
 
 Bun.serve({
