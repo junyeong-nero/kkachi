@@ -197,12 +197,12 @@ async function transcribe(frames, rate) {
 }
 
 // ---- one turn ----
-function sendMessage(text) {
+function sendMessage(text, images = []) {
   const my = ++turnId; // a newer message replaces a reply still coming
   stopPlayback();
   if (readAloud()) audioOut(); // the send tap is the gesture iOS needs before it plays sound
   if (state === "error") ready();
-  runTurn(my, addTurn(text), { text }, performance.now());
+  runTurn(my, addTurn(text, images), images.length ? { text, images } : { text }, performance.now());
 }
 
 async function runTurn(my, view, body, t0) {
@@ -276,11 +276,17 @@ function renderMarkdown(target, text) {
 }
 
 // One turn in the transcript. It appears the moment you send and fills in live.
-function addTurn(text) {
+const dataUrl = (img) => `data:${img.mimeType};base64,${img.data}`;
+function addTurn(text, images = []) {
   $("intro")?.remove();
   const turn = el("article", "turn");
   const you = el("div", "you");
-  you.textContent = text;
+  if (images.length) {
+    const photos = el("div", "photos");
+    for (const img of images) { const im = new Image(); im.src = dataUrl(img); im.alt = "보낸 사진"; photos.append(im); }
+    you.append(photos);
+  }
+  if (text) you.append(text);
   const reply = el("div", "kkachi");
   const work = el("div", "working", `${DOTS}<span class="label"></span>`);
   let block = el("div", "md"); // the message being written; earlier ones (narration before tool calls) are asides
@@ -379,7 +385,8 @@ async function followTurn(body, isCurrent, onEvent) {
   for (;;) {
     const before = got;
     try {
-      const payload = JSON.stringify({ ...body, id, from: got });
+      // Resuming: the server already has the photos, do not upload them again.
+      const payload = JSON.stringify({ ...body, images: got ? undefined : body.images, id, from: got });
       await readEvents("/api/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: payload }, count);
       return; // the server closed the stream: the turn is over
     } catch (e) {
@@ -604,8 +611,46 @@ const grow = () => {
   say.style.height = "auto";
   const border = say.offsetHeight - say.clientHeight; // scrollHeight leaves the border out
   say.style.height = `${Math.min(say.scrollHeight + border, 160)}px`;
-  send.disabled = !say.value.trim();
+  send.disabled = !say.value.trim() && !attached.length;
 };
+
+// ---- input: photos ----
+// Pick or take pictures (iOS offers both). Scaled down to a JPEG here: phone photos are several MB.
+const MAX_PHOTOS = 4, MAX_SIDE = 1600;
+let attached = []; // { data: base64, mimeType }
+async function shrink(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const url = canvas.toDataURL("image/jpeg", 0.85);
+  return { data: url.slice(url.indexOf(",") + 1), mimeType: "image/jpeg" };
+}
+function renderAttachments() {
+  $("attachments").replaceChildren(...attached.map((img, i) => {
+    const thumb = el("div", "thumb");
+    const im = new Image(); im.src = dataUrl(img); im.alt = `첨부한 사진 ${i + 1}`;
+    const remove = el("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "사진 빼기");
+    remove.addEventListener("click", () => { attached.splice(i, 1); renderAttachments(); });
+    thumb.append(im, remove);
+    return thumb;
+  }));
+  grow();
+}
+$("photo-input").addEventListener("change", async (e) => {
+  const picked = [...e.target.files];
+  e.target.value = ""; // picking the same photo again still fires
+  const files = picked.slice(0, MAX_PHOTOS - attached.length);
+  if (picked.length > files.length) toast(`사진은 ${MAX_PHOTOS}장까지 보낼 수 있어요`);
+  for (const f of files) {
+    try { attached.push(await shrink(f)); }
+    catch (err) { diag("photo failed", { type: f.type, err: String(err) }); toast("이 사진은 열 수 없어요"); }
+  }
+  renderAttachments();
+});
 function addToDraft(text) {
   const draft = say.value.trimEnd();
   say.value = draft ? `${draft} ${text}` : text;
@@ -634,9 +679,11 @@ if (vv) {
 $("compose").addEventListener("submit", (e) => {
   e.preventDefault();
   const text = say.value.trim();
-  if (!text) return;
+  if (!text && !attached.length) return;
+  const images = attached;
+  attached = []; renderAttachments();
   say.value = ""; grow();
-  sendMessage(text);
+  sendMessage(text, images);
 });
 
 clearTranscript();
@@ -650,6 +697,17 @@ else if (demo) {
   mic.style.setProperty("--level", "0.7");
   const sample = (you, reply) => { const v = addTurn(you); if (reply) { v.stream(reply); v.finish(); } return v; };
   if (demo === "draft") addToDraft("다음 주 화요일 저녁 7시에 엄마 졸업 연주회 있어");
+  if (demo === "photo") {
+    const c = document.createElement("canvas"); c.width = 320; c.height = 240;
+    const g = c.getContext("2d"); g.fillStyle = "#cfe3dd"; g.fillRect(0, 0, 320, 240);
+    g.fillStyle = "#2a7f74"; g.beginPath(); g.arc(160, 120, 70, 0, 7); g.fill();
+    const img = { data: c.toDataURL("image/jpeg").split(",")[1], mimeType: "image/jpeg" };
+    const v = addTurn("이거 무슨 식물이야?", [img]);
+    v.stream("몰스테라예요. 밝은 간접광에 두고 겉흙이 마르면 물을 주세요."); v.finish();
+    addTurn("", [img]).working("사진 보는 중");
+    attached = [img, img]; renderAttachments();
+    addToDraft("이 두 개 차이가 뭐야?");
+  }
   if (demo === "speaking") {
     sample("오늘 서울 날씨 어때?", "서울은 지금 맑고 영하 1도예요.");
     const v = sample("친구 결혼식 언제였지?", "다다음 주 금요일, 12월 4일이에요. 축가는 성시경의 「거리에서」예요.");

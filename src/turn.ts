@@ -9,7 +9,7 @@ import { cancelTidy, scheduleTidy } from "./librarian";
 import { currentModel, isLimitError, markLimited, modelOrder } from "./models";
 import { cancelReview, recordTurn as queueForReview, resumeReviews, type ReviewIssue } from "./review";
 import { authedProviders, settings } from "./settings";
-import { Pi, type PiEvent } from "./pi";
+import { Pi, type PiEvent, type PiImage } from "./pi";
 
 export type TurnEvent =
   | { type: "delta"; text: string }                         // live text for the screen, as it streams
@@ -119,15 +119,17 @@ const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && !
 
 // A new utterance supersedes the one still being handled: abort it, wait for it to wind down
 // (it still commits whatever it already changed), then run the new one.
-export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
+export async function runTurn(text: string, emit: (e: TurnEvent) => void, images: PiImage[] = []) {
   if (currentTurn) await agent?.abort();
+  // Photos go to the model only. The log, the commit message and the review journal note that there were some.
+  const said = images.length ? `${text} [사진 ${images.length}장]`.trim() : text;
   const turn = queue.then(async () => {
     await Promise.all([cancelReview(), cancelTidy()]); // a foreground turn has priority over both jobs
     const t = new Date().toISOString();
     let reply = "", saved: string[] = [];
     let issue: ReviewIssue | undefined;
     try {
-      await doTurn(text, (e) => {
+      await doTurn(text, said, images, (e) => {
         if (e.type === "delta") reply += e.text;
         if (e.type === "aside") reply = ""; // keep the answer, not progress before a tool call
         if (e.type === "done") saved = e.changed;
@@ -136,7 +138,7 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
       });
     } finally {
       // Once per submitted turn, not once per model fallback or stream reconnect.
-      queueForReview({ t, user: text, reply, saved, issue });
+      queueForReview({ t, user: said, reply, saved, issue });
     }
   });
   queue = turn.catch(() => {});
@@ -145,7 +147,7 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void) {
 }
 let queue: Promise<void> = Promise.resolve();
 
-async function doTurn(text: string, emit: (e: TurnEvent) => void) {
+async function doTurn(text: string, said: string, images: PiImage[], emit: (e: TurnEvent) => void) {
   try {
     await pull(config.memoryDir);
   } catch (err) {
@@ -156,7 +158,7 @@ async function doTurn(text: string, emit: (e: TurnEvent) => void) {
   // Retry on the next model when a model is rate-limited before saying anything.
   for (let attempt = 0; ; attempt++) {
     const pi = await conversation();
-    const limited = await streamTurn(pi, `[지금: ${now()}]\n${text}`, text, emit);
+    const limited = await streamTurn(pi, `[지금: ${now()}]\n${text}`, said, images, emit);
     if (!limited) break;
     if (!markLimited(agentModel, limited) || attempt + 1 >= modelOrder().length) {
       emit({ type: "error", message: "지금 모델들이 모두 바빠요. 잠시 뒤에 다시 말해 주세요." });
@@ -166,7 +168,7 @@ async function doTurn(text: string, emit: (e: TurnEvent) => void) {
 }
 
 /** Runs one prompt. Returns the error message if the model was rate-limited before speaking. */
-async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnEvent) => void): Promise<string | null> {
+async function streamTurn(pi: Pi, message: string, text: string, images: PiImage[], emit: (e: TurnEvent) => void): Promise<string | null> {
   const t0 = performance.now();
   let firstSentenceMs = 0, tools = 0, aborted = false;
   let said = false;
@@ -248,7 +250,7 @@ async function streamTurn(pi: Pi, message: string, text: string, emit: (e: TurnE
     }
   };
 
-  await pi.run(message, (e) => { if (e.type === "agent_settled" && e.aborted) aborted = true; onEvent(e); });
+  await pi.run(message, (e) => { if (e.type === "agent_settled" && e.aborted) aborted = true; onEvent(e); }, images);
   log("turn", { model: agentModel, text, firstSentenceMs, totalMs: Math.round(performance.now() - t0), tools, aborted, error: error ? error.slice(0, 200) : undefined });
   if (error) {
     if (!said && isLimitError(error)) return error;

@@ -188,6 +188,29 @@
   }
   #mic svg { width: 21px; height: 21px; }
   @media (hover: hover) { #mic:hover { background: var(--surface); } }
+
+  /* photo: pick or take pictures to ask about; they wait above the text box until sent */
+  #photo {
+    flex: none; width: 44px; height: 44px; border-radius: var(--r-pill); cursor: pointer;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); display: grid; place-items: center;
+    transition: background-color var(--dur) var(--ease-out);
+  }
+  #photo svg { width: 21px; height: 21px; }
+  #photo { position: relative; }
+  #photo input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; } /* focusable, not visible */
+  @media (hover: hover) { #photo:hover { background: var(--surface); } }
+  #photo:focus-within { outline: 3px solid var(--accent-soft); }
+  #attachments { display: flex; gap: 8px; margin: 0 0 8px; padding: 6px 6px 0 0; overflow-x: auto; } /* room for the remove buttons */
+  #attachments:empty { display: none; }
+  .thumb { position: relative; flex: none; }
+  .thumb img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); }
+  .thumb button {
+    position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: var(--r-pill); border: 0; cursor: pointer;
+    background: var(--button); color: var(--button-ink); font-size: 14px; line-height: 22px; padding: 0;
+  }
+  .you .photos { display: flex; flex-wrap: wrap; gap: 6px; }
+  .you .photos:not(:last-child) { margin-bottom: 8px; }
+  .you .photos img { display: block; max-width: 160px; max-height: 160px; border-radius: var(--r-sm); }
   /* signature: a soft halo that follows your voice while recording (max 8px: stays clear of the text box) */
   body[data-state=recording] #mic {
     background: var(--accent); color: oklch(0.99 0 0); border-color: transparent;
@@ -284,7 +307,12 @@
 
 <footer id="dock">
   <div id="status" role="status"></div>
+  <div id="attachments"></div>
   <form id="compose" autocomplete="off">
+    <label id="photo" aria-label="사진 첨부: 찍거나 골라서 물어보세요">
+      <input id="photo-input" type="file" accept="image/*" multiple>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+    </label>
     <textarea id="say" rows="1" placeholder="메시지를 입력하세요" enterkeyhint="send" aria-label="메시지"></textarea>
     <button id="mic" type="button" aria-label="말하기: 눌러서 시작하고 다시 눌러 멈춰요. 받아적은 말은 입력창에 들어가요 (Space를 누른 채로 말해도 돼요)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>

@@ -46,6 +46,7 @@ Phone (mic/speaker) → Tailscale Serve (HTTPS) → Kkachi web app (Bun, localho
 - **Hands-free** — after one tap, Kkachi listens, answers out loud, and listens again. No typing, no commands: say "thanks, that's all" and it stops; say "I'll take it from the computer" and it hands off.
 - **Remembers quietly** — mention a plan or decision and it is saved to the right note, without "I've noted that". Each turn is one git commit; say "forget that" to revert.
 - **Answers from your notes** — questions about your life are answered from the notes, with the notes shown on screen.
+- **Sees photos** — take or pick up to four photos and ask about them. They go to the model only; the memory repo records just that there were photos.
 - **Does things** — web search, MCP tools, code in other repos: whatever your Pi setup can do.
 - **After 30 quiet minutes** — Kkachi reviews the conversation against existing notes for things it missed, such as a decision or an appointment. It commits new information as `kkachi: 대화 정리 — …` and pushes if an upstream is configured. If there is nothing to add, there is no review commit. Pending turns stay in the server's private `data/conversation.jsonl` (not the memory repo) until review succeeds, including across restarts. This does not reset your chat session.
 - **A tidy library** — the librarian then sorts changed notes and refreshes the memory repo's `README.md` catalog. A new message takes priority over background work.

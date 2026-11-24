@@ -35,7 +35,7 @@ Single source of truth for the app's visual system (`src/web/index.html`). Inter
 
 ## Craft decisions
 
-- **Layout**: header (refresh, logo, settings) / transcript / composer: `[text box] (mic) (send)`, with a one-line status above it only when there is something to say (recording, transcribing, an error). The mic is tap to start / tap to stop, or hold and let go; transcribed words are appended to the text box to check and fix, and nothing is sent until you press send (or Enter).
+- **Layout**: header (refresh, logo, settings) / transcript / composer: `(photo) [text box] (mic) (send)`, with a one-line status above it only when there is something to say (recording, transcribing, an error). Picked or taken photos (up to 4, scaled to 1600px JPEG on the phone) wait as 64px thumbnails with a remove button above the text box, and appear above your words in your bubble once sent. A photo alone can be sent. The mic is tap to start / tap to stop, or hold and let go; transcribed words are appended to the text box to check and fix, and nothing is sent until you press send (or Enter).
 - **Transcript**: last 30 turns of this page, as chat bubbles: yours a light `surface` fill on the right, Kkachi's outlined (`bg` with a `line` border) on the left (fill vs outline keeps them apart without heavy color) with the working dots and activity label inside it. Kkachi's bubble appears once your words are known and is removed if the turn ends without words. Replies are Markdown (marked + DOMPurify, vendored in `src/web/vendor/`); narration before a tool call stays in the bubble as a muted aside. Read-aloud is off by default (per device) and speaks only the first two sentences.
 - **First run**: example sentences to say, as plain quoted lines (not tappable-looking boxes), placed near the talk button.
 - **States**: mic idle / recording (teal, level ring) / thinking (dimmed) / speaking (bars) / disabled (mic permission denied). Icon buttons and settings controls have hover (pointer devices), active, focus-visible (3px teal ring).
@@ -58,3 +58,4 @@ Kept on purpose: centered single column and chat bubbles (familiar Operate-mode 
 - 2026-11-21: text-first: Markdown replies, keyboard input mode, read-aloud optional; Kkachi uses Pi's own prompt and AGENTS.md (short-spoken-reply rules dropped). Icon background ink → mint.
 - 2026-11-21: Kkachi's replies in bubbles like the user's (were plain text).
 - 2026-11-21: hand-drawn SVG icon replaced by a Codex-generated icon (candidate A of three), then switched to candidate B at the user's choice.
+- 2026-11-25: photo button left of the text box; thumbnails above it; photos in your bubble. `?demo=photo` for review.

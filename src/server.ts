@@ -8,8 +8,19 @@ import { settings, THINKING, updateSettings, VOICES } from "./settings";
 import { synthesize, transcribe } from "./speech";
 import { applyThinking, modelChoices, newConversation, runTurn, startConversation } from "./turn";
 import { findTurn, recordTurn, streamTurn } from "./replay";
+import type { PiImage } from "./pi";
 
 const web = join(import.meta.dir, "web");
+
+// Photos attached to a message (the app sends JPEGs it has already scaled down).
+const MAX_IMAGES = 4, MAX_IMAGE_CHARS = 8_000_000; // base64, about 6 MB
+function parseImages(value: unknown): PiImage[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_IMAGES) return null;
+  const ok = value.every((i) => typeof i?.data === "string" && i.data.length <= MAX_IMAGE_CHARS && /^[A-Za-z0-9+/]+=*$/.test(i.data)
+    && ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(i.mimeType));
+  return ok ? value.map((i) => ({ data: i.data, mimeType: i.mimeType })) : null;
+}
 
 checkSetup();
 await startConversation();
@@ -85,15 +96,18 @@ Bun.serve({
       // (and commits) even if the phone drops the stream. The app names the turn (id) and posts again
       // with the same id to continue from the events it already has (see src/replay.ts).
       if (req.method === "POST" && pathname === "/api/turn") {
-        const { text, from, id = crypto.randomUUID() } = await req.json(); // no id: an app page loaded before ids
+        const { text = "", images: rawImages, from, id = crypto.randomUUID() } = await req.json(); // no id: an app page loaded before ids
         if (typeof id !== "string" || !/^[\w-]{8,64}$/.test(id)) return new Response("bad turn id", { status: 400 });
         const known = findTurn(id);
         if (known) return streamTurn(known, Number(from) || 0);
         // A continuation of a turn this server does not have (restarted mid-turn, or too old): do
         // not run it again under the app's half-shown reply.
         if (Number(from) > 0) return new Response("unknown turn", { status: 410 });
+        const images = parseImages(rawImages);
+        if (!images) return new Response("bad images", { status: 400 });
+        if (!String(text).trim() && !images.length) return new Response("empty message", { status: 400 });
         const record = recordTurn(id);
-        runTurn(String(text), (e) => record.push(e))
+        runTurn(String(text), (e) => record.push(e), images)
           .catch((err) => {
             console.error("turn error", err);
             record.push({ type: "error", message: "문제가 생겼어요. 다시 말해 주세요." });

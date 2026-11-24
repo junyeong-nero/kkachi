@@ -6,6 +6,7 @@ import { config } from "./config";
 import { settings } from "./settings";
 
 export type PiEvent = { type: string; [k: string]: any };
+export type PiImage = { data: string; mimeType: string }; // base64
 
 export interface PiOptions {
   prompt: string; // file in prompts/
@@ -126,12 +127,12 @@ export class Pi {
   }
 
   /** Send a prompt and resolve when Pi settles (no more automatic work). */
-  async run(message: string, onEvent: (e: PiEvent) => void): Promise<void> {
+  async run(message: string, onEvent: (e: PiEvent) => void, images: PiImage[] = []): Promise<void> {
     let settle!: () => void;
     const settled = new Promise<void>((res) => (settle = res));
     const off = this.on((e) => { onEvent(e); if (e.type === "agent_settled") settle(); });
     try {
-      const res = await this.command({ type: "prompt", message });
+      const res = await this.command({ type: "prompt", message, ...(images.length ? { images: images.map((i) => ({ type: "image", ...i })) } : {}) });
       if (res?.disposition === "handled") return;
       await Promise.race([settled, this.exited]); // never hang if Pi dies mid-run
     } finally {
