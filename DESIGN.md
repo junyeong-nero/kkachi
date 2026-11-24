@@ -4,10 +4,10 @@ Single source of truth for the app's visual system (`src/web/index.html`). Inter
 
 ## Discovery
 
-- **Artifact**: mobile AI/conversational interface, voice-first (Operate mode). Used one-handed on a phone, often without looking.
-- **Who / job**: one person talking to their own assistant. Primary action: say or type something, check it, send.
+- **Artifact**: mobile AI/conversational interface, text-first with optional dictation and read-aloud (Operate mode). Used one-handed on a phone.
+- **Who / job**: one person talking to their own assistant. Primary action: type (or dictate) something, check it, send.
 - **Brief**: clean and neutral like other AI products; the magpie (까치) appears only as the app icon and logo, the way Kitsune uses its fox. An earlier full-screen magpie illustration was rejected as kitschy.
-- **Adjectives**: calm, clear, quick, trustworthy. Essence: *quiet voice tool*.
+- **Adjectives**: calm, clear, quick, trustworthy. Essence: *quiet text assistant*.
 
 ## Commitments
 
