@@ -8,7 +8,9 @@ const repo = join(root, "memory"), data = join(root, "data"), bare = join(root, 
 const journal = join(data, "conversation.jsonl"), marker = join(data, "review-started");
 const idle = 30 * 60_000;
 let review: typeof import("../src/review"), turns: typeof import("../src/turn"), library: typeof import("../src/librarian");
-const env = { KKACHI_MEMORY_DIR: repo, KKACHI_DATA_DIR: data, KKACHI_PI_BIN: join(root, "pi") };
+// On Windows the real Pi is a .cmd launcher, which rejects multi-line arguments; the stand-in mirrors that.
+const win = process.platform === "win32";
+const env = { KKACHI_MEMORY_DIR: repo, KKACHI_DATA_DIR: data, KKACHI_PI_BIN: join(root, win ? "pi.cmd" : "pi") };
 const original = Object.fromEntries(Object.keys(env).map(k => [k, process.env[k]]));
 function git(cwd: string, ...args: string[]) {
   const p = Bun.spawnSync(["git", ...args], { cwd });
@@ -34,18 +36,25 @@ beforeAll(async () => {
   writeFileSync(join(repo, "AGENTS.md"), "# Test notes\n");
   git(repo, "add", "."); git(repo, "commit", "-m", "seed");
   git(root, "init", "--bare", bare); git(repo, "remote", "add", "origin", bare); git(repo, "push", "-u", "origin", "main");
-  copyFileSync(join(import.meta.dir, "fixtures/review-pi.mjs"), env.KKACHI_PI_BIN); chmodSync(env.KKACHI_PI_BIN, 0o700);
+  if (win) {
+    copyFileSync(join(import.meta.dir, "fixtures/review-pi.mjs"), join(root, "pi.mjs"));
+    writeFileSync(env.KKACHI_PI_BIN, `@"${process.execPath}" "%~dp0pi.mjs" %*\r\n`);
+  } else {
+    copyFileSync(join(import.meta.dir, "fixtures/review-pi.mjs"), env.KKACHI_PI_BIN); chmodSync(env.KKACHI_PI_BIN, 0o700);
+  }
   review = await import("../src/review"); turns = await import("../src/turn"); library = await import("../src/librarian");
 });
 afterEach(async () => {
   jest.useRealTimers(); await review.cancelReview(); await library.tidyIdle();
   for (const path of [marker, journal, join(data, "hold"), join(data, "invalid")]) rmSync(path, { force: true });
 });
-afterAll(() => {
+afterAll(async () => {
   const pid = join(data, "test-pi.pid");
   if (existsSync(pid)) process.kill(Number(readFileSync(pid, "utf8")));
   for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
-  rmSync(root, { recursive: true, force: true });
+  for (let i = 0; ; i++) { // Windows: the killed stand-in may hold its cwd for a moment
+    try { rmSync(root, { recursive: true, force: true }); break; } catch (err) { if (i >= 50) throw err; await Bun.sleep(100); }
+  }
 });
 
 test("reset the countdown on the next turn, then commit, push and catalog the missing note", async () => {

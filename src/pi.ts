@@ -1,7 +1,6 @@
 // Pi (https://github.com/earendil-works/pi) as Kkachi's agent runtime, over RPC mode (JSONL on
 // stdin/stdout). Kkachi shares the user's Pi setup (extensions, skills, MCP, auth) and adds its
 // own extension (pi/kkachi.ts) and system prompt. Every Pi command Kkachi uses lives in this file.
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
 import { settings } from "./settings";
@@ -35,7 +34,8 @@ export class Pi {
     const prompt = join(config.root, "prompts", this.opts.prompt);
     const promptArgs = this.opts.mode === "append"
       ? ["--append-system-prompt", prompt] // cwd is the memory repo, so its AGENTS.md loads as project context
-      : ["--system-prompt", readFileSync(prompt, "utf8"), "--no-context-files", "--append-system-prompt", join(dir, "AGENTS.md")];
+      // A path, not the text: Windows refuses multi-line arguments to pi.cmd. Pi reads either.
+      : ["--system-prompt", prompt, "--no-context-files", "--append-system-prompt", join(dir, "AGENTS.md")];
     const args = [
       config.piBin, "--mode", "rpc",
       "--model", model,
