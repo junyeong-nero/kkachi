@@ -2,22 +2,36 @@
 
 A self-hosted assistant for your phone. Type or dictate (check the words, then send). Replies come back as text and can be read aloud. It remembers what you tell it in your own Markdown notes (a git repo), and it can do anything your [Pi](https://github.com/earendil-works/pi) coding agent can: search the web, use MCP servers (browser, calendar, ...), and work on code.
 
-> **Status: early prototype.** Runs on macOS; setup is still manual. See [docs/plan.md](docs/plan.md) and [docs/design.md](docs/design.md) (Korean).
+> **Status: early prototype.** Runs on macOS, Windows, and Linux (the Linux auto-start is untested). See [docs/plan.md](docs/plan.md) and [docs/design.md](docs/design.md) (Korean).
 
 > **Warning:** Kkachi runs Pi with full access to your computer (shell, files, network) and acts without asking. Anyone who can reach it can make it run commands by voice. Expose it only through Tailscale Serve on a tailnet you control, never Tailscale Funnel or a public URL.
 
-### Run it now (manual)
+## Install
 
-```sh
-# Requirements: git, Bun, Pi (configured with an OpenRouter key), Tailscale
-uv tool install edge-tts                 # TTS (free, unofficial Microsoft Edge voices)
-# .env: GROQ_API_KEY=...                 # STT (Groq Whisper) and transcript cleanup (free tier)
-# .env.local: KKACHI_MEMORY_DIR=/abs/path/to/memory-repo  (a git repo, see templates/memory)
-bun start
-tailscale serve --bg --https=8443 http://127.0.0.1:4300
-```
+Kkachi runs on a computer that stays on (macOS, Windows, or Linux) and you use it from your phone.
 
-Open the printed URL on your phone and add it to the home screen. Add `?debug` to the URL for an on-screen log.
+1. **Install the tools** on the computer:
+   - [Git](https://git-scm.com/downloads) and [Bun](https://bun.sh)
+   - [Pi](https://pi.dev). Run `pi` once and sign in to a model provider with `/login`
+   - [Tailscale](https://tailscale.com/download), on the computer **and** the phone, signed in to the same account
+   - Optional, to hear replies: [uv](https://docs.astral.sh/uv/), then `uv tool install edge-tts` (free, unofficial Microsoft Edge voices)
+   - Optional, to dictate: a free [Groq API key](https://console.groq.com/keys) (speech-to-text and transcript cleanup)
+2. **Set it up:**
+   ```sh
+   git clone https://github.com/junyeong-nero/kkachi.git
+   cd kkachi
+   bun run init
+   ```
+   `init` checks the tools, creates your memory repo (or uses an existing one), lets you pick a model your Pi can use, saves settings to `.env.local`, starts Kkachi now and at every login, and makes it reachable on your tailnet with Tailscale Serve. Run it again any time; it keeps what is already set up.
+3. **Open the printed `https://<computer>.<tailnet>.ts.net:8443` address on your phone** and add it to the home screen. Add `?debug` to the URL for an on-screen log.
+
+Manage the background server with `bun run service status | install | uninstall`. Its log is `data/service.log`. To run in the foreground instead, use `bun start`.
+
+- **Windows:** the server starts when you sign in (Startup folder, no admin rights needed) and stops when you sign out. Keep the computer awake: sleep stops it.
+- **Linux:** a systemd user service. To keep it running while you are logged out, run `sudo loginctl enable-linger $USER`.
+- **macOS:** a launchd agent that runs while you are logged in.
+
+All settings are environment variables in `.env.local` (see `src/config.ts`), for example `KKACHI_MODEL` for the model and fallbacks, `KKACHI_PORT`, `KKACHI_TIMEZONE`, and OpenAI-compatible speech APIs instead of Groq and Edge TTS.
 
 ## How it works
 
@@ -35,7 +49,7 @@ Phone (mic/speaker) → Tailscale Serve (HTTPS) → Kkachi web app (Bun, localho
 - **Does things** — web search, MCP tools, code in other repos: whatever your Pi setup can do.
 - **After 30 quiet minutes** — Kkachi reviews the conversation against existing notes for things it missed, such as a decision or an appointment. It commits new information as `kkachi: 대화 정리 — …` and pushes if an upstream is configured. If there is nothing to add, there is no review commit. Pending turns stay in the server's private `data/conversation.jsonl` (not the memory repo) until review succeeds, including across restarts. This does not reset your chat session.
 - **A tidy library** — the librarian then sorts changed notes and refreshes the memory repo's `README.md` catalog. A new message takes priority over background work.
-- **Free by default** — OpenRouter free models with automatic fallback, Groq free tier, Edge TTS. Everything is configurable (`src/config.ts`).
+- **Your model, free voice** — any model your Pi can use, with automatic fallback to the next one in `KKACHI_MODEL` when it is rate-limited. Speech uses the Groq free tier and Edge TTS. Everything is configurable (`src/config.ts`).
 
 ## Memory repo
 
