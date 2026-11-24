@@ -12,10 +12,8 @@ const handlers: Record<string, (args: any) => Promise<string> | string> = {
 
 const reply = (id: unknown, body: object) => Response.json({ jsonrpc: "2.0", id, ...body });
 
+// Requests from other websites are refused before they get here (see trusted() in src/server.ts).
 export async function handleMcp(req: Request): Promise<Response> {
-  // Browsers send Origin; a web page must not drive the devices (DNS rebinding, cross-site POSTs).
-  const origin = req.headers.get("origin");
-  if (origin && new URL(origin).host !== new URL(req.url).host) return new Response("forbidden origin", { status: 403 });
   if (req.method !== "POST") return new Response("method not allowed", { status: 405, headers: { Allow: "POST" } });
   const msg: any = await req.json().catch(() => null);
   if (!msg || typeof msg !== "object" || Array.isArray(msg)) return reply(null, { error: { code: -32600, message: "invalid request" } });

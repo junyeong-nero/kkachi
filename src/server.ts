@@ -14,6 +14,20 @@ import { handleMcp } from "./mcp";
 
 const web = join(import.meta.dir, "web");
 
+// Kkachi runs commands for whoever reaches it, so only its own pages may call it:
+// - Host must be this computer (loopback) or its Tailscale name. Tailscale Serve keeps the Host
+//   header. Blocks DNS rebinding, where an attacker's domain resolves to 127.0.0.1.
+// - A browser's Origin must match Host. Blocks other websites posting to 127.0.0.1:4300.
+//   Clients without Origin (curl, Pi, other agents' MCP) are not browsers and pass.
+function trusted(req: Request): boolean {
+  const host = req.headers.get("host") ?? "";
+  const hostname = host.replace(/:\d+$/, "").toLowerCase();
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(hostname) && !hostname.endsWith(".ts.net")) return false;
+  const origin = req.headers.get("origin");
+  if (!origin) return true;
+  try { return new URL(origin).host === host; } catch { return false; }
+}
+
 // Photos attached to a message (the app sends JPEGs it has already scaled down).
 const MAX_IMAGES = 4, MAX_IMAGE_CHARS = 8_000_000; // base64, about 6 MB
 function parseImages(value: unknown): PiImage[] | null {
@@ -33,6 +47,7 @@ Bun.serve({
   idleTimeout: 255,
   websocket: deviceSocket,
   async fetch(req, server) {
+    if (!trusted(req)) return new Response("forbidden", { status: 403 });
     const { pathname } = new URL(req.url);
     try {
       if (pathname === "/mcp") return await handleMcp(req);
