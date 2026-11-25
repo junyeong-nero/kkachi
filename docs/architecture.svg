@@ -2,6 +2,7 @@
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5b6470"/></marker>
     <marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1f8a80"/></marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#3d7fae"/></marker>
     <style>
       .h { font-size: 15px; font-weight: 700; fill: #1d232b; }
       .t { font-size: 13px; fill: #3a434e; }
@@ -10,172 +11,167 @@
       .box { fill: #ffffff; stroke: #d5dbe1; stroke-width: 1.2; }
       .sub { fill: #f3f5f7; }
       .core { fill: #f7f9fa; stroke: #b9c2cb; stroke-width: 1.4; }
-      .svc { fill: #f4f8fb; stroke: #8fb3cf; stroke-width: 1.4; }
+      .svc { fill: #f2f7fb; stroke: #3d7fae; stroke-width: 1.4; }
       .teal { fill: #e6f3f1; stroke: #1f8a80; stroke-width: 1.2; }
       .badge { font-size: 11px; font-weight: 700; }
       .ln { stroke: #5b6470; stroke-width: 1.6; fill: none; }
-      .lt { stroke: #1f8a80; stroke-width: 2; fill: none; }
+      .lt { stroke: #1f8a80; stroke-width: 2.2; fill: none; }
+      .lb { stroke: #3d7fae; stroke-width: 2.2; fill: none; }
       .ld { stroke: #5b6470; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
     </style>
   </defs>
 
   <rect width="1500" height="1010" fill="#fcfcfd"/>
-  <text x="30" y="44" font-size="24" font-weight="800" fill="#1d232b">까치 인프라 구조</text>
-  <text x="30" y="68" class="m">2026-11-25 · M9 플러그인 구조 · core 는 에이전트 루프와 MCP 연결만, 기기와 기억은 core 가 띄우는 독립 MCP 서비스</text>
+  <text x="30" y="42" font-size="24" font-weight="800" fill="#1d232b">까치 인프라 구조</text>
+  <text x="30" y="66" class="m">2026-11-25 · M9 플러그인 구조 · 위: 접속하는 쪽, 각자 붙는 곳 바로 위에 · 아래: core 와 MCP 서비스</text>
+  <path d="M1010 62 H1040" class="lt"/><text x="1046" y="66" class="m">폰 앱 (개인)</text>
+  <path d="M1130 62 H1160" class="lb"/><text x="1166" y="66" class="m">공기계</text>
+  <path d="M1220 62 H1250" class="ln"/><text x="1256" y="66" class="m">MCP · 요청</text>
+  <path d="M1340 62 H1370" class="ld"/><text x="1376" y="66" class="m">core 전용 (git_*)</text>
 
-  <!-- ===== 입구 · 포트 ===== -->
-  <text x="30" y="96" class="col">입구 · 포트</text>
-  <rect x="30" y="108" width="270" height="150" rx="14" class="teal"/>
-  <text x="46" y="134" class="h">폰 앱</text>
-  <rect x="186" y="118" width="102" height="22" rx="11" fill="#1f8a80"/><text x="237" y="133" class="badge" fill="#fff" text-anchor="middle">개인 · 전체 권한</text>
-  <text x="46" y="160" class="t">글 · 받아쓰기 · 사진 첨부</text>
-  <text x="46" y="182" class="t">답 스트리밍 · 출처 칩 · 소리로 읽기</text>
-  <text x="46" y="204" class="t">도구가 가져온 사진 표시</text>
-  <text x="46" y="226" class="t">설정 → 기기: 허용 · 삭제</text>
-  <text x="46" y="246" class="m">chat 에이전트</text>
+  <!-- ===== 접속하는 쪽 ===== -->
+  <text x="30" y="96" class="col">접속하는 쪽</text>
 
-  <rect x="30" y="274" width="270" height="176" rx="14" class="box"/>
-  <text x="46" y="300" class="h">공기계 /device</text>
-  <rect x="222" y="284" width="66" height="22" rx="11" fill="#e9ecef"/><text x="255" y="299" class="badge" fill="#3a434e" text-anchor="middle">제한 포트</text>
-  <text x="46" y="326" class="t">탭해서 시작 · 권한 한 번에</text>
-  <text x="46" y="348" class="t">누르고 말하기 → 그 기기에서 답</text>
-  <rect x="46" y="360" width="238" height="56" rx="9" class="sub"/>
-  <text x="58" y="382" class="t"><tspan font-weight="700">출력</tspan>  말하기 · 조명</text>
-  <text x="58" y="404" class="t"><tspan font-weight="700">입력</tspan>  말 걸기 · 사진 · 소리 · 센서 · 위치</text>
-  <text x="46" y="438" class="m">스위치 카드 · port 에이전트</text>
+  <rect x="30" y="106" width="530" height="134" rx="14" class="teal"/>
+  <text x="48" y="132" class="h">폰 앱</text>
+  <rect x="432" y="116" width="114" height="22" rx="11" fill="#1f8a80"/><text x="489" y="131" class="badge" fill="#fff" text-anchor="middle">개인 · 전체 권한</text>
+  <text x="48" y="158" class="t">글 · 받아쓰기 · 사진 첨부 → 답 스트리밍 · 출처 칩 · 소리로 읽기</text>
+  <text x="48" y="180" class="t">도구가 가져온 사진(기기 카메라)을 답 아래에 표시</text>
+  <text x="48" y="202" class="t">설정 → 기기: 허용 · 삭제 · 지금 쓸 수 있는 기능</text>
+  <text x="48" y="226" class="m">core 에 붙음 · chat 에이전트</text>
 
-  <rect x="30" y="466" width="270" height="96" rx="14" class="box"/>
-  <text x="46" y="492" class="h">다른 에이전트</text>
-  <text x="46" y="516" class="t">Claude Desktop · Codex · 다른 Pi</text>
-  <text x="46" y="538" class="m">…/mcp/devices · …/mcp/memory</text>
+  <rect x="600" y="106" width="540" height="134" rx="14" fill="#eef5fa" stroke="#3d7fae" stroke-width="1.2"/>
+  <text x="618" y="132" class="h">공기계 · 태블릿 (/device)</text>
+  <rect x="1060" y="116" width="66" height="22" rx="11" fill="#dce9f3"/><text x="1093" y="131" class="badge" fill="#2a5f86" text-anchor="middle">제한 포트</text>
+  <text x="618" y="158" class="t">탭해서 시작(소리 · 화면 유지 · 권한) · 스위치 카드로 하나씩 켜고 끄기</text>
+  <text x="618" y="180" class="t"><tspan font-weight="700">출력</tspan> 말하기 · 조명    <tspan font-weight="700">입력</tspan> 말 걸기 · 사진 · 소리 크기 · 센서 · 위치</text>
+  <text x="618" y="202" class="t">누르고 말하기 → 그 기기에서 소리로 답 (port 에이전트)</text>
+  <text x="618" y="226" class="m">kkachi-devices 에 붙음 (WebSocket) · 기기 토큰</text>
 
-  <!-- ===== Tailscale ===== -->
-  <rect x="318" y="108" width="52" height="454" rx="12" fill="#eef1f4" stroke="#b9c2cb"/>
-  <text transform="translate(350 335) rotate(-90)" text-anchor="middle" class="h">Tailscale Serve · HTTPS :8443 · tailnet 전용</text>
-  <path d="M300 183 H314" class="lt" marker-end="url(#t)"/>
-  <path d="M300 362 H314" class="ln" marker-end="url(#a)"/>
-  <path d="M300 514 H314" class="ln" marker-end="url(#a)"/>
-  <path d="M370 335 H396" class="ln" marker-end="url(#a)"/>
+  <rect x="1180" y="106" width="290" height="134" rx="14" class="box"/>
+  <text x="1198" y="132" class="h">다른 에이전트</text>
+  <text x="1198" y="158" class="t">Claude Desktop · Codex · 다른 Pi</text>
+  <text x="1198" y="180" class="t">MCP 클라이언트</text>
+  <text x="1198" y="226" class="m">MCP 서비스에 붙음 (/mcp/*)</text>
+
+  <!-- ===== Tailscale band ===== -->
+  <rect x="30" y="256" width="1440" height="50" rx="12" fill="#eef1f4" stroke="#b9c2cb"/>
+  <text x="48" y="278" class="h">Tailscale Serve · HTTPS :8443 · tailnet 전용</text>
+  <text x="48" y="297" class="m">한 주소로 들어와 core 가 검사 · 서비스 몫은 그대로 넘김</text>
+
+  <path d="M500 240 V350" class="lt" marker-end="url(#t)"/>
+  <path d="M870 240 V326" class="lb" marker-end="url(#b)"/>
+  <text x="880" y="322" class="m" fill="#2a5f86">WebSocket · 페이지 (core 는 중계만)</text>
+  <path d="M1325 240 V318 H1160 V630 H1144" class="ln" marker-end="url(#a)"/>
+  <path d="M1160 420 H1144" class="ln" marker-end="url(#a)"/>
 
   <!-- ===== kkachi-core ===== -->
-  <text x="400" y="96" class="col">kkachi-core · 127.0.0.1:4300 · src/</text>
-  <rect x="400" y="108" width="390" height="618" rx="16" class="core"/>
+  <text x="30" y="346" class="col">kkachi-core · 127.0.0.1:4300 · src/</text>
+  <rect x="30" y="354" width="530" height="430" rx="16" class="core"/>
 
-  <rect x="414" y="122" width="362" height="62" rx="10" fill="#fff4ec" stroke="#e8c4a8"/>
-  <text x="428" y="146" class="t"><tspan font-weight="700">입구 검사 · 경로 중계</tspan>  Host · Origin 검사</text>
-  <text x="428" y="168" class="m">/device · /api/device/* · /mcp/* → 각 서비스로</text>
+  <rect x="46" y="370" width="250" height="400" rx="10" class="teal"/>
+  <text x="60" y="394" class="h">에이전트 루프 (Pi RPC)</text>
+  <text x="60" y="420" class="t">대화 턴</text>
+  <text x="60" y="440" class="m">받아쓰기 → 다듬기 → Pi → 문장별 TTS</text>
+  <text x="60" y="468" class="t"><tspan font-weight="700">chat</tspan> 폰 앱의 대화</text>
+  <text x="60" y="488" class="m">노트 파일 직접 편집 + MCP 도구</text>
+  <text x="60" y="516" class="t"><tspan font-weight="700">port</tspan> 공기계별 대화</text>
+  <text x="60" y="536" class="m">memory_* · 말하기 · 조명만</text>
+  <text x="60" y="564" class="t"><tspan font-weight="700">사서</tspan> 노트 정리</text>
+  <text x="60" y="592" class="t"><tspan font-weight="700">30분 대화 정리</tspan></text>
+  <text x="60" y="612" class="m">memory 의 draft 위에서</text>
+  <text x="60" y="640" class="t">턴 끝 → git_checkpoint</text>
+  <text x="60" y="660" class="m">한 턴 = 커밋 하나</text>
+  <text x="60" y="756" class="m">turn · port · librarian · review.ts</text>
 
-  <rect x="414" y="196" width="362" height="176" rx="10" class="teal"/>
-  <text x="428" y="220" class="h">에이전트 루프 (Pi RPC)</text>
-  <text x="428" y="244" class="t">대화 턴: 받아쓰기 → Pi → 문장별 TTS</text>
-  <text x="428" y="266" class="t"><tspan font-weight="700">chat</tspan> 노트 파일 직접 편집 + MCP 도구</text>
-  <text x="428" y="288" class="t"><tspan font-weight="700">port</tspan> 기기별 세션, memory_* · 말하기 · 조명</text>
-  <text x="428" y="310" class="t"><tspan font-weight="700">사서</tspan> · <tspan font-weight="700">30분 대화 정리</tspan> (draft 위에서)</text>
-  <text x="428" y="332" class="t">턴 끝 → git_checkpoint (턴 = 커밋 1개)</text>
-  <text x="428" y="358" class="m">turn.ts · port.ts · librarian.ts · review.ts · memory.ts</text>
+  <rect x="308" y="370" width="238" height="112" rx="10" class="box"/>
+  <text x="322" y="394" class="h">포트 API /api/port/*</text>
+  <text x="322" y="418" class="t">서비스만 호출 (내부 토큰)</text>
+  <text x="322" y="440" class="t">talk: 받아쓰기 → port Pi</text>
+  <text x="322" y="460" class="t">        → TTS · warm</text>
 
-  <rect x="414" y="384" width="362" height="124" rx="10" class="box"/>
-  <text x="428" y="408" class="h">MCP 브리지 · kkachi.mcp.json</text>
-  <text x="428" y="432" class="t">servers → tools/list → Pi 도구로 자동 등록</text>
-  <text x="428" y="454" class="t">agents: chat · port · librarian 별 허용 도구</text>
-  <text x="428" y="476" class="t">meta: commit later (core 가 턴 단위로 커밋)</text>
-  <text x="428" y="498" class="m">mcp-bridge.ts · pi/kkachi.ts (도구가 뭔지 모름)</text>
+  <rect x="308" y="494" width="238" height="138" rx="10" class="box"/>
+  <text x="322" y="518" class="h">MCP 브리지</text>
+  <text x="322" y="542" class="t">kkachi.mcp.json: 서버 목록</text>
+  <text x="322" y="562" class="t">tools/list → Pi 도구로 등록</text>
+  <text x="322" y="582" class="t">에이전트별 허용 도구 · meta</text>
+  <text x="322" y="602" class="m">(commit later = 턴 단위 커밋)</text>
+  <text x="322" y="622" class="m">mcp-bridge.ts · pi/kkachi.ts</text>
 
-  <rect x="414" y="520" width="362" height="84" rx="10" class="box"/>
-  <text x="428" y="544" class="h">서비스 감독</text>
-  <text x="428" y="568" class="t">command 로 띄우고, 멈추면 다시 띄움</text>
-  <text x="428" y="590" class="t">내부 토큰 공유 (KKACHI_INTERNAL_TOKEN)</text>
+  <rect x="308" y="644" width="238" height="126" rx="10" class="box"/>
+  <text x="322" y="668" class="h">서비스 감독</text>
+  <text x="322" y="692" class="t">command 로 띄우고</text>
+  <text x="322" y="712" class="t">멈추면 다시 띄움</text>
+  <text x="322" y="732" class="t">내부 토큰 공유</text>
+  <text x="322" y="756" class="m">services.ts · memory.ts</text>
 
-  <rect x="414" y="616" width="362" height="96" rx="10" class="box"/>
-  <text x="428" y="640" class="h">포트 API /api/port/*</text>
-  <text x="428" y="664" class="t">서비스만 호출 (내부 토큰)</text>
-  <text x="428" y="686" class="t">talk: 받아쓰기 → port Pi → TTS · warm</text>
+  <!-- ===== MCP 서비스 ===== -->
+  <text x="600" y="346" class="col">MCP 서비스 · core 가 띄우는 독립 프로세스</text>
+  <rect x="600" y="354" width="540" height="204" rx="14" class="svc"/>
+  <text x="618" y="380" class="h">kkachi-devices · 127.0.0.1:4301</text>
+  <text x="618" y="404" class="t">/device 페이지 · WebSocket · 페어링(허용 → 토큰) · 권한 · 스위치</text>
+  <text x="618" y="430" class="t" font-weight="700">MCP 도구</text>
+  <text x="618" y="452" class="t">list_devices · device_speak · device_snapshot</text>
+  <text x="618" y="474" class="t">device_sound_level · device_sensors · device_light</text>
+  <text x="618" y="500" class="t">누르고 말하기: 기기 토큰 확인 → core 포트 API 로</text>
+  <text x="618" y="524" class="t" font-weight="700" fill="#1f8a80">사진 · 측정값은 중계만 · 저장 안 함</text>
+  <text x="618" y="546" class="m">services/devices/</text>
 
-  <!-- ===== 서비스 ===== -->
-  <text x="830" y="96" class="col">MCP 서비스 · 독립 프로세스</text>
-  <rect x="830" y="108" width="310" height="252" rx="14" class="svc"/>
-  <text x="846" y="134" class="h">kkachi-devices · 4301</text>
-  <text x="846" y="158" class="t">/device 페이지 · WebSocket · 페어링</text>
-  <text x="846" y="180" class="t">권한 · 스위치 · 마지막 활동</text>
-  <text x="846" y="206" class="t" font-weight="700">MCP 도구</text>
-  <text x="846" y="228" class="t">list_devices · device_speak</text>
-  <text x="846" y="250" class="t">device_snapshot · device_sound_level</text>
-  <text x="846" y="272" class="t">device_sensors · device_light</text>
-  <text x="846" y="298" class="t">누르고 말하기: 기기 토큰 확인 → core 포트</text>
-  <text x="846" y="322" class="t" font-weight="700" fill="#1f8a80">결과는 중계만 · 저장 안 함</text>
-  <text x="846" y="346" class="m">services/devices/</text>
-
-  <rect x="830" y="376" width="310" height="252" rx="14" class="svc"/>
-  <text x="846" y="402" class="h">kkachi-memory · 4302</text>
-  <text x="846" y="426" class="t">git 을 아는 유일한 곳 · 한 번에 하나씩</text>
-  <text x="846" y="452" class="t" font-weight="700">에이전트용</text>
-  <text x="846" y="474" class="t">memory_list · search · read · write</text>
-  <text x="846" y="496" class="t">edit · move · delete · undo</text>
-  <text x="846" y="522" class="t" font-weight="700">core 전용 (내부 토큰)</text>
-  <text x="846" y="544" class="t">git_sync · checkpoint · draft · staged …</text>
-  <text x="846" y="570" class="t">변경 = 그 경로만 즉시 커밋</text>
-  <text x="846" y="592" class="t">(meta later 면 core 가 나중에 한 번에)</text>
-  <text x="846" y="616" class="m">services/memory/</text>
-
-  <rect x="830" y="644" width="262" height="82" rx="14" fill="#ffffff" stroke="#b9c2cb" stroke-dasharray="6 4"/>
-  <text x="846" y="670" class="h">다른 MCP 서버 (추가 가능)</text>
-  <text x="846" y="694" class="t">Home Assistant · 캘린더 …</text>
-  <text x="846" y="714" class="m">kkachi.mcp.json 에 url·허용 도구만</text>
+  <rect x="600" y="574" width="540" height="210" rx="14" class="svc"/>
+  <text x="618" y="600" class="h">kkachi-memory · 127.0.0.1:4302</text>
+  <text x="618" y="624" class="t">git 을 아는 유일한 곳 · git 작업은 한 번에 하나씩</text>
+  <text x="618" y="650" class="t" font-weight="700">에이전트용 MCP 도구</text>
+  <text x="618" y="672" class="t">memory_list · search · read · write · edit · move · delete · undo</text>
+  <text x="618" y="694" class="t">바꾸면 그 파일만 즉시 커밋 (meta 가 later 면 core 가 나중에 한 번에)</text>
+  <text x="618" y="720" class="t" font-weight="700">core 전용 (내부 토큰)</text>
+  <text x="618" y="742" class="t">git_sync · checkpoint · draft · staged · discard · changes · head</text>
+  <text x="618" y="770" class="m">services/memory/</text>
 
   <!-- core ↔ services -->
-  <path d="M776 420 C 805 420, 805 230, 826 230" class="ln" marker-end="url(#a)"/>
-  <path d="M776 450 C 805 450, 805 486, 826 486" class="ln" marker-end="url(#a)"/>
-  <path d="M776 470 C 800 470, 800 684, 826 684" class="ld" marker-end="url(#a)"/>
-  <path d="M776 340 C 812 340, 812 540, 826 540" class="ld" marker-end="url(#a)"/>
-  <path d="M830 298 C 806 298, 806 664, 780 664" class="lt" marker-end="url(#t)"/>
+  <path d="M546 520 C 575 520, 575 452, 596 452" class="ln" marker-end="url(#a)"/>
+  <path d="M546 560 C 575 560, 575 672, 596 672" class="ln" marker-end="url(#a)"/>
+  <path d="M600 500 H550" class="lb" marker-end="url(#b)"/>
+  <text x="560" y="518" class="m" fill="#2a5f86">talk</text>
+  <path d="M170 770 V790 H580 V742 H596" class="ld" marker-end="url(#a)"/>
+
+  <!-- ===== 외부 ===== -->
+  <text x="1180" y="346" class="col">외부 서비스</text>
+  <rect x="1180" y="354" width="290" height="62" rx="12" class="box"/>
+  <text x="1196" y="378" class="h">Groq (무료)</text>
+  <text x="1196" y="400" class="m">받아쓰기 · 다듬기 ← core</text>
+  <rect x="1180" y="426" width="290" height="62" rx="12" class="box"/>
+  <text x="1196" y="450" class="h">Edge TTS</text>
+  <text x="1196" y="472" class="m">답 음성 · 기기 말하기 ← core · devices</text>
+  <rect x="1180" y="498" width="290" height="62" rx="12" class="box"/>
+  <text x="1196" y="522" class="h">모델 제공자 (Pi 경유)</text>
+  <text x="1196" y="544" class="m">claude-sonnet-5-5 · 막히면 다음 ← core</text>
+  <rect x="1180" y="570" width="290" height="62" rx="12" class="box"/>
+  <text x="1196" y="594" class="h">Pi 확장 · 사용자 MCP</text>
+  <text x="1196" y="616" class="m">웹 검색 · 브라우저 · 서브에이전트 (chat 만)</text>
+  <rect x="1180" y="642" width="290" height="142" rx="12" fill="#ffffff" stroke="#b9c2cb" stroke-dasharray="6 4"/>
+  <text x="1196" y="668" class="h">다른 MCP 서버 (추가 가능)</text>
+  <text x="1196" y="692" class="t">Home Assistant · 캘린더 …</text>
+  <text x="1196" y="714" class="t">kkachi.mcp.json 에 url 과</text>
+  <text x="1196" y="734" class="t">허용할 도구만 적으면</text>
+  <text x="1196" y="754" class="t">에이전트가 바로 씀</text>
 
   <!-- ===== 저장 ===== -->
-  <text x="400" y="756" class="col">저장 (이 PC)</text>
-  <rect x="830" y="744" width="310" height="112" rx="14" class="teal"/>
-  <text x="846" y="770" class="h">memory 레포 · kkachi-memory</text>
-  <text x="846" y="794" class="t">Markdown 노트 + git (기억의 원본)</text>
-  <text x="846" y="816" class="t">턴 · 변경 · 정리 · 대화 정리 = 커밋</text>
-  <text x="846" y="838" class="m">사진 · 센서 값은 저장 안 함</text>
-  <path d="M1116 628 V740" class="ln" marker-end="url(#a)"/>
-
-  <rect x="400" y="764" width="390" height="96" rx="14" class="box"/>
-  <text x="416" y="788" class="h">data/ (git 밖, 비공개)</text>
-  <text x="416" y="810" class="t">settings · devices(토큰) · 검토 대기 대화 · pi-sessions</text>
-  <text x="416" y="830" class="m">mcp-tools-*.json (에이전트별 도구) · 로그</text>
-  <text x="416" y="848" class="m">모델이 본 사진은 대화 기록(pi-sessions)에 남음</text>
-
-  <!-- ===== 외부 서비스 ===== -->
-  <text x="1180" y="96" class="col">외부 서비스</text>
-  <rect x="1180" y="108" width="290" height="86" rx="14" class="box"/>
-  <text x="1196" y="134" class="h">Groq (무료)</text>
-  <text x="1196" y="158" class="t">whisper 받아쓰기 · 다듬기</text>
-  <text x="1196" y="180" class="m">← core</text>
-  <rect x="1180" y="206" width="290" height="86" rx="14" class="box"/>
-  <text x="1196" y="232" class="h">Edge TTS</text>
-  <text x="1196" y="256" class="t">답 음성 · 기기 말하기 (lib/tts.ts)</text>
-  <text x="1196" y="278" class="m">← core · devices</text>
-  <rect x="1180" y="304" width="290" height="86" rx="14" class="box"/>
-  <text x="1196" y="330" class="h">모델 제공자 (Pi 경유)</text>
-  <text x="1196" y="354" class="t">claude-sonnet-5-5 · 막히면 다음 모델</text>
-  <text x="1196" y="376" class="m">← core 의 Pi 들</text>
-  <rect x="1180" y="402" width="290" height="70" rx="14" class="box"/>
-  <text x="1196" y="428" class="h">Pi 의 확장 · 사용자 MCP</text>
-  <text x="1196" y="452" class="t">웹 검색 · 브라우저 · 서브에이전트 (chat 만)</text>
-  <rect x="1180" y="744" width="290" height="86" rx="14" class="box"/>
-  <text x="1196" y="770" class="h">GitHub</text>
-  <text x="1196" y="794" class="t">kkachi-memory (private) push</text>
-  <text x="1196" y="816" class="m">← memory</text>
-  <path d="M1140 800 H1176" class="ln" marker-end="url(#a)"/>
+  <rect x="30" y="796" width="530" height="66" rx="12" class="box"/>
+  <text x="46" y="820" class="h">data/ (git 밖, 비공개)</text>
+  <text x="46" y="844" class="m">settings · devices(토큰) · 검토 대기 대화 · pi-sessions(모델이 본 사진 포함) · mcp-tools-*.json · 로그</text>
+  <rect x="600" y="796" width="540" height="66" rx="12" class="teal"/>
+  <text x="618" y="820" class="h">memory 레포 · kkachi-memory</text>
+  <text x="618" y="844" class="m">Markdown 노트 + git (기억의 원본) · 턴 · 변경 · 정리 · 대화 정리 = 커밋 · 사진 · 센서 값 없음</text>
+  <path d="M870 784 V792" class="ln" marker-end="url(#a)"/>
+  <rect x="1180" y="796" width="290" height="66" rx="12" class="box"/>
+  <text x="1196" y="820" class="h">GitHub</text>
+  <text x="1196" y="844" class="m">kkachi-memory (private) push ← memory</text>
+  <path d="M1140 829 H1176" class="ln" marker-end="url(#a)"/>
 
   <!-- ===== 운영 ===== -->
-  <rect x="30" y="872" width="1440" height="110" rx="14" class="box"/>
-  <text x="46" y="900" class="h">운영</text>
+  <rect x="30" y="876" width="1440" height="106" rx="14" class="box"/>
+  <text x="46" y="902" class="h">운영</text>
   <text x="46" y="926" class="t"><tspan font-weight="700">bun run init</tspan>  도구 점검 → memory 레포 → 모델 → 키(.env.local) → 자동 시작 → Tailscale Serve   ·   <tspan font-weight="700">bun run service</tspan>  macOS launchd · Linux systemd · Windows 시작 프로그램</text>
-  <text x="46" y="950" class="t"><tspan font-weight="700">하나만 띄우면 됨</tspan>  core 가 서비스들을 띄우고 감독 · 서비스만 재시작해도 공기계가 다시 붙음   ·   <tspan font-weight="700">시작 시 점검</tspan>  git · Pi 없으면 멈춤</text>
+  <text x="46" y="950" class="t"><tspan font-weight="700">core 하나만 띄우면 됨</tspan>  core 가 서비스를 띄우고 감독 · 서비스가 다시 떠도 공기계가 알아서 다시 붙음   ·   <tspan font-weight="700">시작 시 점검</tspan>  git · Pi 없으면 멈춤</text>
   <text x="46" y="972" class="m">이 PC: Windows, 작업 스케줄러 \Kkachi · 테스트: bun test (memory 서비스를 따로 띄워 턴 · 대화 정리 · 사서 확인)</text>
-
-  <!-- legend -->
-  <path d="M30 600 H60" class="lt"/><text x="66" y="604" class="m">개인 포트 · 포트 호출</text>
-  <path d="M30 622 H60" class="ln"/><text x="66" y="626" class="m">MCP · 요청</text>
-  <path d="M30 644 H60" class="ld"/><text x="66" y="648" class="m">core 전용 · 추가 가능</text>
 </svg>
