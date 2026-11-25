@@ -3,7 +3,7 @@
 // own extension (pi/kkachi.ts) and system prompt. Every Pi command Kkachi uses lives in this file.
 import { join } from "node:path";
 import { config } from "./config";
-import { DEVICE_TOOLS } from "./device-tools";
+import { PORT_DEVICE_TOOLS } from "./device-tools";
 import { MEMORY_TOOL_DEFS } from "./memory-tools";
 import { settings } from "./settings";
 
@@ -17,12 +17,12 @@ export interface PiOptions {
   mode: "append" | "replace";
   session: "continue" | "none";
   reviewWorktree?: string; // isolated checkout; reviews need only the built-in note tools
-  // A device someone talks to (src/port.ts): its own session, and only the memory and device tools,
-  // which cannot leave the memory repo. No shell, file tools, web, subagents or MCP.
+  // A device someone talks to (src/port.ts): its own session, and only the memory tools (which cannot
+  // leave the memory repo) and speak/lamp. No shell, file tools, web, subagents, MCP, camera or mic.
   port?: string; // device id
 }
 
-const PORT_TOOLS = [...MEMORY_TOOL_DEFS, ...DEVICE_TOOLS].map((t) => t.name).join(",");
+const PORT_TOOLS = [...MEMORY_TOOL_DEFS.map((t) => t.name), ...PORT_DEVICE_TOOLS].join(",");
 
 // Dialog requests block Pi until answered. A voice UI cannot show them, so they are cancelled.
 const DIALOGS = new Set(["select", "confirm", "input", "editor"]);

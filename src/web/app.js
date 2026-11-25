@@ -233,6 +233,7 @@ async function runTurn(my, view, body, t0) {
       else if (e.type === "sentence") { if (speak && !e.silent) queue.push(ttsBuffer(e.text)); } // speak as soon as a sentence is complete
       else if (e.type === "aside") { view.aside(); if (speak) { skipBefore = queue.length; stopPlayback(); } }
       else if (e.type === "activity") view.working(activityLabel(e.tool, e.path));
+      else if (e.type === "photo") view.photo(e);
       else if (e.type === "done") { view.finish(); showChips(view.chips, e.sources, e.changed, e.titles); }
       else if (e.type === "error") { view.fail(e.message); if (speak) queue.push(ttsBuffer(e.message)); earcon.error(); }
     });
@@ -262,6 +263,8 @@ function activityLabel(tool = "", path = "") {
   if (/web|search|fetch/i.test(tool)) return "웹에서 찾는 중";
   if (/undo/.test(tool)) return "되돌리는 중";
   if (/subagent/i.test(tool)) return "다른 에이전트에게 맡기는 중";
+  const device = { device_snapshot: "사진 찍는 중", device_sound_level: "소리 듣는 중", device_sensors: "기기 살펴보는 중", device_light: "조명 바꾸는 중", device_speak: "기기로 말하는 중" }[tool];
+  if (device) return device;
   if (/mcp|browser/i.test(tool)) return "도구 쓰는 중";
   return "작업하는 중";
 }
@@ -312,8 +315,9 @@ function addTurn(text, images = []) {
       if (frame) render();
       work.hidden = true;
       if (!raw.trim()) block.remove();
-      if (!reply.querySelector(".md, .err")) reply.hidden = true; // only actions, no words: no empty bubble
+      if (!reply.querySelector(".md, .err, .photos")) reply.hidden = true; // only actions, no words: no empty bubble
     },
+    photo(img) { const p = el("div", "photos"); const im = new Image(); im.src = dataUrl(img); im.alt = "기기가 찍은 사진"; p.append(im); reply.insertBefore(p, work); scrollDown(); },
     fail(message) { if (frame) render(); work.hidden = true; reply.hidden = false; reply.append(el("p", "err")); reply.lastChild.textContent = message; scrollDown(); },
   };
 }

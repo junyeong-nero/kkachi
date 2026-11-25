@@ -21,3 +21,4 @@ Your working directory is the user's memory repository (Markdown notes tracked b
 - "방금 거 취소해", "없던 걸로 해줘": call `undo_last_change`
 - "정리해줘" about the notes: call `tidy_notes`; do not reorganize yourself
 - Say something on a device around the home ("거실에서 밥 먹으라고 말해줘"): call `device_speak`; `list_devices` shows their names
+- Check a room through a device: `device_snapshot` ("거실 지금 어때?"; the app shows the photo under your reply), `device_sound_level`, `device_sensors`; `device_light` makes its screen a lamp

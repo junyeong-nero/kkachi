@@ -1,10 +1,15 @@
 // Spare phones and tablets joined to Kkachi as devices. A device opens /device, connects over a
-// WebSocket and does things for the agent (speak, for now). A new device waits until you allow it
-// in the app's settings; allowed devices are remembered in data/devices.json with a secret token.
+// WebSocket and does things for the agent: speak, take a photo, measure sound, read its sensors, act
+// as a lamp. A new device waits until you allow it in the app's settings; allowed devices are
+// remembered in data/devices.json with a secret token. Photos and readings pass through memory only.
 //
-// Device → server: {type:"hello", name, token?, armed}, {type:"state", armed}, {type:"done"|"failed", id, error?},
-//   {type:"warm"} (the talk button went down: get its Pi ready, see src/port.ts)
-// Server → device: {type:"pending"|"ready", name, token}, {type:"speak", id, text, audio, mime}, {type:"forgotten"}
+// Device → server: {type:"hello", name, token?, armed, features, version}, {type:"state", armed},
+//   {type:"result", id, ok, data?|error?}, {type:"warm"} (talk button went down, see src/port.ts),
+//   {type:"done"|"failed", id, error?} (pages from before "result")
+// Server → device: {type:"pending"|"ready", name, token}, {type:"forgotten"}, {type:"update"},
+//   requests with an id: {type:"speak", text, audio, mime}, {type:"snapshot", camera},
+//   {type:"sound", seconds}, {type:"sensors"}, {type:"light", on, color, brightness}
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ServerWebSocket, WebSocketHandler } from "bun";
@@ -14,11 +19,12 @@ import { warmPort } from "./port";
 import { synthesize } from "./speech";
 
 type Socket = ServerWebSocket<{ id?: string }>;
-interface Device { id: string; name: string; token: string; allowed: boolean; armed: boolean; socket?: Socket }
+type Features = Record<string, boolean>;
+interface Device { id: string; name: string; token: string; allowed: boolean; armed: boolean; features: Features; socket?: Socket }
 
 const file = join(config.dataDir, "devices.json");
 const devices = new Map<string, Device>(); // allowed ones, plus pending ones while they are connected
-for (const d of existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : []) devices.set(d.id, { ...d, allowed: true, armed: false });
+for (const d of existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : []) devices.set(d.id, { ...d, allowed: true, armed: false, features: {} });
 
 function save() {
   const allowed = [...devices.values()].filter((d) => d.allowed).map(({ id, name, token }) => ({ id, name, token }));
@@ -28,9 +34,13 @@ const send = (d: Device, msg: object) => d.socket?.send(JSON.stringify(msg));
 const randomId = () => Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("hex");
 const cleanName = (name: unknown) => String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 40) || "이름 없는 기기";
 
-export type DeviceInfo = { id: string; name: string; allowed: boolean; online: boolean; armed: boolean };
+// The page's version: a device sits unattended for days, so it is told when /device has changed.
+const page = join(import.meta.dir, "web", "device.html");
+export const pageVersion = () => createHash("sha1").update(readFileSync(page)).digest("hex").slice(0, 12);
+
+export type DeviceInfo = { id: string; name: string; allowed: boolean; online: boolean; armed: boolean; features: Features };
 export const listDevices = (): DeviceInfo[] =>
-  [...devices.values()].map(({ id, name, allowed, armed, socket }) => ({ id, name, allowed, online: !!socket, armed: !!socket && armed }));
+  [...devices.values()].map(({ id, name, allowed, armed, features, socket }) => ({ id, name, allowed, online: !!socket, armed: !!socket && armed, features }));
 
 /** The allowed device holding this token (a device authenticates its requests with it). */
 export function deviceByToken(token: string): { id: string; name: string } | undefined {
@@ -59,6 +69,8 @@ export function forgetDevice(id: string): boolean {
   return true;
 }
 
+const waiting = new Map<string, (r: { ok: boolean; data?: any; error?: string }) => void>();
+
 export const deviceSocket: WebSocketHandler<{ id?: string }> = {
   message(ws, raw) {
     let msg: any;
@@ -68,21 +80,25 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       let d = [...devices.values()].find((x) => x.token === token);
       if (d?.socket && d.socket !== ws) d.socket.close(); // the same device reconnected; drop the stale socket
       if (!d) { // new, or pending before a server restart: waits for approval again
-        d = { id: randomId().slice(0, 12), name: cleanName(msg.name), token, allowed: false, armed: false };
+        d = { id: randomId().slice(0, 12), name: cleanName(msg.name), token, allowed: false, armed: false, features: {} };
         devices.set(d.id, d);
       }
       d.socket = ws;
       d.armed = !!msg.armed;
+      d.features = msg.features && typeof msg.features === "object" ? Object.fromEntries(Object.entries(msg.features).map(([k, v]) => [k, !!v])) : {};
       ws.data.id = d.id;
       send(d, { type: d.allowed ? "ready" : "pending", name: d.name, token: d.token });
+      if (msg.version !== pageVersion()) send(d, { type: "update" });
       return;
     }
     const d = ws.data.id ? devices.get(ws.data.id) : undefined;
     if (!d) return;
     if (msg.type === "state") d.armed = !!msg.armed;
     if (msg.type === "warm" && d.allowed) warmPort(d.id);
-    if ((msg.type === "done" || msg.type === "failed") && typeof msg.id === "string") {
-      waiting.get(msg.id)?.(msg.type === "done" ? null : String(msg.error ?? "playback failed"));
+    if (typeof msg.id === "string") {
+      if (msg.type === "result") waiting.get(msg.id)?.({ ok: !!msg.ok, data: msg.data, error: msg.error });
+      if (msg.type === "done") waiting.get(msg.id)?.({ ok: true });
+      if (msg.type === "failed") waiting.get(msg.id)?.({ ok: false, error: msg.error });
     }
   },
   close(ws) {
@@ -101,31 +117,86 @@ function find(target: string): Device | undefined {
     ?? allowed.find((d) => key(d.name).includes(key(target)) || key(target).includes(key(d.name)));
 }
 
+// What each request needs from the page (features it reports in hello).
+const NEEDS: Record<string, string[]> = { snapshot: ["camera"], sound: ["microphone"], sensors: [], light: [] };
+const ABILITIES = (d: DeviceInfo) => [
+  d.armed && "speak",
+  d.features.camera && "photo",
+  d.armed && d.features.microphone && "sound level",
+  (d.features.motion || d.features.orientation || d.features.geolocation) && "sensors",
+  "lamp",
+].filter(Boolean).join(", ");
+
 export function describeDevices(): string {
   const allowed = listDevices().filter((d) => d.allowed);
   if (!allowed.length) return "No devices yet. The user can add one by opening /device on a spare phone or tablet and allowing it in Kkachi's settings.";
-  return allowed.map((d) => `- ${d.name}: ${!d.online ? "offline" : d.armed ? "online, can speak" : "online, needs a tap on its screen before it can speak"}`).join("\n");
+  return allowed.map((d) => `- ${d.name}: ${!d.online ? "offline" : `online; can: ${ABILITIES(d)}${d.armed ? "" : " (needs a tap on its screen to make sound)"}`}`).join("\n");
 }
 
-const waiting = new Map<string, (error: string | null) => void>();
-const PLAY_TIMEOUT_MS = 60_000;
-
-/** Speak text out loud on a device; resolves once the device has played it. */
-export async function speakOn(target: string, text: string): Promise<string> {
+/** Send a request to a device and wait for its result. */
+async function ask(target: string, request: Record<string, unknown> & { type: string }, timeoutMs: number, opts: { armed?: boolean } = {}) {
   const d = find(target);
   if (!d) throw new Error(`No device named "${target}".\n${describeDevices()}`);
   if (!d.socket) throw new Error(`${d.name} is offline: its /device page is closed or the screen is off.`);
-  if (!d.armed) throw new Error(`${d.name} needs a tap on its screen before it can play sound.`);
-  const { audio, type } = await synthesize(text.slice(0, 1000));
+  if (opts.armed && !d.armed) throw new Error(`${d.name} needs a tap on its screen first.`);
+  const missing = (NEEDS[request.type] ?? []).filter((f) => !d.features[f]);
+  if (missing.length) throw new Error(`${d.name} cannot do this: no ${missing.join(", ")} (or its page needs a reload).`);
   const id = crypto.randomUUID();
-  const played = new Promise<string | null>((resolve) => {
+  const result = new Promise<{ ok: boolean; data?: any; error?: string }>((resolve) => {
     waiting.set(id, resolve);
-    setTimeout(() => resolve("no answer from the device"), PLAY_TIMEOUT_MS);
+    setTimeout(() => resolve({ ok: false, error: "no answer from the device" }), timeoutMs);
   });
-  send(d, { type: "speak", id, text, audio: Buffer.from(audio).toString("base64"), mime: type });
-  const error = await played;
+  send(d, { ...request, id });
+  const r = await result;
   waiting.delete(id);
-  log("device_speak", { name: d.name, chars: text.length, error: error ?? undefined });
-  if (error) throw new Error(`${d.name} could not play it: ${error}`);
-  return `Said it on ${d.name}.`;
+  log("device_request", { name: d.name, type: request.type, ok: r.ok, error: r.error });
+  if (!r.ok) throw new Error(`${d.name} could not do it: ${r.error ?? "unknown error"}`);
+  return { name: d.name, data: r.data };
+}
+
+/** Speak text out loud on a device; resolves once the device has played it. */
+export async function speakOn(target: string, text: string): Promise<string> {
+  if (!find(target)) throw new Error(`No device named "${target}".\n${describeDevices()}`);
+  const { audio, type } = await synthesize(text.slice(0, 1000));
+  const { name } = await ask(target, { type: "speak", text, audio: Buffer.from(audio).toString("base64"), mime: type }, 60_000, { armed: true });
+  return `Said it on ${name}.`;
+}
+
+export type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
+/** One photo from a device's camera, plus how bright it is (0 dark to 100 bright). Not kept. */
+export async function snapshotOn(target: string, camera: unknown): Promise<Content[]> {
+  const facing = camera === "front" ? "front" : "back";
+  const { name, data } = await ask(target, { type: "snapshot", camera: facing }, 20_000);
+  if (typeof data?.data !== "string" || !/^[A-Za-z0-9+/]+=*$/.test(data.data)) throw new Error(`${name} sent no photo`);
+  return [
+    { type: "image", data: data.data, mimeType: "image/jpeg" },
+    { type: "text", text: `Photo from ${name} (${facing} camera, ${data.width}×${data.height}). Brightness ${data.brightness}/100.` },
+  ];
+}
+
+export async function soundLevelOn(target: string, seconds: unknown): Promise<string> {
+  const s = Math.min(10, Math.max(1, Number(seconds) || 3));
+  const { name, data } = await ask(target, { type: "sound", seconds: s }, (s + 10) * 1000, { armed: true });
+  const avg = Number(data?.avg), peak = Number(data?.peak);
+  const label = avg < -55 ? "quiet" : avg < -35 ? "moderate" : "loud";
+  return `${name}: ${label}. Average ${avg.toFixed(0)} dBFS, peak ${peak.toFixed(0)} dBFS over ${s} s (0 is the loudest the mic can take; about -60 is a silent room).`;
+}
+
+export async function sensorsOn(target: string): Promise<string> {
+  const { name, data } = await ask(target, { type: "sensors" }, 15_000);
+  const lines = [`${name}:`];
+  if (data?.pose) lines.push(`- lying: ${data.pose} (tilt front-back ${data.beta}°, left-right ${data.gamma}°)`);
+  if (data?.heading != null) lines.push(`- compass heading: ${data.heading}° (0 = north)`);
+  if (data?.lastMovedAgoSec != null) lines.push(`- last moved: ${data.lastMovedAgoSec < 5 ? "moving now" : `${Math.round(data.lastMovedAgoSec / 60)} min ago`} (strongest shake in the last 10 min: ${data.maxRecent} m/s²)`);
+  else if (data?.motion) lines.push("- not moved since its page started");
+  if (data?.location) lines.push(`- location: ${data.location.lat}, ${data.location.lon} (±${data.location.accuracy} m)`);
+  for (const [k, v] of Object.entries(data?.unavailable ?? {})) lines.push(`- ${k}: unavailable (${v})`);
+  return lines.join("\n");
+}
+
+export async function lightOn(target: string, a: any): Promise<string> {
+  const on = !!a?.on, color = String(a?.color ?? "#ffe6c4").slice(0, 40), brightness = Math.min(100, Math.max(0, Number(a?.brightness ?? 100)));
+  const { name } = await ask(target, { type: "light", on, color, brightness }, 10_000);
+  return on ? `Lamp on in ${name}: ${color} at ${brightness}%.` : `Lamp off in ${name}.`;
 }

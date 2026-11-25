@@ -3,7 +3,7 @@
 // /mcp/devices: spare phones and tablets (src/devices.ts). /mcp/memory: the notes (src/memory-mcp.ts).
 // Requests from other websites are refused before they get here (see trusted() in src/server.ts).
 import { DEVICE_TOOLS } from "./device-tools";
-import { describeDevices, speakOn } from "./devices";
+import { type Content, describeDevices, lightOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
 import { MEMORY_TOOLS } from "./memory-mcp";
 
 export interface McpTool {
@@ -11,21 +11,28 @@ export interface McpTool {
   description: string;
   inputSchema: object;
   annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean; openWorldHint?: boolean };
-  run(args: any): Promise<string> | string;
+  run(args: any): Promise<string | Content[]> | string | Content[]; // text, or content blocks such as a photo
 }
 interface McpService { name: string; instructions: string; tools: McpTool[] }
 
 const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"];
 
+const device = (a: any) => String(a?.device ?? "");
+const looks = { readOnlyHint: true, openWorldHint: true }; // reads the room; changes nothing
+const DEVICE_RUN: Record<string, Pick<McpTool, "run" | "annotations">> = {
+  list_devices: { annotations: { readOnlyHint: true }, run: () => describeDevices() },
+  device_speak: { annotations: { readOnlyHint: false, destructiveHint: false }, run: (a) => speakOn(device(a), String(a?.text ?? "")) },
+  device_snapshot: { annotations: looks, run: (a) => snapshotOn(device(a), a?.camera) },
+  device_sound_level: { annotations: looks, run: (a) => soundLevelOn(device(a), a?.seconds) },
+  device_sensors: { annotations: looks, run: (a) => sensorsOn(device(a)) },
+  device_light: { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true }, run: (a) => lightOn(device(a), a) },
+};
+
 export const SERVICES: Record<string, McpService> = {
   devices: {
     name: "kkachi-devices",
     instructions: "Spare phones and tablets around the user's home that can speak out loud. Call list_devices to see their names.",
-    tools: DEVICE_TOOLS.map((t) => ({
-      ...t,
-      annotations: t.name === "list_devices" ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: false },
-      run: t.name === "list_devices" ? () => describeDevices() : (a) => speakOn(String(a?.device ?? ""), String(a?.text ?? "")),
-    })),
+    tools: DEVICE_TOOLS.map((t) => ({ ...t, ...DEVICE_RUN[t.name] })),
   },
   memory: {
     name: "kkachi-memory",
@@ -57,7 +64,8 @@ export async function handleMcp(service: McpService, req: Request): Promise<Resp
       const tool = service.tools.find((t) => t.name === msg.params?.name);
       if (!tool) return reply(msg.id, { error: { code: -32602, message: `unknown tool: ${msg.params?.name}` } });
       try {
-        return reply(msg.id, { result: { content: [{ type: "text", text: await tool.run(msg.params?.arguments ?? {}) }] } });
+        const out = await tool.run(msg.params?.arguments ?? {});
+        return reply(msg.id, { result: { content: typeof out === "string" ? [{ type: "text", text: out }] : out } });
       } catch (err) {
         return reply(msg.id, { result: { content: [{ type: "text", text: (err as Error).message }], isError: true } });
       }

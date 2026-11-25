@@ -9,7 +9,7 @@ import { synthesize, transcribe } from "./speech";
 import { applyThinking, modelChoices, newConversation, runTurn, startConversation } from "./turn";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
-import { allowDevice, deviceByToken, deviceSocket, forgetDevice, listDevices } from "./devices";
+import { allowDevice, deviceByToken, deviceSocket, forgetDevice, listDevices, pageVersion } from "./devices";
 import { talk } from "./port";
 import { handleMcp, SERVICES } from "./mcp";
 
@@ -63,7 +63,10 @@ Bun.serve({
         if (pathname === "/manifest.webmanifest") return new Response(Bun.file(join(web, "manifest.webmanifest")), { headers: { ...noCache, "Content-Type": "application/manifest+json" } });
         if (pathname === "/app.js") return new Response(Bun.file(join(web, "app.js")), { headers: { ...noCache, "Content-Type": "text/javascript" } });
         // A spare phone or tablet joins as a device here (see src/devices.ts)
-        if (pathname === "/device") return new Response(Bun.file(join(web, "device.html")), { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
+        if (pathname === "/device") {
+          const html = (await Bun.file(join(web, "device.html")).text()).replace("__PAGE_VERSION__", pageVersion());
+          return new Response(html, { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
+        }
         if (pathname === "/api/devices") return Response.json({ devices: listDevices() });
         // Markdown rendering for replies: marked (MIT) and DOMPurify (Apache-2.0/MPL-2.0), vendored unmodified
         if (["/vendor/marked.min.js", "/vendor/purify.min.js"].includes(pathname)) {

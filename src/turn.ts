@@ -16,6 +16,7 @@ export type TurnEvent =
   | { type: "aside" }                                       // the text so far was narration before a tool call: keep it, muted, and stop speaking it
   | { type: "sentence"; text: string; silent?: boolean }    // a finished sentence to speak (silent: too long, screen only)
   | { type: "activity"; tool: string; path?: string }
+  | { type: "photo"; data: string; mimeType: string }      // a device photo the agent took (device_snapshot), shown under the reply, not kept
   | { type: "end"; reason: "done" | "handoff" } // stop listening after speaking
   | { type: "done"; sources: string[]; changed: string[]; titles: Record<string, string>; commit: string | null }
   | { type: "error"; message: string; issue?: ReviewIssue };
@@ -248,6 +249,9 @@ async function streamTurn(pi: Pi, message: string, text: string, images: PiImage
         break;
       }
       case "tool_execution_end": {
+        if (e.toolName === "device_snapshot" && !e.isError) {
+          for (const c of e.result?.content ?? []) if (c.type === "image") emit({ type: "photo", data: c.data, mimeType: c.mimeType });
+        }
         const t = toolArgs.get(e.toolCallId);
         if (!t?.path || e.isError || !isNote(t.path)) break;
         if (t.name === "read") sources.add(t.path);

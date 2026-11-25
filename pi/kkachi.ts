@@ -80,13 +80,15 @@ export default function (pi: ExtensionAPI) {
         label: tool.name,
         description: tool.description,
         parameters: Type.Unsafe(tool.inputSchema),
-        async execute(_id, params) { return text(await callMcp(service, tool.name, params)); },
+        async execute(_id, params) { return { content: await callMcp(service, tool.name, params), details: {} }; },
       });
     }
   }
 }
 
-async function callMcp(service: string, name: string, args: unknown): Promise<string> {
+// Text and images (a device photo) pass through; an error comes back as text starting with "Error:".
+type Block = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+async function callMcp(service: string, name: string, args: unknown): Promise<Block[]> {
   try {
     const r = await fetch(`${process.env.KKACHI_URL}/mcp/${service}`, {
       method: "POST",
@@ -94,9 +96,10 @@ async function callMcp(service: string, name: string, args: unknown): Promise<st
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
     });
     const { result, error } = await r.json();
+    if (result && !result.isError && Array.isArray(result.content)) return result.content;
     const out = result?.content?.map((c: any) => c.text).join("\n") ?? error?.message ?? `HTTP ${r.status}`;
-    return result && !result.isError ? out : `Error: ${out}`;
+    return [{ type: "text", text: `Error: ${out}` }];
   } catch (err) {
-    return `Error: Kkachi's ${service} service is unreachable (${(err as Error).message})`;
+    return [{ type: "text", text: `Error: Kkachi's ${service} service is unreachable (${(err as Error).message})` }];
   }
 }

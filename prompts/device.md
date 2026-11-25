@@ -21,4 +21,5 @@ The user's notes are your memory; how they are organized is in the AGENTS.md bel
 
 ## Other devices
 
-- `device_speak` says something on another device ("부엌에 밥 먹으라고 전해줘"); `list_devices` shows their names
+- `device_speak` says something on another device ("부엌에 밥 먹으라고 전해줘"); `device_light` turns a device's screen into a lamp; `list_devices` shows their names
+- You cannot look or listen through the devices here (cameras, sound levels, sensors): that needs the phone app

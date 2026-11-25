@@ -65,6 +65,12 @@
   #heard { font-size: 17px; color: var(--muted); margin: 32px 0 0; min-height: 1.5em; line-height: 1.5; overflow-wrap: anywhere; }
   #heard + #said { margin-top: 8px; }
   @media (prefers-reduced-motion: reduce) { #talk.recording { box-shadow: 0 0 0 6px var(--accent-soft); } }
+
+  /* lamp: the whole screen in one color (device_light); a tap turns it off */
+  #lamp { position: fixed; inset: 0; z-index: 10; }
+  #lamp-dim { position: absolute; inset: 0; background: #000; }
+  #update { margin-top: 24px; }
+  #cam { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; } /* iOS needs the video in the page */
 </style>
 </head>
 <body>
@@ -90,11 +96,24 @@
   <p id="heard"></p>
   <p id="said" aria-live="polite"></p>
   <p class="note" id="lock-note" hidden>이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.</p>
+  <button type="button" id="update" hidden>새 버전이 있어요 · 눌러서 새로고침</button>
 </main>
+<div id="lamp" hidden><div id="lamp-dim"></div></div>
+<video id="cam" playsinline muted></video>
 <script>
 const $ = (id) => document.getElementById(id);
 const store = { get: (k) => localStorage.getItem("kkachi.device." + k), set: (k, v) => localStorage.setItem("kkachi.device." + k, v), del: (k) => localStorage.removeItem("kkachi.device." + k) };
+const VERSION = "__PAGE_VERSION__"; // filled in by the server; it says "update" when this page is old
 let ws = null, audio = null, wakeLock = null, retry = 0, joined = false, allowed = false;
+
+// What this browser can do, sent to Kkachi on connect (the sensor checklist reads it too).
+const features = () => ({
+  camera: !!navigator.mediaDevices?.getUserMedia, microphone: !!navigator.mediaDevices?.getUserMedia,
+  motion: "DeviceMotionEvent" in window, orientation: "DeviceOrientationEvent" in window,
+  geolocation: "geolocation" in navigator, wakeLock: "wakeLock" in navigator, push: "PushManager" in window,
+  ambientLight: "AmbientLightSensor" in window, proximity: "ProximitySensor" in window, battery: !!navigator.getBattery,
+  vibrate: !!navigator.vibrate, nfc: "NDEFReader" in window, bluetooth: !!navigator.bluetooth,
+});
 
 function status(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
 const armed = () => audio?.state === "running";
@@ -113,10 +132,16 @@ async function play(b64, words) {
   $("said").className = "";
 }
 
-// Sound needs one tap (iOS). The same tap keeps the screen on, which keeps the page alive.
+// Sound needs one tap (iOS). The same tap keeps the screen on, which keeps the page alive, and asks
+// for the sensors now, while someone is there to allow them (a later prompt would wait for nobody).
 async function arm() {
   audio ??= new (window.AudioContext || window.webkitAudioContext)();
+  const motionAsk = askMotion(); // must start inside the tap on iOS
   await audio.resume().catch(() => {});
+  await motionAsk;
+  askLocation();
+  await openMic();
+  await askCamera();
   const silent = audio.createBufferSource(); silent.buffer = audio.createBuffer(1, 1, 22050); silent.connect(audio.destination); silent.start();
   await keepAwake();
   $("start").hidden = armed();
@@ -130,7 +155,7 @@ async function keepAwake() {
 
 function connect() {
   ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/device/ws`);
-  ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: "hello", name: store.get("name"), token: store.get("token"), armed: armed() })); };
+  ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: "hello", name: store.get("name"), token: store.get("token"), armed: armed(), features: features(), version: VERSION })); };
   ws.onmessage = (e) => onMessage(JSON.parse(e.data));
   ws.onclose = () => {
     if (!joined) return;
@@ -151,37 +176,153 @@ async function onMessage(m) {
     joined = false; allowed = false; store.del("token"); ws.close();
     status("이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.", "err");
   }
-  if (m.type === "speak") {
-    try {
-      if (!armed()) throw new Error("needs a tap");
-      $("heard").textContent = "";
-      await play(m.audio, m.text);
-      ws.send(JSON.stringify({ type: "done", id: m.id }));
-    } catch (err) {
-      ws.send(JSON.stringify({ type: "failed", id: m.id, error: String(err.message || err) }));
+  if (m.type === "update") $("update").hidden = false;
+  if (m.type === "ready") $("update").hidden = true; // told again on every connect when still old
+  const handler = REQUESTS[m.type];
+  if (handler && m.id) {
+    try { ws.send(JSON.stringify({ type: "result", id: m.id, ok: true, data: await handler(m) })); }
+    catch (err) {
+      ws.send(JSON.stringify({ type: "result", id: m.id, ok: false, error: String(err.message || err) }));
       if (!armed()) $("start").hidden = false;
     }
   }
 }
 
+// ---- what Kkachi can ask of this device (src/devices.ts). Nothing is kept here. ----
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const REQUESTS = {
+  async speak(m) {
+    if (!armed()) throw new Error("needs a tap on the screen");
+    $("heard").textContent = "";
+    await play(m.audio, m.text);
+  },
+
+  // One frame from the camera, scaled to at most 1280 px, and the mean brightness of the scene.
+  async snapshot(m) {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: m.camera === "front" ? "user" : "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    try {
+      const video = $("cam");
+      video.srcObject = stream;
+      await video.play();
+      await sleep(800); // exposure and focus settle
+      const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+      const g = canvas.getContext("2d");
+      g.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const px = g.getImageData(0, 0, canvas.width, canvas.height).data;
+      let luma = 0, n = 0;
+      for (let i = 0; i < px.length; i += 4 * 97) { luma += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]; n++; }
+      const url = canvas.toDataURL("image/jpeg", 0.85);
+      return { data: url.slice(url.indexOf(",") + 1), width: canvas.width, height: canvas.height, brightness: Math.round(luma / n / 2.55) };
+    } finally {
+      stream.getTracks().forEach((t) => t.stop());
+      $("cam").srcObject = null;
+    }
+  },
+
+  // Loudness for a few seconds: mean and peak level of 4096-sample blocks, in dBFS.
+  async sound(m) {
+    if ((await openMic()) === "denied") throw new Error("microphone not allowed");
+    const levels = [];
+    meter = (rms) => levels.push(rms);
+    await sleep(Math.min(10, Math.max(1, m.seconds || 3)) * 1000);
+    meter = null;
+    if (!levels.length) throw new Error("the microphone gave no sound (tap the screen)");
+    const db = (x) => 20 * Math.log10(Math.max(x, 1e-6));
+    return { avg: db(Math.sqrt(levels.reduce((s, x) => s + x * x, 0) / levels.length)), peak: db(Math.max(...levels)) };
+  },
+
+  async sensors() {
+    const out = { unavailable: {} };
+    if (orient) Object.assign(out, orient);
+    else out.unavailable.orientation = motion.started ? "no readings: this device may have no such sensor" : motionState;
+    if (motion.started) {
+      out.motion = true;
+      const cut = Date.now() - 10 * 60_000;
+      motion.samples = motion.samples.filter((s) => s.t > cut);
+      out.maxRecent = +Math.max(0, ...motion.samples.map((s) => s.a)).toFixed(1);
+      if (motion.lastMoved) out.lastMovedAgoSec = Math.round((Date.now() - motion.lastMoved) / 1000);
+    } else out.unavailable.motion = motionState;
+    try { out.location = await locate(); } catch (err) { out.unavailable.location = String(err.message || err); }
+    return out;
+  },
+
+  light(m) {
+    $("lamp").hidden = !m.on;
+    $("lamp").style.background = m.color;
+    $("lamp-dim").style.opacity = String(1 - Math.max(0, Math.min(100, m.brightness)) / 100);
+  },
+};
+$("lamp").addEventListener("click", () => { $("lamp").hidden = true; });
+$("update").addEventListener("click", () => location.reload());
+
+// ---- sensors: motion and orientation (iOS asks once, inside a tap), location ----
+let orient = null, motionState = "not allowed yet (tap the screen)";
+const motion = { started: false, samples: [], lastMoved: 0 };
+async function askMotion() {
+  try { // both requests start inside the tap, before any await
+    const answers = await Promise.all([window.DeviceMotionEvent, window.DeviceOrientationEvent].map((E) => E?.requestPermission?.() ?? "granted"));
+    if (answers.some((a) => a !== "granted")) { motionState = "denied"; return; }
+  } catch (err) { motionState = String(err.message || err); return; }
+  if (motion.started) return;
+  motion.started = true;
+  addEventListener("devicemotion", (e) => {
+    const a = e.acceleration;
+    if (!a || a.x == null) return;
+    const mag = Math.hypot(a.x, a.y, a.z);
+    const now = Date.now();
+    if (mag > 0.6) motion.lastMoved = now;
+    const last = motion.samples[motion.samples.length - 1];
+    if (!last || now - last.t > 1000 || mag > last.a) motion.samples.push({ t: now, a: mag }); // about one sample a second
+    if (motion.samples.length > 2000) motion.samples.splice(0, 1000);
+  });
+  addEventListener("deviceorientation", (e) => {
+    if (e.beta == null) return;
+    const beta = Math.round(e.beta), gamma = Math.round(e.gamma);
+    const pose = Math.abs(beta) < 25 && Math.abs(gamma) < 25 ? "flat, screen up" : Math.abs(beta) > 155 ? "flat, screen down"
+      : Math.abs(beta) > 55 ? "standing upright" : Math.abs(gamma) > 55 ? "on its side" : "tilted";
+    const heading = e.webkitCompassHeading ?? (e.absolute && e.alpha != null ? Math.round(360 - e.alpha) : null);
+    orient = { beta, gamma, pose, heading: heading == null ? null : Math.round(heading) % 360 };
+  });
+}
+function locate() {
+  return new Promise((resolve, reject) => {
+    if (!("geolocation" in navigator)) return reject(new Error("not supported"));
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: +p.coords.latitude.toFixed(5), lon: +p.coords.longitude.toFixed(5), accuracy: Math.round(p.coords.accuracy) }),
+      (err) => reject(new Error(err.code === 1 ? "not allowed" : "no fix")),
+      { timeout: 8000, maximumAge: 60_000 });
+  });
+}
+const askLocation = () => locate().catch(() => {});
+// Ask for the camera once now (and let go at once), so a later photo needs no prompt.
+async function askCamera() {
+  try { (await navigator.mediaDevices.getUserMedia({ video: true })).getTracks().forEach((t) => t.stop()); } catch {}
+}
+
 // ---- hold to talk: record while the button is held, send when it is let go (src/port.ts) ----
 const MIN_MS = 300, MAX_MS = 30_000, RATE = 16000;
-let mic = null, frames = [], recording = false, recordStart = 0, busy = false, maxTimer = null;
+let mic = null, frames = [], recording = false, recordStart = 0, busy = false, maxTimer = null, meter = null;
 const hint = (text) => { $("talk-hint").textContent = text; };
 
 // The mic stays open once allowed: this device sits in one place for this job.
 async function openMic() {
   if (mic && mic.stream.getAudioTracks()[0]?.readyState === "live") return "open";
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    // No gain control or noise suppression: they would hide how loud the room is (device_sound_level).
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } });
     const src = audio.createMediaStreamSource(stream), proc = audio.createScriptProcessor(4096, 1, 1), sink = audio.createGain();
     sink.gain.value = 0; src.connect(proc); proc.connect(sink); sink.connect(audio.destination);
     proc.onaudioprocess = (e) => {
-      if (!recording) return;
+      if (!recording && !meter) return;
       const f = new Float32Array(e.inputBuffer.getChannelData(0));
-      frames.push(f);
       let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
-      $("talk").style.setProperty("--level", Math.min(Math.sqrt(sum / f.length) / 0.08, 1).toFixed(2));
+      const rms = Math.sqrt(sum / f.length);
+      meter?.(rms);
+      if (!recording) return;
+      frames.push(f);
+      $("talk").style.setProperty("--level", Math.min(rms / 0.08, 1).toFixed(2));
     };
     const first = !mic;
     mic = { stream, nodes: [src, proc, sink] };
