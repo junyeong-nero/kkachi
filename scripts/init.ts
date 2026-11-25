@@ -72,10 +72,19 @@ if (memory && existsSync(join(memory, ".git"))) {
   save("KKACHI_MEMORY_DIR", memory);
 }
 
-// 3. Model: one that your Pi can use
-const available = must([env.KKACHI_PI_BIN ?? "pi", "--list-models"]).split("\n").slice(1)
+// 3. Model: one that your Pi can use. Not signed in to a provider yet: sign in here (a browser opens).
+const pi = env.KKACHI_PI_BIN ?? "pi";
+const interactive = { stdin: "inherit", stdout: "inherit", stderr: "inherit" } as const;
+const listModels = () => must([pi, "--list-models"]).split("\n").slice(1)
   .map((line) => line.trim().split(/\s+/)).filter((cols) => cols.length >= 2).map(([provider, model]) => `${provider}/${model}`);
-if (!available.length) fail("Pi has no usable model. Run `pi`, sign in to a provider (/login), then run `bun run init` again.");
+let available = listModels();
+if (!available.length) {
+  console.log("Pi is not signed in to a model provider yet.");
+  const provider = ask("Sign in with which? anthropic (Claude Pro/Max), openai (ChatGPT Plus/Pro), or another Pi provider:", "anthropic");
+  Bun.spawnSync([pi, "auth", "login", provider], interactive);
+  available = listModels();
+}
+if (!available.length) fail("Pi has no usable model. Run `pi auth login <provider>`, then run `bun run init` again.");
 if (env.KKACHI_MODEL) {
   const first = env.KKACHI_MODEL.split(",")[0].trim();
   if (!available.includes(first)) console.log(`Warning: KKACHI_MODEL starts with ${first}, which your Pi cannot use. Edit .env.local.`);
@@ -97,7 +106,7 @@ const findAdapter = () => {
 };
 let adapter = findAdapter();
 if (!adapter && yes("Install pi-mcp-adapter, so Kkachi can use the MCP servers you set up for Claude Code, Codex, Cursor or VS Code?")) {
-  must([env.KKACHI_PI_BIN ?? "pi", "install", "npm:pi-mcp-adapter"]);
+  must([pi, "install", "npm:pi-mcp-adapter"]);
   adapter = findAdapter();
 }
 if (adapter) {
@@ -123,8 +132,12 @@ if (yes("Start Kkachi now and whenever you log in?")) {
 
 // 7. Phone access: Tailscale Serve keeps Kkachi on your tailnet (never Funnel, which is public)
 if (tailscale) {
-  const self = JSON.parse(run(["tailscale", "status", "--json"]).out || "{}").Self;
-  const host = String(self?.DNSName ?? "").replace(/\.$/, "");
+  const tailnetName = () => String(JSON.parse(run(["tailscale", "status", "--json"]).out || "{}").Self?.DNSName ?? "").replace(/\.$/, "");
+  let host = tailnetName();
+  if (!host && yes("Tailscale is not signed in on this computer. Sign in now? (a browser opens)")) {
+    Bun.spawnSync(process.platform === "linux" ? ["sudo", "tailscale", "up"] : ["tailscale", "up"], interactive);
+    host = tailnetName();
+  }
   if (!host) {
     console.log("Tailscale is not connected. Sign in, then run: tailscale serve --bg --https=443 http://127.0.0.1:" + port);
   } else if (run(["tailscale", "serve", "status"]).out.includes(`127.0.0.1:${port}`)) {
