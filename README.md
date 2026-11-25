@@ -51,7 +51,7 @@ Core starts the two services, restarts them if they stop, and forwards their pag
 
 ## What it does
 
-- Type, or tap the mic and dictate into the text box to check before sending. Read-aloud is off by default and set per device. There are no commands to learn: say "thanks, that's all" and it stops listening, or "I'll take it from the computer" and it hands off.
+- Type, or tap the mic and dictate into the text box to check before sending. Read-aloud is off by default and set per device. There are no commands to learn: "thanks, that's all" or "I'll take it from the computer" ends the conversation, and the librarian then tidies the notes.
 - Mention a plan or decision and it goes into the right note without "I've noted that". Each turn is one git commit, and "forget that" reverts it.
 - Ask about your own life and it answers from the notes, showing which notes it used.
 - Take or pick up to four photos and ask about them. They go to the model only; the memory repo records just that there were photos.
