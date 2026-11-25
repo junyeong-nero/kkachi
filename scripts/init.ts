@@ -109,12 +109,12 @@ if (tailscale) {
   const self = JSON.parse(run(["tailscale", "status", "--json"]).out || "{}").Self;
   const host = String(self?.DNSName ?? "").replace(/\.$/, "");
   if (!host) {
-    console.log("Tailscale is not connected. Sign in, then run: tailscale serve --bg --https=8443 http://127.0.0.1:" + port);
+    console.log("Tailscale is not connected. Sign in, then run: tailscale serve --bg --https=443 http://127.0.0.1:" + port);
   } else if (run(["tailscale", "serve", "status"]).out.includes(`127.0.0.1:${port}`)) {
-    console.log(`\nOpen https://${host}:8443 on your phone (signed in to the same tailnet), then add it to the home screen.`);
-  } else if (yes(`Make Kkachi reachable at https://${host}:8443 from devices on your tailnet?`)) {
-    must(["tailscale", "serve", "--bg", "--https=8443", `http://127.0.0.1:${port}`]);
-    console.log(`\nOpen https://${host}:8443 on your phone (signed in to the same tailnet), then add it to the home screen.`);
+    console.log(`\nOpen https://${host} on your phone (signed in to the same tailnet), then add it to the home screen. Spare devices open https://${host}/device.`);
+  } else if (yes(`Make Kkachi reachable at https://${host} from devices on your tailnet?`)) {
+    must(["tailscale", "serve", "--bg", "--https=443", `http://127.0.0.1:${port}`]);
+    console.log(`\nOpen https://${host} on your phone (signed in to the same tailnet), then add it to the home screen. Spare devices open https://${host}/device.`);
   }
 }
 console.log("\nSetup done.");

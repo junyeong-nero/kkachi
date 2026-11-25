@@ -15,6 +15,7 @@
    * floor: 0 FAIL · fixed: 9 (7a, 15, 22, 26b, 34, 38iii, 39a, 40, 48, 63) · structural: 0 printed
    * built: the project · redesign: polish · v2.0.0 */
   /* Hallmark · waive 28b · the video is 1px, transparent and never the LCP · it is the camera surface device photos are taken from, never shown */
+  /* Hallmark · dismissed F7 · checked each: #talk and #senses are buttons, .sense is a mark inside the #senses button; all are controls */
   /* Hallmark · answered F23 · a device page opened on the user's own tailnet, never shared as a link */
   /* A spare phone or tablet that Kkachi can speak through. Tokens from DESIGN.md (dark only: it
      sits in a room all day, so it stays dim). */
@@ -31,11 +32,12 @@
     --r-md: 14px; --r-pill: 999px; --ease-out: cubic-bezier(.22, 1, .36, 1);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; min-height: 100%; overflow-x: clip; overscroll-behavior: none; }
+  /* the page fits the screen in either orientation and never scrolls: the talk area gives up room first */
+  html, body { margin: 0; height: 100%; overflow: clip; overscroll-behavior: none; }
   body {
     background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased;
-    display: flex; flex-direction: column; min-height: 100dvh;
-    padding: calc(12px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; height: 100dvh;
+    padding: calc(12px + env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
     -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     word-break: keep-all; overflow-wrap: anywhere;
   }
@@ -52,18 +54,20 @@
   .icon-btn svg { width: 22px; height: 22px; }
   @media (hover: hover) { .icon-btn:hover { background: var(--surface); color: var(--text); } }
   .icon-btn:active { background: var(--line); color: var(--text); }
-  main { flex: 1; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px; margin: 0 auto; text-align: center; }
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px; margin: 0 auto; text-align: center; }
+  #msg { width: 100%; flex: none; }
+  body:not(.ready) #msg { flex: 1; display: flex; flex-direction: column; justify-content: center; } /* naming, the start tap, waiting to be allowed */
   #status { font-size: 16px; color: var(--muted); margin: 8px 0 0; line-height: 1.5; }
   #status.ok { color: var(--text); }
   #status.err { color: var(--danger); }
-  #said { font-size: 26px; line-height: 1.45; margin: 40px 0 0; min-height: 1.45em; word-break: keep-all; overflow-wrap: anywhere; color: var(--muted); }
+  #said { font-size: 24px; line-height: 1.45; min-height: 1.45em; color: var(--muted); }
   #said.speaking { color: var(--text); } /* the words being spoken now; earlier ones fade */
   form, #start { margin-top: 32px; width: 100%; }
-  input {
+  #name-input {
     width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: var(--r-md); text-align: center;
     border: 1px solid var(--line); background: var(--surface); color: var(--text); outline: none;
   }
-  input:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 1px; }
+  #name-input:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 1px; }
   button { font: inherit; cursor: pointer; }
   .btn {
     font-size: 18px; font-weight: 700; padding: 16px 28px; border-radius: var(--r-pill); border: 0;
@@ -75,14 +79,15 @@
   [hidden] { display: none !important; }
 
   /* hold to talk: a big round button in the middle of the screen; teal only while it is listening (DESIGN.md) */
-  #talk-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; padding: 24px 0; }
+  /* centred with auto margins: when space runs out the words are cut at the bottom, never the button */
+  #talk-area { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; width: 100%; padding: 12px 0; --talk-size: clamp(80px, 19dvh, 136px); }
   #talk {
-    width: 136px; height: 136px; padding: 0; margin: 0; border-radius: var(--r-pill); display: inline-grid; place-items: center;
+    width: var(--talk-size); height: var(--talk-size); padding: 0; flex: none; margin: auto 0 0; border-radius: var(--r-pill); display: inline-grid; place-items: center;
     background: var(--surface); color: var(--text); border: 1px solid var(--line);
     touch-action: none; -webkit-touch-callout: none; position: relative;
     transition: background-color 120ms var(--ease-out); /* never box-shadow: the focus ring must not fade in */
   }
-  #talk svg { width: 44px; height: 44px; }
+  #talk svg { width: 32%; height: 32%; }
   #talk:active { background: var(--line); }
   /* the voice-level halo: a disc behind the button, scaled with transform (4 to 18px around it) */
   #talk::before {
@@ -92,9 +97,11 @@
   #talk.recording { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
   #talk.recording::before { opacity: 1; }
   #talk:disabled { color: var(--muted); cursor: progress; } /* waiting for Kkachi's answer */
-  #talk-hint { margin-top: 20px; }
-  #heard { font-size: 17px; color: var(--muted); margin: 24px 0 0; min-height: 1.5em; line-height: 1.5; overflow-wrap: anywhere; }
-  #said { margin-top: 8px; }
+  #talk-hint { margin-top: 12px; }
+  #heard { font-size: 17px; color: var(--muted); margin: 16px 0 0; min-height: 1.5em; line-height: 1.5; }
+  #said { margin: 4px 0 auto; }
+  #heard, #said { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; flex: none; }
+  #said { -webkit-line-clamp: 3; line-clamp: 3; }
   #talk-off { flex: 1; display: grid; place-items: center; }
   @media (prefers-reduced-motion: reduce) { #talk::before { transform: scale(1.03); transition: none; } }
 
@@ -111,24 +118,41 @@
   .sense.off { color: var(--muted); opacity: .4; }
   .sense.busy { background: var(--line); }
   .sense.listening { background: var(--accent-soft); color: var(--accent); } /* teal: listening */
-  #activity { font-size: 14px; color: var(--muted); margin: 10px 0 0; min-height: 1.5em; }
+  #activity { font-size: 14px; color: var(--muted); margin: 8px 0 0; min-height: 1.5em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #dock { width: 100%; flex: none; display: flex; flex-direction: column; align-items: center; }
 
-  /* the lamp: a preset fills the screen; a tap on the lit screen turns it off */
-  #lamp-ctl { width: 100%; margin-top: 24px; padding: 16px; border-radius: var(--r-md); background: var(--surface); text-align: left; }
-  #lamp-ctl h2 { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
-  .swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .swatch {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 76px; padding: 12px 8px; margin: 0;
-    border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); color: var(--text); font-size: 15px; font-weight: 600;
-    transition: background-color 120ms var(--ease-out), border-color 120ms var(--ease-out);
+  /* the lamp, one row without words: a bulb, three colours, brightness. A colour fills the screen;
+     a tap on the lit screen turns it off */
+  #lamp-ctl { display: flex; align-items: center; width: 100%; margin-top: 12px; padding: 4px 16px 4px 14px; border-radius: var(--r-md); background: var(--surface); }
+  #lamp-ctl > svg { width: 20px; height: 20px; color: var(--muted); flex: none; margin-right: 6px; }
+  .swatches { display: flex; flex: none; }
+  .swatch { width: 44px; height: 44px; padding: 0; margin: 0; border: 0; border-radius: 50%; background: transparent; display: grid; place-items: center; }
+  .swatch i { width: 26px; height: 26px; border-radius: 50%; transition: transform 120ms var(--ease-out); }
+  .swatch:active i { transform: scale(.9); }
+  .swatch[aria-pressed=true] i { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
+  #bright { flex: 1; min-width: 0; margin: 0 0 0 10px; accent-color: var(--text); }
+
+  /* a small old phone: fewer lines, no hint */
+  @media (orientation: portrait) and (max-height: 560px) {
+    #talk-hint { display: none; }
+    #heard { -webkit-line-clamp: 1; line-clamp: 1; }
+    #said { font-size: 20px; -webkit-line-clamp: 2; line-clamp: 2; }
   }
-  .swatch i { width: 24px; height: 24px; border-radius: 50%; flex: none; }
-  @media (hover: hover) { .swatch:hover { border-color: var(--muted); } }
-  .swatch:active { background: var(--line); }
-  .swatch[aria-pressed=true] { border-color: var(--text); }
-  .bright { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 14px; color: var(--muted); }
-  .bright input { flex: 1; accent-color: var(--text); }
-  #lamp-ctl .note { margin-top: 8px; }
+
+  /* a phone on its side: talking on the left, the rest on the right */
+  @media (orientation: landscape) and (max-height: 600px) {
+    .top, main { max-width: 960px; }
+    body.ready main {
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 32px;
+      grid-template-rows: 1fr auto auto 1fr; grid-template-areas: "talk ." "talk msg" "talk dock" "talk .";
+    }
+    body.ready #talk-area, body.ready #talk-off { grid-area: talk; }
+    body.ready #msg { grid-area: msg; }
+    body.ready #dock { grid-area: dock; margin-top: 12px; }
+    #talk-area { --talk-size: clamp(80px, 30dvh, 136px); }
+    #said { -webkit-line-clamp: 2; line-clamp: 2; }
+    dialog#settings { max-width: 720px; }
+  }
 
   /* settings: a sheet with the switch cards, one per output and input */
   dialog#settings {
@@ -184,16 +208,18 @@
   </button>
 </header>
 <main>
-  <p id="status" role="status"></p>
-  <button type="button" class="btn" id="update" hidden>새 버전이 있어요. 눌러서 새로고침</button>
-
-  <form id="setup" hidden>
-    <input id="name-input" maxlength="40" placeholder="이 기기 이름 (예: 거실)" aria-label="이 기기 이름" required />
-    <button type="submit" class="btn">시작</button>
-  </form>
-  <div id="start" hidden>
-    <button type="button" class="btn" id="start-btn">탭해서 시작</button>
-    <p class="note">소리와 마이크를 쓰려면 화면을 한 번 눌러야 해요.</p>
+  <div id="msg">
+    <p id="status" role="status"></p>
+    <button type="button" class="btn" id="update" hidden>새 버전이 있어요. 눌러서 새로고침</button>
+    <p class="note" id="lock-note" hidden>이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.</p>
+    <form id="setup" hidden>
+      <input id="name-input" maxlength="40" placeholder="이 기기 이름 (예: 거실)" aria-label="이 기기 이름" required />
+      <button type="submit" class="btn">시작</button>
+    </form>
+    <div id="start" hidden>
+      <button type="button" class="btn" id="start-btn">탭해서 시작</button>
+      <p class="note">소리와 마이크를 쓰려면 화면을 한 번 눌러야 해요.</p>
+    </div>
   </div>
 
   <section id="talk-area" hidden aria-label="까치에게 말 걸기">
@@ -206,16 +232,15 @@
   </section>
   <p class="note" id="talk-off" hidden>말 걸기가 꺼져 있어요. 설정에서 켤 수 있어요.</p>
 
-  <button type="button" id="senses" hidden></button>
-  <p id="activity" aria-live="polite"></p>
-
-  <section id="lamp-ctl" hidden aria-labelledby="lamp-title">
-    <h2 id="lamp-title">조명</h2>
-    <div class="swatches" id="swatches"></div>
-    <label class="bright">밝기 <input type="range" id="bright" min="10" max="100" step="5" aria-label="밝기" /></label>
-    <p class="note">켜진 화면을 누르면 꺼져요. 기기 화면 밝기보다 밝아지지는 않아요.</p>
-  </section>
-  <p class="note" id="lock-note" hidden>이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.</p>
+  <div id="dock">
+    <button type="button" id="senses" hidden></button>
+    <p id="activity" aria-live="polite"></p>
+    <section id="lamp-ctl" hidden aria-label="조명">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>
+      <div class="swatches" id="swatches"></div>
+      <input type="range" id="bright" min="10" max="100" step="5" aria-label="밝기" />
+    </section>
+  </div>
 </main>
 
 <dialog id="settings" aria-labelledby="settings-title">
@@ -249,6 +274,7 @@ function status(text, cls = "") { $("status").textContent = text; $("status").cl
 const armed = () => audio?.state === "running";
 function showReady() {
   const ready = allowed && armed();
+  document.body.classList.toggle("ready", ready);
   $("talk-area").hidden = !(ready && isOn("talk"));
   $("talk-off").hidden = !(ready && !isOn("talk"));
   $("open-settings").hidden = !allowed;
@@ -358,8 +384,8 @@ $("bright").addEventListener("input", () => store.set("bright", $("bright").valu
 for (const l of LAMPS) {
   const b = document.createElement("button");
   b.type = "button"; b.className = "swatch"; b.dataset.key = l.key; b.setAttribute("aria-pressed", "false");
+  b.setAttribute("aria-label", `${l.name} 켜기`);
   b.innerHTML = `<i style="background: ${l.color}" aria-hidden="true"></i>`;
-  b.append(l.name);
   b.addEventListener("click", () => lamp(true, l.color, Number($("bright").value), l.key));
   $("swatches").append(b);
 }
