@@ -1,63 +1,67 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" font-family="SUIT Variable, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" width="800" height="520" font-family="SUIT Variable, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif">
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7a8591"/></marker>
-    <marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1f8a80"/></marker>
     <style>
       .pill { fill: #ffffff; stroke: #d5dbe1; stroke-width: 1.4; }
       .card { fill: #ffffff; stroke: #c9d1d8; stroke-width: 1.4; }
+      .band { fill: #eef1f4; stroke: #c9d1d8; stroke-width: 1.4; }
       .core { fill: #e6f3f1; stroke: #1f8a80; stroke-width: 2; }
+      .pi { fill: #ffffff; stroke: #1f8a80; stroke-width: 1.4; }
       .name { font-size: 20px; font-weight: 800; fill: #1d232b; }
       .what { font-size: 14px; fill: #5a6470; }
       .client { font-size: 16px; font-weight: 700; fill: #1d232b; }
       .ln { stroke: #7a8591; stroke-width: 2; fill: none; }
-      .lt { stroke: #1f8a80; stroke-width: 2.4; fill: none; }
-      .tag { font-size: 13px; font-weight: 700; fill: #1f8a80; }
     </style>
   </defs>
 
-  <rect width="800" height="500" fill="#fcfcfd"/>
+  <rect width="800" height="520" fill="#fcfcfd"/>
 
-  <!-- who connects, each above what it talks to -->
-  <rect x="40" y="32" width="210" height="56" rx="28" class="pill" stroke="#1f8a80"/>
-  <text x="145" y="66" class="client" text-anchor="middle">Phone app</text>
-  <rect x="290" y="32" width="210" height="56" rx="28" class="pill"/>
-  <text x="395" y="66" class="client" text-anchor="middle">Spare phones</text>
-  <rect x="540" y="32" width="210" height="56" rx="28" class="pill"/>
-  <text x="645" y="66" class="client" text-anchor="middle">Your other agents</text>
+  <!-- who connects -->
+  <rect x="40" y="28" width="210" height="52" rx="26" class="pill"/>
+  <text x="145" y="60" class="client" text-anchor="middle">Phone app</text>
+  <rect x="295" y="28" width="210" height="52" rx="26" class="pill"/>
+  <text x="400" y="60" class="client" text-anchor="middle">Spare phones</text>
+  <rect x="550" y="28" width="210" height="52" rx="26" class="pill"/>
+  <text x="655" y="60" class="client" text-anchor="middle">Your other agents</text>
 
-  <path d="M145 88 V182" class="lt" marker-end="url(#t)"/>
-  <path d="M395 88 V182" class="ln" marker-end="url(#a)"/>
-  <path d="M645 88 V182" class="ln" marker-end="url(#a)"/>
+  <path d="M145 80 V116" class="ln" marker-end="url(#a)"/>
+  <path d="M400 80 V116" class="ln" marker-end="url(#a)"/>
+  <path d="M655 80 V116" class="ln" marker-end="url(#a)"/>
 
-  <!-- the three parts -->
-  <rect x="40" y="186" width="210" height="130" rx="14" class="core"/>
-  <text x="145" y="226" class="name" text-anchor="middle">kkachi-core</text>
-  <text x="145" y="254" class="what" text-anchor="middle">agent loop (Pi)</text>
-  <text x="145" y="276" class="what" text-anchor="middle">+ MCP orchestration</text>
-  <text x="145" y="300" class="tag" text-anchor="middle">voice · text · photos</text>
+  <!-- the only way in -->
+  <rect x="40" y="120" width="720" height="44" rx="12" class="band"/>
+  <text x="400" y="148" class="client" text-anchor="middle">Tailscale Serve: HTTPS, your tailnet only</text>
 
-  <rect x="290" y="186" width="210" height="130" rx="14" class="card"/>
-  <text x="395" y="226" class="name" text-anchor="middle">kkachi-devices</text>
-  <text x="395" y="254" class="what" text-anchor="middle">speak · lamp · camera</text>
-  <text x="395" y="276" class="what" text-anchor="middle">sound · sensors · talk</text>
-  <text x="395" y="300" class="tag" text-anchor="middle">MCP server</text>
+  <path d="M400 164 V200" class="ln" marker-end="url(#a)"/>
 
-  <rect x="540" y="186" width="210" height="130" rx="14" class="card"/>
-  <text x="645" y="226" class="name" text-anchor="middle">kkachi-memory</text>
-  <text x="645" y="254" class="what" text-anchor="middle">Markdown notes</text>
-  <text x="645" y="276" class="what" text-anchor="middle">every change a commit</text>
-  <text x="645" y="300" class="tag" text-anchor="middle">MCP server</text>
+  <!-- core, with Pi inside -->
+  <rect x="40" y="204" width="720" height="124" rx="14" class="core"/>
+  <text x="64" y="244" class="name">kkachi-core</text>
+  <text x="64" y="272" class="what">agent loop, speech, MCP bridge</text>
+  <text x="64" y="294" class="what">starts the two services and forwards their pages</text>
 
-  <!-- core uses the services over MCP -->
-  <path d="M250 251 H286" class="ln" marker-end="url(#a)"/>
-  <path d="M145 316 V360 H645 V320" class="ln" marker-end="url(#a)"/>
-  <text x="395" y="352" class="what" text-anchor="middle">MCP</text>
+  <rect x="470" y="226" width="266" height="80" rx="12" class="pi"/>
+  <text x="603" y="259" class="client" text-anchor="middle">Pi</text>
+  <text x="603" y="284" class="what" text-anchor="middle">your subscription, MCP servers, skills</text>
 
-  <!-- plug in more -->
-  <rect x="290" y="392" width="460" height="64" rx="14" fill="#ffffff" stroke="#c9d1d8" stroke-width="1.4" stroke-dasharray="7 5"/>
-  <text x="520" y="422" font-size="16" font-weight="700" fill="#1d232b" text-anchor="middle">+ any MCP server</text>
-  <text x="520" y="444" class="what" text-anchor="middle">Home Assistant, calendar, … one line in kkachi.mcp.json</text>
-  <path d="M145 360 V424 H286" class="ln" stroke-dasharray="6 5" marker-end="url(#a)"/>
+  <!-- what core reaches over MCP -->
+  <path d="M145 328 V372" class="ln" marker-end="url(#a)"/>
+  <path d="M400 328 V372" class="ln" marker-end="url(#a)"/>
+  <path d="M655 328 V372" class="ln" stroke-dasharray="6 5" marker-end="url(#a)"/>
+  <text x="412" y="355" class="what">MCP</text>
 
-  <text x="40" y="484" font-size="13" fill="#7a8591">One process to run: core starts the services. Reach it from your phone over Tailscale (tailnet only).</text>
+  <rect x="40" y="376" width="210" height="112" rx="14" class="card"/>
+  <text x="145" y="414" class="name" text-anchor="middle">kkachi-devices</text>
+  <text x="145" y="442" class="what" text-anchor="middle">speak, lamp, camera,</text>
+  <text x="145" y="464" class="what" text-anchor="middle">sound, sensors, talk</text>
+
+  <rect x="295" y="376" width="210" height="112" rx="14" class="card"/>
+  <text x="400" y="414" class="name" text-anchor="middle">kkachi-memory</text>
+  <text x="400" y="442" class="what" text-anchor="middle">Markdown notes,</text>
+  <text x="400" y="464" class="what" text-anchor="middle">every change a commit</text>
+
+  <rect x="550" y="376" width="210" height="112" rx="14" fill="#ffffff" stroke="#c9d1d8" stroke-width="1.4" stroke-dasharray="7 5"/>
+  <text x="655" y="414" font-size="16" font-weight="700" fill="#1d232b" text-anchor="middle">+ any MCP server</text>
+  <text x="655" y="442" class="what" text-anchor="middle">Home Assistant, calendar, …</text>
+  <text x="655" y="464" class="what" text-anchor="middle">one line in kkachi.mcp.json</text>
 </svg>

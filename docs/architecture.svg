@@ -22,8 +22,8 @@
   </defs>
 
   <rect width="1500" height="1010" fill="#fcfcfd"/>
-  <text x="30" y="42" font-size="24" font-weight="800" fill="#1d232b">까치 인프라 구조</text>
-  <text x="30" y="66" class="m">2026-11-25 · M9 플러그인 구조 · 위: 접속하는 쪽, 각자 붙는 곳 바로 위에 · 아래: core 와 MCP 서비스</text>
+  <text x="30" y="42" font-size="24" font-weight="800" fill="#1d232b">까치 구조</text>
+  <text x="30" y="66" class="m">위: 접속하는 쪽, 각자 붙는 곳 바로 위에 · 아래: core 와 MCP 서비스</text>
   <path d="M1010 62 H1040" class="lt"/><text x="1046" y="66" class="m">폰 앱 (개인)</text>
   <path d="M1130 62 H1160" class="lb"/><text x="1166" y="66" class="m">공기계</text>
   <path d="M1220 62 H1250" class="ln"/><text x="1256" y="66" class="m">MCP · 요청</text>
@@ -42,7 +42,7 @@
 
   <rect x="600" y="106" width="540" height="134" rx="14" fill="#eef5fa" stroke="#3d7fae" stroke-width="1.2"/>
   <text x="618" y="132" class="h">공기계 · 태블릿 (/device)</text>
-  <rect x="1060" y="116" width="66" height="22" rx="11" fill="#dce9f3"/><text x="1093" y="131" class="badge" fill="#2a5f86" text-anchor="middle">제한 포트</text>
+  <rect x="1060" y="116" width="66" height="22" rx="11" fill="#dce9f3"/><text x="1093" y="131" class="badge" fill="#2a5f86" text-anchor="middle">설정대로</text>
   <text x="618" y="158" class="t">탭해서 시작(소리 · 화면 유지 · 권한) · 스위치 카드로 하나씩 켜고 끄기</text>
   <text x="618" y="180" class="t"><tspan font-weight="700">출력</tspan> 말하기 · 조명    <tspan font-weight="700">입력</tspan> 말 걸기 · 사진 · 소리 크기 · 센서 · 위치</text>
   <text x="618" y="202" class="t">누르고 말하기 → 사건으로 내보냄, 답은 설정한 곳으로</text>
@@ -75,8 +75,8 @@
   <text x="60" y="440" class="m">받아쓰기 → 다듬기 → Pi → 문장별 TTS</text>
   <text x="60" y="468" class="t"><tspan font-weight="700">chat</tspan> 폰 앱의 대화</text>
   <text x="60" y="488" class="m">노트 파일 직접 편집 + MCP 도구</text>
-  <text x="60" y="516" class="t"><tspan font-weight="700">port</tspan> 공기계별 대화</text>
-  <text x="60" y="536" class="m">memory_* · 말하기 · 조명만</text>
+  <text x="60" y="516" class="t"><tspan font-weight="700">port</tspan> 공기계 세션 (따로 둘 때)</text>
+  <text x="60" y="536" class="m">전체 도구 또는 노트 · 말하기 · 조명만</text>
   <text x="60" y="564" class="t"><tspan font-weight="700">사서</tspan> 노트 정리</text>
   <text x="60" y="592" class="t"><tspan font-weight="700">30분 대화 정리</tspan></text>
   <text x="60" y="612" class="m">memory 의 draft 위에서</text>
@@ -137,14 +137,14 @@
   <!-- ===== 외부 ===== -->
   <text x="1180" y="346" class="col">외부 서비스</text>
   <rect x="1180" y="354" width="290" height="62" rx="12" class="box"/>
-  <text x="1196" y="378" class="h">Groq (무료)</text>
-  <text x="1196" y="400" class="m">받아쓰기 · 다듬기 ← core</text>
+  <text x="1196" y="378" class="h">Groq</text>
+  <text x="1196" y="400" class="m">받아쓰기 · 켜 두면 다듬기 ← core</text>
   <rect x="1180" y="426" width="290" height="62" rx="12" class="box"/>
-  <text x="1196" y="450" class="h">Edge TTS</text>
-  <text x="1196" y="472" class="m">답 음성 · 기기 말하기 ← core · devices</text>
+  <text x="1196" y="450" class="h">Edge TTS (선택)</text>
+  <text x="1196" y="472" class="m">기본은 기기 내장 목소리 · 고르면 서버가 만듦</text>
   <rect x="1180" y="498" width="290" height="62" rx="12" class="box"/>
   <text x="1196" y="522" class="h">모델 제공자 (Pi 경유)</text>
-  <text x="1196" y="544" class="m">claude-sonnet-5-5 · 막히면 다음 ← core</text>
+  <text x="1196" y="544" class="m">KKACHI_MODEL · 막히면 다음 ← core</text>
   <rect x="1180" y="570" width="290" height="62" rx="12" class="box"/>
   <text x="1196" y="594" class="h">Pi 확장 · 사용자 MCP</text>
   <text x="1196" y="616" class="m">웹 검색 · 브라우저 · 서브에이전트 (chat 만)</text>
@@ -164,8 +164,8 @@
   <text x="618" y="844" class="m">Markdown 노트 + git (기억의 원본) · 턴 · 변경 · 정리 · 대화 정리 = 커밋 · 사진 · 센서 값 없음</text>
   <path d="M870 784 V792" class="ln" marker-end="url(#a)"/>
   <rect x="1180" y="796" width="290" height="66" rx="12" class="box"/>
-  <text x="1196" y="820" class="h">GitHub</text>
-  <text x="1196" y="844" class="m">kkachi-memory (private) push ← memory</text>
+  <text x="1196" y="820" class="h">원격 (선택)</text>
+  <text x="1196" y="844" class="m">GitHub · USB · NAS · 동기화를 켰을 때만</text>
   <path d="M1140 829 H1176" class="ln" marker-end="url(#a)"/>
 
   <!-- ===== 운영 ===== -->
@@ -173,5 +173,5 @@
   <text x="46" y="902" class="h">운영</text>
   <text x="46" y="926" class="t"><tspan font-weight="700">bun run init</tspan>  도구 점검 → memory 레포 → 모델 → 키(.env.local) → 자동 시작 → Tailscale Serve   ·   <tspan font-weight="700">bun run service</tspan>  macOS launchd · Linux systemd · Windows 시작 프로그램</text>
   <text x="46" y="950" class="t"><tspan font-weight="700">core 하나만 띄우면 됨</tspan>  core 가 서비스를 띄우고 감독 · 서비스가 다시 떠도 공기계가 알아서 다시 붙음   ·   <tspan font-weight="700">시작 시 점검</tspan>  git · Pi 없으면 멈춤</text>
-  <text x="46" y="972" class="m">이 PC: Windows, 작업 스케줄러 \Kkachi · 테스트: bun test (memory 서비스를 따로 띄워 턴 · 대화 정리 · 사서 확인)</text>
+  <text x="46" y="972" class="m">테스트: bun test (memory 서비스를 따로 띄워 턴 · 대화 정리 · 사서 확인)</text>
 </svg>

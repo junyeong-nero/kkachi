@@ -1,6 +1,6 @@
 # 입력 버스
 
-공기계에서 들어온 입력을 core 가 받아 처리하고, 출력을 어디로 보낼지 정하는 방식. 구조 전체는 [plan.md](plan.md), 공기계 기능은 [sensors.md](sensors.md), 화면 동작은 [design.md](design.md).
+공기계에서 들어온 입력을 core 가 받아 처리하고, 출력을 어디로 보낼지 정하는 방식. 구조 전체는 [modules.md](modules.md), 공기계 기능은 [sensors.md](sensors.md), 화면 동작은 [design.md](design.md).
 
 ## 모델
 

@@ -1,6 +1,6 @@
 # Home Assistant 연동
 
-까치가 두뇌, Home Assistant(HA)가 손발이다. 실제 조명, 스피커, 음악, 자동화는 HA 가 맡고 까치는 ha-mcp 로 HA 를 쓴다. 공기계는 마이크와 카메라 같은 입력을 주로 맡고, 화면 조명은 무드등 정도로 남는다.
+실제 조명, 스피커, 음악, 자동화는 Home Assistant(HA)가 맡고 까치는 ha-mcp 로 HA 를 쓴다. 공기계는 마이크와 카메라 같은 입력을 주로 맡고, 화면 조명은 무드등 정도로 남는다.
 
 HA 는 선택이다. VM 을 하나 더 띄우는 일이라, 까치와 공기계만으로 충분한 동안에는 필요 없다. 실제 전구, 스피커, 카메라가 생겨 모자랄 때 붙인다([philosophy.md](philosophy.md) 1번).
 
@@ -16,7 +16,7 @@ HA 는 선택이다. VM 을 하나 더 띄우는 일이라, 까치와 공기계�
 
 ## 1. HA OS 가상 머신
 
-이 노트북은 Windows 11 Home 이라 Hyper-V 가 없으니 VirtualBox 를 쓴다.
+Windows 11 Home 에는 Hyper-V 가 없으니 VirtualBox 를 쓴다.
 
 1. VirtualBox 를 설치한다.
 2. [HA Windows 설치 페이지](https://www.home-assistant.io/installation/windows)에서 VirtualBox 용 `.vdi` 이미지를 받아 압축을 푼다.
@@ -26,7 +26,7 @@ HA 는 선택이다. VM 을 하나 더 띄우는 일이라, 까치와 공기계�
 6. 설정의 네트워크에서 연결 방식을 "브리지 어댑터" 로 바꾸고, 지금 인터넷에 쓰는 어댑터(Wi-Fi 또는 이더넷)를 고른다.
 7. 시작하고 몇 분 뒤 `http://homeassistant.local:8123` 을 연다. 안 열리면 VM 창에 나온 IP 로 연다. 계정을 만든다.
 
-공식 최소 메모리는 2GB 인데 Music Assistant 까지 올리면 3GB 는 줘야 한다. 노트북 RAM 이 8GB 라 4GB 를 넘기면 Windows 쪽이 빠듯하다. 공유기에서 VM 에 고정 IP(DHCP 예약)를 걸어 두면 아래 주소가 바뀌지 않는다.
+공식 최소 메모리는 2GB 인데 Music Assistant 까지 올리면 3GB 는 줘야 한다. RAM 이 8GB 인 컴퓨터에서는 4GB 를 넘기면 Windows 쪽이 빠듯하다. 공유기에서 VM 에 고정 IP(DHCP 예약)를 걸어 두면 아래 주소가 바뀌지 않는다.
 
 ## 2. 로그온할 때 자동으로 켜기
 
