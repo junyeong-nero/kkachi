@@ -59,13 +59,15 @@ Core starts the two services, restarts them if they stop, and forwards their pag
 - Claude Desktop, Codex, another Pi, or anything else that speaks MCP can use your devices and your memory. Add `https://<computer>.<tailnet>.ts.net/mcp/devices` (`list_devices`, `device_speak`, `device_snapshot`, `device_sound_level`, `device_sensors`, `device_light`) or `.../mcp/memory` (`memory_list`, `memory_search`, `memory_read`, `memory_write`, `memory_edit`, `memory_move`, `memory_delete`, `memory_undo`) to its MCP config. Each memory change is one `kkachi: …` commit, pushed, and can be undone.
 - With Home Assistant and [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), it switches real lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Put the ha-mcp address in `.env` as `KKACHI_HA_MCP_URL`; setup steps are in [docs/ha.md](docs/ha.md) (Korean).
 - It can search the web, use MCP tools, and work on code in other repos: whatever your Pi setup can do.
-- After 30 quiet minutes, Kkachi checks the conversation against the notes for anything it missed, such as a decision or an appointment. New information is committed as `kkachi: 대화 정리 — …` and pushed if an upstream is configured; if there is nothing to add, there is no commit. Turns waiting for this review stay in the server's private `data/conversation.jsonl` (not the memory repo) until it succeeds, across restarts too. Your chat session is not reset.
+- After 30 quiet minutes, Kkachi checks the conversation against the notes for anything it missed, such as a decision or an appointment. New information is committed as `kkachi: 대화 정리 — …` (and pushed if sync is on, see below); if there is nothing to add, there is no commit. Turns waiting for this review stay in the server's private `data/conversation.jsonl` (not the memory repo) until it succeeds, across restarts too. Your chat session is not reset.
 - A librarian then sorts the changed notes and rewrites the catalog in the memory repo's `README.md`. A new message always goes ahead of this background work.
 - It works with any model your Pi can use and falls back to the next one in `KKACHI_MODEL` when one is rate-limited. Speech uses the Groq free tier and Edge TTS. Everything is configurable (`src/config.ts`).
 
 ## Memory repo
 
-Your notes live in a separate git repo that you own, created from `templates/memory/`. Its `AGENTS.md` tells Kkachi how to organize notes. Pushing to a private remote is optional.
+Your notes live in a separate git repo that you own, created from `templates/memory/`. Its `AGENTS.md` tells Kkachi how to organize notes.
+
+The notes stay on your computer: Kkachi never pushes or pulls unless you ask it to. To keep a backup, add a remote (a private GitHub repo, or a bare repo on a USB drive or NAS: `git init --bare E:/kkachi-memory.git`) and either push yourself now and then, or set `KKACHI_MEMORY_SYNC=1` in `.env.local` to have Kkachi pull before each turn and push after each commit. A remote on its own changes nothing.
 
 If you already keep notes in a PARA-style folder (for example an Obsidian vault with `00_inbox`, `01_projects`, ...), import them and let the librarian build the catalog:
 

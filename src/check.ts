@@ -11,6 +11,8 @@ export function checkSetup() {
   if (!config.stt.apiKey && !local(config.stt.baseUrl)) warn.push("No speech-to-text key (GROQ_API_KEY or KKACHI_STT_API_KEY): dictation will not work.");
   if (config.tts.provider === "edge" && !Bun.which("edge-tts")) warn.push("edge-tts is not on PATH: replies cannot be read aloud. Install it with `uv tool install edge-tts`.");
   if (config.tts.provider === "openai" && !config.tts.apiKey && !local(config.tts.baseUrl)) warn.push("No text-to-speech key (KKACHI_TTS_API_KEY or OPENAI_API_KEY): replies cannot be read aloud.");
+  if (/^(1|true|on|yes)$/i.test(process.env.KKACHI_MEMORY_SYNC ?? "") && Bun.spawnSync(["git", "-C", config.memoryDir, "rev-parse", "--abbrev-ref", "@{upstream}"]).exitCode !== 0)
+    warn.push(`KKACHI_MEMORY_SYNC is on but the memory repo has no upstream: nothing is backed up. Add one with: git -C "${config.memoryDir}" push -u <remote> main`);
   for (const w of warn) console.warn(`warning: ${w}`);
   if (fatal.length) {
     for (const f of fatal) console.error(`error: ${f}`);

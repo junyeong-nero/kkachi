@@ -68,7 +68,7 @@ if (memory && existsSync(join(memory, ".git"))) {
     }
     must(["git", "add", "-A"], memory);
     must(["git", "commit", "-q", "-m", "kkachi: start memory repo"], memory);
-    console.log(`Created ${memory}. To back it up, add a private remote: git -C "${memory}" remote add origin <url> && git -C "${memory}" push -u origin main`);
+    console.log(`Created ${memory}. It stays on this computer. To back it up, add a private remote (git -C "${memory}" remote add origin <url> && git -C "${memory}" push -u origin main), then push yourself or set KKACHI_MEMORY_SYNC=1 in .env.local to have Kkachi push after each change.`);
   }
   save("KKACHI_MEMORY_DIR", memory);
 }

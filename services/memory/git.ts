@@ -27,16 +27,21 @@ export async function git(dir: string, ...args: string[]) {
   return out.trim();
 }
 
+// Notes stay on this computer. Kkachi pulls before a turn and pushes after a commit only when the
+// user turns sync on (KKACHI_MEMORY_SYNC=1) and the repo has an upstream; a remote alone is not
+// enough, so someone who backs up by pushing now and then is never synced behind their back.
+export const syncOn = () => /^(1|true|on|yes)$/i.test(process.env.KKACHI_MEMORY_SYNC ?? "");
+
 async function hasUpstream(dir: string) {
   try { await git(dir, "rev-parse", "--abbrev-ref", "@{upstream}"); return true; } catch { return false; }
 }
 
 export async function pull(dir: string) {
-  if (await hasUpstream(dir)) await git(dir, "pull", "--ff-only", "--quiet");
+  if (syncOn() && await hasUpstream(dir)) await git(dir, "pull", "--ff-only", "--quiet");
 }
 
 export async function pushIfAhead(dir: string) {
-  if (!(await hasUpstream(dir))) return;
+  if (!syncOn() || !(await hasUpstream(dir))) return;
   if ((await git(dir, "rev-list", "--count", "@{upstream}..HEAD")) !== "0") await git(dir, "push", "--quiet");
 }
 

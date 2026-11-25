@@ -16,6 +16,7 @@ const memoryPort = 4390 + Math.floor(Math.random() * 9), mcpConfig = join(root, 
 const env = {
   KKACHI_MEMORY_DIR: repo, KKACHI_DATA_DIR: data, KKACHI_PI_BIN: join(root, win ? "pi.cmd" : "pi"),
   KKACHI_MCP_CONFIG: mcpConfig, KKACHI_MEMORY_PORT: String(memoryPort), KKACHI_INTERNAL_TOKEN: "test-internal-token",
+  KKACHI_MEMORY_SYNC: "1", // these tests read the commits from the bare remote
 };
 let memoryService: ReturnType<typeof Bun.spawn>;
 const original = Object.fromEntries(Object.keys(env).map(k => [k, process.env[k]]));

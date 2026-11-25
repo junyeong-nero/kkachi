@@ -153,11 +153,11 @@ const agentTools: McpTool[] = [
 // Results are JSON text. kind: "change" (a turn), "tidy" (the librarian), "review" (idle review).
 const kind = (k: unknown): Kind => (k === "tidy" || k === "review" ? k : "change");
 const coreTools: McpTool[] = [
-  { name: "git_sync", description: "Pull before a turn (fast-forward only).", inputSchema: obj({}), internal: true,
+  { name: "git_sync", description: "Pull before a turn (fast-forward only), when sync is on.", inputSchema: obj({}), internal: true,
     run: () => locked(async () => { await pull(dir); return json({}); }) },
   { name: "git_set_aside", description: "Stash changes left by an interrupted run (git stash list keeps them).", inputSchema: obj({}), internal: true,
     run: () => locked(async () => json({ stashed: await stashLeftovers(dir) })) },
-  { name: "git_checkpoint", description: "Commit everything as one commit and push. Returns the commit and its files.", inputSchema: obj({ kind: { type: "string" }, summary: { type: "string" } }), internal: true,
+  { name: "git_checkpoint", description: "Commit everything as one commit, and push when sync is on. Returns the commit and its files.", inputSchema: obj({ kind: { type: "string" }, summary: { type: "string" } }), internal: true,
     run: (a) => locked(async () => {
       const commit = await commitAll(dir, message(kind(a?.kind), String(a?.summary ?? "")));
       const files = commit ? await filesIn(dir, commit) : [];
