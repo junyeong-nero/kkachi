@@ -30,6 +30,7 @@
 - 모델은 Pi 에 로그인한 구독(Claude, ChatGPT 등)을 그대로 쓴다.
 - MCP 는 Claude Code, Codex, Cursor, VS Code 에 이미 붙여 둔 것을 pi-mcp-adapter 가 가져온다. 어댑터가 서버들을 도구 하나(`mcp`)로 묶고 필요할 때 연결해서, 서버가 늘어도 매 턴 도구 정의가 불어나지 않는다.
 - 스킬과 `AGENTS.md` 도 Pi 가 읽는 자리에 있으면 그대로 쓴다.
+- 붙여 쓸 만한 MCP 는 [extensions.md](extensions.md) 에 모아 둔다. 로컬로 도는 것이 먼저다.
 - 반대 방향도 열려 있다. 까치의 기억과 공기계는 MCP 라서 Claude Desktop 이나 Codex 가 까치를 쓸 수 있다.
 
 ## 부딪힐 때
