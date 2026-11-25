@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { mcpPost } from "../lib/mcp-client";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }], details: {} });
 const noArgs = Type.Object({});
@@ -73,14 +74,10 @@ export default function (pi: ExtensionAPI) {
 type Block = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 async function callMcp(server: string, url: string, name: string, args: unknown, meta: object = {}): Promise<Block[]> {
   try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args, _meta: meta } }),
-    });
-    const { result, error } = await r.json();
+    const { status, body } = await mcpPost(url, { id: 1, method: "tools/call", params: { name, arguments: args, _meta: meta } });
+    const { result, error } = body;
     if (result && !result.isError && Array.isArray(result.content)) return result.content;
-    const out = result?.content?.map((c: any) => c.text).join("\n") ?? error?.message ?? `HTTP ${r.status}`;
+    const out = result?.content?.map((c: any) => c.text).join("\n") ?? error?.message ?? `HTTP ${status}`;
     return [{ type: "text", text: `Error: ${out}` }];
   } catch (err) {
     return [{ type: "text", text: `Error: the ${server} service is unreachable (${(err as Error).message})` }];

@@ -27,3 +27,4 @@ The user's notes are your memory; how they are organized is in the AGENTS.md bel
 
 - `device_speak` says something on another device ("부엌에 밥 먹으라고 전해줘"); `device_light` turns a device's screen into a lamp; `list_devices` shows their names
 - `send_to_phone` shows a message in the user's phone app
+- With the `ha_*` tools (Home Assistant), "불 켜줘" or "음악 틀어줘" is the home's real lights and speakers: `ha_search`, then `ha_call_service`. A device's screen lamp only when the screen is asked for

@@ -1,6 +1,7 @@
 // Core's MCP connections. kkachi.mcp.json lists the MCP servers (Kkachi's own services and any
 // other) and which of their tools each agent gets:
-//   "servers": { "<name>": { "url": "http://…/mcp",          ${ENV} in strings is expanded
+//   "servers": { "<name>": { "url": "http://…/mcp",          ${ENV} in strings is expanded; an empty url
+//                                                             (its variable unset) leaves the server out
 //                            "command": ["bun", "…"],         optional: core starts it (src/services.ts)
 //                            "routes": ["/device"] } }       optional: paths core forwards to it
 //   "agents":  { "chat": { "tools": ["devices:*"], "meta": { "commit": "later" } },
@@ -11,6 +12,7 @@
 // pi/kkachi.ts registers as Pi tools; calls then go straight to the server.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { mcpPost } from "../lib/mcp-client";
 import { INTERNAL_HEADER } from "../lib/trust";
 import { config } from "./config";
 
@@ -25,11 +27,11 @@ export type Server = { url: string; command?: string[]; routes: string[] };
 export function load(): { servers: Record<string, Server>; agents: Record<string, AgentConfig> } {
   if (!existsSync(file)) return { servers: {}, agents: {} };
   const raw = JSON.parse(readFileSync(file, "utf8"));
-  const servers = Object.fromEntries(Object.entries<any>(raw.servers ?? {}).map(([name, s]) => [name, {
+  const servers = Object.fromEntries(Object.entries<any>(raw.servers ?? {}).map(([name, s]): [string, Server] => [name, {
     url: expand(String(s.url)),
     command: Array.isArray(s.command) ? s.command.map((c: unknown) => expand(String(c))) : undefined,
     routes: Array.isArray(s.routes) ? s.routes.map(String) : [],
-  }]));
+  }]).filter(([, s]) => s.url));
   const agents = Object.fromEntries(Object.entries<any>(raw.agents ?? {}).filter(([k]) => !k.startsWith("_"))
     .map(([k, a]) => [k, Array.isArray(a) ? { tools: a.map(String), meta: {} } : { tools: (a?.tools ?? []).map(String), meta: a?.meta ?? {} }]));
   return { servers, agents };
@@ -47,21 +49,17 @@ const matches = (pattern: string, server: string, tool?: string) => {
 export async function callTool(server: string, name: string, args: object = {}): Promise<string> {
   const url = load().servers[server]?.url;
   if (!url) throw new Error(`no ${server} service in kkachi.mcp.json`);
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", [INTERNAL_HEADER]: process.env.KKACHI_INTERNAL_TOKEN ?? "" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
-  });
-  const { result, error } = (await r.json()) as any;
-  const text = result?.content?.[0]?.text ?? error?.message ?? `HTTP ${r.status}`;
+  const { status, body } = await mcpPost(url, { id: 1, method: "tools/call", params: { name, arguments: args } }, { [INTERNAL_HEADER]: process.env.KKACHI_INTERNAL_TOKEN ?? "" });
+  const { result, error } = body;
+  const text = result?.content?.[0]?.text ?? error?.message ?? `HTTP ${status}`;
   if (!result || result.isError) throw new Error(`${server} ${name}: ${text}`);
   return text;
 }
 
 export async function rpc(url: string, method: string, params: object = {}) {
-  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: AbortSignal.timeout(10_000) });
-  const body: any = await r.json();
+  const { status, body } = await mcpPost(url, { id: 1, method, params }, {}, 10_000);
   if (body.error) throw new Error(body.error.message);
+  if (!body.result) throw new Error(`HTTP ${status}`);
   return body.result;
 }
 
