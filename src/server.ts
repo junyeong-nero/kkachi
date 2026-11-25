@@ -40,7 +40,6 @@ function parseImages(value: unknown): PiImage[] | null {
 }
 
 checkSetup();
-await startConversation();
 
 Bun.serve({
   port: config.port,
@@ -184,3 +183,5 @@ Bun.serve({
 });
 
 console.log(`Kkachi listening on http://127.0.0.1:${config.port} (memory: ${config.memoryDir}, models: ${modelOrder().join(", ")})`);
+// After listening: the conversation Pi lists its MCP tools from the servers, which may be this one.
+await startConversation();

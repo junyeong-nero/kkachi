@@ -16,7 +16,7 @@ export type TurnEvent =
   | { type: "aside" }                                       // the text so far was narration before a tool call: keep it, muted, and stop speaking it
   | { type: "sentence"; text: string; silent?: boolean }    // a finished sentence to speak (silent: too long, screen only)
   | { type: "activity"; tool: string; path?: string }
-  | { type: "photo"; data: string; mimeType: string }      // a device photo the agent took (device_snapshot), shown under the reply, not kept
+  | { type: "photo"; data: string; mimeType: string }      // an image a tool returned (a device photo), shown under the reply, not kept
   | { type: "end"; reason: "done" | "handoff" } // stop listening after speaking
   | { type: "done"; sources: string[]; changed: string[]; titles: Record<string, string>; commit: string | null }
   | { type: "error"; message: string; issue?: ReviewIssue };
@@ -27,15 +27,21 @@ const MAX_SPOKEN_SENTENCES = 2; // long replies are tiring to listen to; the res
 // ---- the long-lived conversation agent ----
 let agent: Pi | null = null;
 let agentModel = "";
+let starting: Promise<Pi> | null = null; // one Pi, even when the first turn arrives while it starts
 
 async function conversation(): Promise<Pi> {
   if (!agent) {
-    agentModel = currentModel();
-    const pi = new Pi({ prompt: "kkachi.md", mode: "append", session: "continue" });
-    await pi.start(agentModel);
-    pi.exited.then((code) => { console.error(`pi exited (${code}); restarting on next turn`); if (agent === pi) agent = null; });
-    agent = pi;
+    starting ??= (async () => {
+      agentModel = currentModel();
+      const pi = new Pi({ prompt: "kkachi.md", mode: "append", session: "continue", mcp: "chat" });
+      await pi.start(agentModel);
+      pi.exited.then((code) => { console.error(`pi exited (${code}); restarting on next turn`); if (agent === pi) agent = null; });
+      agent = pi;
+      return pi;
+    })().finally(() => (starting = null));
+    await starting;
   }
+  if (!agent) throw new Error("pi did not start");
   const model = currentModel();
   if (model !== agentModel) { await agent.setModel(model); agentModel = model; }
   return agent;
@@ -249,9 +255,8 @@ async function streamTurn(pi: Pi, message: string, text: string, images: PiImage
         break;
       }
       case "tool_execution_end": {
-        if (e.toolName === "device_snapshot" && !e.isError) {
-          for (const c of e.result?.content ?? []) if (c.type === "image") emit({ type: "photo", data: c.data, mimeType: c.mimeType });
-        }
+        // A photo a tool brought back (a device camera, say) is shown under the reply. Not kept.
+        if (!e.isError) for (const c of e.result?.content ?? []) if (c.type === "image") emit({ type: "photo", data: c.data, mimeType: c.mimeType });
         const t = toolArgs.get(e.toolCallId);
         if (!t?.path || e.isError || !isNote(t.path)) break;
         if (t.name === "read") sources.add(t.path);

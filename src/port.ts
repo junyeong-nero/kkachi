@@ -1,7 +1,8 @@
 // A device as a port: someone in the room holds the button on /device, speaks, and Kkachi answers out
 // loud on that device. Anyone nearby can talk to it, so it gets far less than the phone app: its own
-// Pi process and session (no personal conversation carries over) with only the memory and device
-// tools (see PiOptions.port). Memory changes are commits made through src/memory-mcp.ts.
+// Pi process and session (no personal conversation carries over) with only the MCP tools that
+// kkachi.mcp.json gives the "port" agent (see PiOptions.port). Memory changes are commits made by
+// the memory service.
 import { log } from "./log";
 import { currentModel } from "./models";
 import { Pi } from "./pi";
@@ -15,7 +16,7 @@ const ports = new Map<string, { pi: Pi; queue: Promise<unknown>; idle?: ReturnTy
 function portFor(id: string) {
   let port = ports.get(id);
   if (!port) {
-    const pi = new Pi({ prompt: "device.md", mode: "replace", session: "continue", port: id });
+    const pi = new Pi({ prompt: "device.md", mode: "replace", session: "continue", port: id, mcp: "port" });
     port = { pi, queue: pi.start(currentModel()) };
     ports.set(id, port);
     pi.exited.then(() => { if (ports.get(id)?.pi === pi) ports.delete(id); });

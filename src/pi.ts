@@ -3,8 +3,7 @@
 // own extension (pi/kkachi.ts) and system prompt. Every Pi command Kkachi uses lives in this file.
 import { join } from "node:path";
 import { config } from "./config";
-import { PORT_DEVICE_TOOLS } from "./device-tools";
-import { MEMORY_TOOL_DEFS } from "./memory-tools";
+import { type Agent, toolsFor } from "./mcp-bridge";
 import { settings } from "./settings";
 
 export type PiEvent = { type: string; [k: string]: any };
@@ -17,12 +16,11 @@ export interface PiOptions {
   mode: "append" | "replace";
   session: "continue" | "none";
   reviewWorktree?: string; // isolated checkout; reviews need only the built-in note tools
-  // A device someone talks to (src/port.ts): its own session, and only the memory tools (which cannot
-  // leave the memory repo) and speak/lamp. No shell, file tools, web, subagents, MCP, camera or mic.
+  mcp?: Agent; // which MCP tools it gets from kkachi.mcp.json (src/mcp-bridge.ts)
+  // A device someone talks to (src/port.ts): its own session, and only its MCP tools (the memory
+  // tools cannot leave the memory repo). No shell, file tools, web, subagents or the user's MCP.
   port?: string; // device id
 }
-
-const PORT_TOOLS = [...MEMORY_TOOL_DEFS.map((t) => t.name), ...PORT_DEVICE_TOOLS].join(",");
 
 // Dialog requests block Pi until answered. A voice UI cannot show them, so they are cancelled.
 const DIALOGS = new Set(["select", "confirm", "input", "editor"]);
@@ -39,6 +37,7 @@ export class Pi {
   async start(model: string) {
     // Extensions, skills, MCP and auth are always the user's own Pi setup.
     const dir = this.opts.reviewWorktree ?? config.memoryDir;
+    const mcp = this.opts.mcp ? await toolsFor(this.opts.mcp) : null;
     const prompt = join(config.root, "prompts", this.opts.prompt);
     const promptArgs = this.opts.mode === "append"
       ? ["--append-system-prompt", prompt] // cwd is the memory repo, so its AGENTS.md loads as project context
@@ -49,14 +48,14 @@ export class Pi {
       "--model", model,
       ...promptArgs,
       ...(this.opts.reviewWorktree ? ["--tools", "read,ls,find,grep,edit,write"] : ["-e", join(config.root, "pi", "kkachi.ts")]),
-      ...(this.opts.port ? ["--no-mcp", "--tools", PORT_TOOLS] : []),
+      ...(this.opts.port ? ["--no-mcp", ...(mcp?.names.length ? ["--tools", mcp.names.join(",")] : ["--no-tools"])] : []),
       ...(this.opts.session === "continue"
         ? ["--session-dir", this.opts.port ? join(config.dataDir, "pi-sessions-ports", this.opts.port) : join(config.dataDir, "pi-sessions"), "--continue"]
         : ["--no-session"]),
     ];
     this.proc = Bun.spawn(args, {
       cwd: dir,
-      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}`, ...(this.opts.port ? { KKACHI_PORT_TOOLS: "1" } : {}) },
+      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}`, ...(mcp ? { KKACHI_MCP_TOOLS: mcp.file } : {}) },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });
     this.exited = this.proc.exited;

@@ -2,11 +2,10 @@
 // never in the user's own Pi sessions. Conversation-control tools are signals: the Kkachi web app
 // watches tool_execution_start events for them. Note tools run src/tools-cli.ts with Bun.
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { DEVICE_TOOLS } from "../src/device-tools";
-import { MEMORY_TOOL_DEFS } from "../src/memory-tools";
 
 const root = process.env.KKACHI_ROOT!;
 
@@ -70,27 +69,26 @@ export default function (pi: ExtensionAPI) {
     async execute(_id, params) { return text(await runCli("delete_note", params)); },
   });
 
-  // Devices (spare phones and tablets), and for a device port (src/port.ts) the memory: the same
-  // tools Kkachi serves over MCP, called through it. A port's Pi has no other tools (pi --tools).
-  const services = [["devices", DEVICE_TOOLS], ...(process.env.KKACHI_PORT_TOOLS ? [["memory", MEMORY_TOOL_DEFS]] : [])] as const;
-  for (const [service, tools] of services) {
-    for (const tool of tools) {
-      pi.registerTool({
-        name: tool.name,
-        label: tool.name,
-        description: tool.description,
-        parameters: Type.Unsafe(tool.inputSchema),
-        async execute(_id, params) { return { content: await callMcp(service, tool.name, params), details: {} }; },
-      });
-    }
+  // MCP tools Kkachi core chose for this agent from kkachi.mcp.json (src/mcp-bridge.ts), each
+  // called on its own server. Nothing here knows what they are: add a server, get its tools.
+  const file = process.env.KKACHI_MCP_TOOLS;
+  const tools: { server: string; url: string; name: string; description?: string; inputSchema: any }[] = file ? JSON.parse(readFileSync(file, "utf8")) : [];
+  for (const tool of tools) {
+    pi.registerTool({
+      name: tool.name,
+      label: tool.name,
+      description: tool.description ?? tool.name,
+      parameters: Type.Unsafe(tool.inputSchema),
+      async execute(_id, params) { return { content: await callMcp(tool.server, tool.url, tool.name, params), details: {} }; },
+    });
   }
 }
 
 // Text and images (a device photo) pass through; an error comes back as text starting with "Error:".
 type Block = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
-async function callMcp(service: string, name: string, args: unknown): Promise<Block[]> {
+async function callMcp(server: string, url: string, name: string, args: unknown): Promise<Block[]> {
   try {
-    const r = await fetch(`${process.env.KKACHI_URL}/mcp/${service}`, {
+    const r = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
@@ -100,6 +98,6 @@ async function callMcp(service: string, name: string, args: unknown): Promise<Bl
     const out = result?.content?.map((c: any) => c.text).join("\n") ?? error?.message ?? `HTTP ${r.status}`;
     return [{ type: "text", text: `Error: ${out}` }];
   } catch (err) {
-    return [{ type: "text", text: `Error: Kkachi's ${service} service is unreachable (${(err as Error).message})` }];
+    return [{ type: "text", text: `Error: the ${server} service is unreachable (${(err as Error).message})` }];
   }
 }

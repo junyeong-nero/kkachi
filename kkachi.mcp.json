@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "devices": { "url": "http://127.0.0.1:${KKACHI_PORT}/mcp/devices" },
+    "memory": { "url": "http://127.0.0.1:${KKACHI_PORT}/mcp/memory" }
+  },
+  "agents": {
+    "chat": ["devices:*"],
+    "port": ["memory:*", "devices:list_devices", "devices:device_speak", "devices:device_light"],
+    "_port": "a device someone talks to (hold to talk): anyone nearby can use it, so it must not look or listen through the devices"
+  }
+}

@@ -1,5 +1,5 @@
-// The memory tools, defined once. Served over MCP at /mcp/memory (src/memory-mcp.ts adds what they
-// do), and registered as Pi tools by pi/kkachi.ts for device ports. Plain data: Pi loads this file too.
+// The memory tools, as the memory MCP server lists them (src/memory-mcp.ts adds what they do).
+// Which agent gets which is set in kkachi.mcp.json.
 const summary = { type: "string", description: "One line about the change, in the user's language; becomes the commit message" };
 
 export const MEMORY_TOOL_DEFS = [

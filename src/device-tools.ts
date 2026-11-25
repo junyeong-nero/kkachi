@@ -1,5 +1,5 @@
-// The device tools, defined once. Served over MCP at /mcp/devices (src/mcp.ts) for any agent, and
-// registered as Pi tools by pi/kkachi.ts for Kkachi's own agent. Plain data: Pi loads this file too.
+// The device tools, as the devices MCP server lists them (src/mcp.ts). Which agent gets which is
+// set in kkachi.mcp.json.
 const device = { type: "string", description: "Device name, as in list_devices" };
 
 export const DEVICE_TOOLS = [
@@ -43,7 +43,3 @@ export const DEVICE_TOOLS = [
     },
   },
 ];
-
-// A device port (someone in the room talking to a device, src/port.ts) may use only these: anyone
-// nearby can talk to it, so it must not look or listen through the devices.
-export const PORT_DEVICE_TOOLS = ["list_devices", "device_speak", "device_light"];
