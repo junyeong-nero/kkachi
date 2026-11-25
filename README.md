@@ -2,11 +2,21 @@
 
 # Kkachi (까치)
 
-A self-hosted assistant for your phone. Type or dictate (check the words, then send). Replies come back as text and can be read aloud. It remembers what you tell it in your own Markdown notes (a git repo), and it can do anything your [Pi](https://github.com/earendil-works/pi) coding agent can: search the web, use MCP servers (browser, calendar, ...), and work on code.
+A lightweight home assistant that remembers. It runs on the computer you already have, turns the old phones in your drawer into speakers, microphones and cameras with nothing but a web page, and keeps what you tell it in your own Markdown notes (a git repo). The agent behind it is the [Pi](https://github.com/earendil-works/pi) coding agent you already use, with your subscription, your MCP servers and your skills, so it can also search the web, use your tools and work on code.
+
+On your phone you type or dictate (check the words, then send). Replies come back as text and can be read aloud.
 
 > **Status: early prototype.** Runs on macOS, Windows, and Linux (the Linux auto-start is untested). See [docs/plan.md](docs/plan.md) and [docs/design.md](docs/design.md) (Korean).
 
 > **Warning:** Kkachi runs Pi with full access to your computer (shell, files, network) and acts without asking. Anyone who can reach it can make it run commands by voice. Expose it only through Tailscale Serve on a tailnet you control, never Tailscale Funnel or a public URL.
+
+## Principles
+
+Home Assistant adds AI to a house; Kkachi brings the agent you already use into your home. Three rules decide what goes in ([docs/philosophy.md](docs/philosophy.md), Korean):
+
+1. Light. One install, no VM or hub: the computer you have and the phones you no longer use. Heavier things, like Home Assistant or a local LLM, plug in when you need them.
+2. Yours. Your memory is plain Markdown in your own git repo, your data stays on your computer, and backups go where you choose, only when you choose. Apart from the LLM, Kkachi itself calls no outside service. Not there yet: speech still uses Groq and Edge TTS.
+3. Bring your own. Your Pi subscription, your MCP servers (imported from Claude Code, Codex, Cursor or VS Code), your skills. Pi is the one runtime; everything else is imported.
 
 ## Install
 
@@ -56,12 +66,12 @@ Core starts the two services, restarts them if they stop, and forwards their pag
 - Ask about your own life and it answers from the notes, showing which notes it used.
 - Take or pick up to four photos and ask about them. They go to the model only; the memory repo records just that there were photos.
 - Open `/device` on a spare phone or tablet, name it ("거실"), tap once, and allow it in Settings → 기기. "거실에서 밥 먹으라고 말해줘" then plays on it. From the phone app Kkachi can also take a photo there ("거실 지금 어때?"), measure how loud it is, read its motion and orientation sensors, and turn its screen into a lamp; nothing is stored ([docs/sensors.md](docs/sensors.md)). Each input and output has an on/off switch on the device's own screen. Hold its button to ask Kkachi something. The device sends what you said and moves on; Kkachi answers there, on your phone, or both. By default a device joins your phone's conversation with the same tools, which assumes only you use these devices. Settings → 공기계 대화 can give devices a conversation of their own, limit them to the notes, speaking and the lamp, and keep private details from being said aloud ([docs/bus.md](docs/bus.md)). Keep its screen on.
-- Claude Desktop, Codex, another Pi, or anything else that speaks MCP can use your devices and your memory. Add `https://<computer>.<tailnet>.ts.net/mcp/devices` (`list_devices`, `device_speak`, `device_snapshot`, `device_sound_level`, `device_sensors`, `device_light`) or `.../mcp/memory` (`memory_list`, `memory_search`, `memory_read`, `memory_write`, `memory_edit`, `memory_move`, `memory_delete`, `memory_undo`) to its MCP config. Each memory change is one `kkachi: …` commit, pushed, and can be undone.
-- With Home Assistant and [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), it switches real lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Put the ha-mcp address in `.env` as `KKACHI_HA_MCP_URL`; setup steps are in [docs/ha.md](docs/ha.md) (Korean).
+- Claude Desktop, Codex, another Pi, or anything else that speaks MCP can use your devices and your memory. Add `https://<computer>.<tailnet>.ts.net/mcp/devices` (`list_devices`, `device_speak`, `device_snapshot`, `device_sound_level`, `device_sensors`, `device_light`) or `.../mcp/memory` (`memory_list`, `memory_search`, `memory_read`, `memory_write`, `memory_edit`, `memory_move`, `memory_delete`, `memory_undo`) to its MCP config. Each memory change is one `kkachi: …` commit (pushed only if sync is on) and can be undone.
+- When you get real lights, speakers or cameras, plug in Home Assistant with [ha-mcp](https://github.com/homeassistant-ai/ha-mcp): Kkachi then switches lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Put the ha-mcp address in `.env.local` as `KKACHI_HA_MCP_URL`; setup steps are in [docs/ha.md](docs/ha.md) (Korean). Until then nothing about Home Assistant runs.
 - It can search the web, use MCP tools, and work on code in other repos: whatever your Pi setup can do.
 - After 30 quiet minutes, Kkachi checks the conversation against the notes for anything it missed, such as a decision or an appointment. New information is committed as `kkachi: 대화 정리 — …` (and pushed if sync is on, see below); if there is nothing to add, there is no commit. Turns waiting for this review stay in the server's private `data/conversation.jsonl` (not the memory repo) until it succeeds, across restarts too. Your chat session is not reset.
 - A librarian then sorts the changed notes and rewrites the catalog in the memory repo's `README.md`. A new message always goes ahead of this background work.
-- It works with any model your Pi can use and falls back to the next one in `KKACHI_MODEL` when one is rate-limited. Speech uses the Groq free tier and Edge TTS. Everything is configurable (`src/config.ts`).
+- It works with any model your Pi can use and falls back to the next one in `KKACHI_MODEL` when one is rate-limited. Speech uses the Groq free tier and Edge TTS for now; both are outside services, and moving them local is next (see Principles). Everything is configurable (`src/config.ts`).
 
 ## Memory repo
 
