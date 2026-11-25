@@ -3,7 +3,8 @@
 // as a lamp. A new device waits until you allow it in the app's settings; allowed devices are
 // remembered in data/devices.json with a secret token. Photos and readings pass through memory only.
 //
-// Device → server: {type:"hello", name, token?, armed, features, version}, {type:"state", armed},
+// Device → server: {type:"hello", name, token?, armed, features, version},
+//   {type:"state", armed, perms, enabled} (permissions granted; the switches on its screen),
 //   {type:"result", id, ok, data?|error?}, {type:"warm"} (talk button went down, see src/port.ts),
 //   {type:"done"|"failed", id, error?} (pages from before "result")
 // Server → device: {type:"pending"|"ready", name, token}, {type:"forgotten"}, {type:"update"},
@@ -20,11 +21,17 @@ import { synthesize } from "./speech";
 
 type Socket = ServerWebSocket<{ id?: string }>;
 type Features = Record<string, boolean>;
-interface Device { id: string; name: string; token: string; allowed: boolean; armed: boolean; features: Features; socket?: Socket }
+interface Device {
+  id: string; name: string; token: string; allowed: boolean; armed: boolean; socket?: Socket;
+  features: Features; // web APIs the browser has
+  perms: Features;    // mic, camera, motion, location: allowed on the device
+  enabled: Features;  // speak, light, talk, camera, sound, sensors, location: switched on by whoever is there
+}
+const bools = (o: unknown): Features => o && typeof o === "object" ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, !!v])) : {};
 
 const file = join(config.dataDir, "devices.json");
 const devices = new Map<string, Device>(); // allowed ones, plus pending ones while they are connected
-for (const d of existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : []) devices.set(d.id, { ...d, allowed: true, armed: false, features: {} });
+for (const d of existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : []) devices.set(d.id, { ...d, allowed: true, armed: false, features: {}, perms: {}, enabled: {} });
 
 function save() {
   const allowed = [...devices.values()].filter((d) => d.allowed).map(({ id, name, token }) => ({ id, name, token }));
@@ -38,9 +45,26 @@ const cleanName = (name: unknown) => String(name ?? "").replace(/\s+/g, " ").tri
 const page = join(import.meta.dir, "web", "device.html");
 export const pageVersion = () => createHash("sha1").update(readFileSync(page)).digest("hex").slice(0, 12);
 
-export type DeviceInfo = { id: string; name: string; allowed: boolean; online: boolean; armed: boolean; features: Features };
+// What Kkachi can do with a device right now: online, allowed there, and switched on.
+// Pages from before the switches report no perms or switches: only speaking and the lamp.
+const on = (d: Device, key: string) => d.enabled[key] !== false;
+function can(d: Device): string[] {
+  if (!d.socket) return [];
+  return [
+    d.armed && on(d, "speak") && "speak",
+    on(d, "light") && "lamp",
+    d.armed && d.perms.mic && on(d, "talk") && "talk",
+    d.perms.camera && on(d, "camera") && "photo",
+    d.armed && d.perms.mic && on(d, "sound") && "sound level",
+    d.perms.motion && on(d, "sensors") && "motion sensors",
+    d.perms.location && on(d, "location") && "location",
+  ].filter((x): x is string => !!x);
+}
+const off = (d: Device) => Object.entries(d.enabled).filter(([, v]) => !v).map(([k]) => k);
+
+export type DeviceInfo = { id: string; name: string; allowed: boolean; online: boolean; armed: boolean; can: string[]; off: string[]; features: Features };
 export const listDevices = (): DeviceInfo[] =>
-  [...devices.values()].map(({ id, name, allowed, armed, features, socket }) => ({ id, name, allowed, online: !!socket, armed: !!socket && armed, features }));
+  [...devices.values()].map((d) => ({ id: d.id, name: d.name, allowed: d.allowed, online: !!d.socket, armed: !!d.socket && d.armed, can: can(d), off: off(d), features: d.features }));
 
 /** The allowed device holding this token (a device authenticates its requests with it). */
 export function deviceByToken(token: string): { id: string; name: string } | undefined {
@@ -70,6 +94,7 @@ export function forgetDevice(id: string): boolean {
 }
 
 const waiting = new Map<string, (r: { ok: boolean; data?: any; error?: string }) => void>();
+const SWITCH: Record<string, string> = { speak: "speak", photo: "camera", "sound level": "sound", "motion sensors": "sensors", location: "location", lamp: "light" };
 
 export const deviceSocket: WebSocketHandler<{ id?: string }> = {
   message(ws, raw) {
@@ -80,12 +105,13 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       let d = [...devices.values()].find((x) => x.token === token);
       if (d?.socket && d.socket !== ws) d.socket.close(); // the same device reconnected; drop the stale socket
       if (!d) { // new, or pending before a server restart: waits for approval again
-        d = { id: randomId().slice(0, 12), name: cleanName(msg.name), token, allowed: false, armed: false, features: {} };
+        d = { id: randomId().slice(0, 12), name: cleanName(msg.name), token, allowed: false, armed: false, features: {}, perms: {}, enabled: {} };
         devices.set(d.id, d);
       }
       d.socket = ws;
       d.armed = !!msg.armed;
-      d.features = msg.features && typeof msg.features === "object" ? Object.fromEntries(Object.entries(msg.features).map(([k, v]) => [k, !!v])) : {};
+      d.features = bools(msg.features);
+      d.perms = {}; d.enabled = {}; // a fresh page reports them in its next "state"
       ws.data.id = d.id;
       send(d, { type: d.allowed ? "ready" : "pending", name: d.name, token: d.token });
       if (msg.version !== pageVersion()) send(d, { type: "update" });
@@ -93,7 +119,11 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
     }
     const d = ws.data.id ? devices.get(ws.data.id) : undefined;
     if (!d) return;
-    if (msg.type === "state") d.armed = !!msg.armed;
+    if (msg.type === "state") {
+      d.armed = !!msg.armed;
+      if (msg.perms) d.perms = bools(msg.perms);
+      if (msg.enabled) d.enabled = bools(msg.enabled);
+    }
     if (msg.type === "warm" && d.allowed) warmPort(d.id);
     if (typeof msg.id === "string") {
       if (msg.type === "result") waiting.get(msg.id)?.({ ok: !!msg.ok, data: msg.data, error: msg.error });
@@ -117,30 +147,32 @@ function find(target: string): Device | undefined {
     ?? allowed.find((d) => key(d.name).includes(key(target)) || key(target).includes(key(d.name)));
 }
 
-// What each request needs from the page (features it reports in hello).
-const NEEDS: Record<string, string[]> = { snapshot: ["camera"], sound: ["microphone"], sensors: [], light: [] };
-const ABILITIES = (d: DeviceInfo) => [
-  d.armed && "speak",
-  d.features.camera && "photo",
-  d.armed && d.features.microphone && "sound level",
-  (d.features.motion || d.features.orientation || d.features.geolocation) && "sensors",
-  "lamp",
-].filter(Boolean).join(", ");
+// What each request needs: one of these abilities (see can()).
+const NEEDS: Record<string, string[]> = { speak: ["speak"], snapshot: ["photo"], sound: ["sound level"], sensors: ["motion sensors", "location"], light: ["lamp"] };
 
 export function describeDevices(): string {
   const allowed = listDevices().filter((d) => d.allowed);
   if (!allowed.length) return "No devices yet. The user can add one by opening /device on a spare phone or tablet and allowing it in Kkachi's settings.";
-  return allowed.map((d) => `- ${d.name}: ${!d.online ? "offline" : `online; can: ${ABILITIES(d)}${d.armed ? "" : " (needs a tap on its screen to make sound)"}`}`).join("\n");
+  return allowed.map((d) => `- ${d.name}: ${!d.online ? "offline" : `online; can: ${d.can.join(", ") || "nothing right now"}${d.off.length ? `; switched off on the device: ${d.off.join(", ")}` : ""}${d.armed ? "" : " (needs a tap on its screen to make sound)"}`}`).join("\n");
 }
 
 /** Send a request to a device and wait for its result. */
-async function ask(target: string, request: Record<string, unknown> & { type: string }, timeoutMs: number, opts: { armed?: boolean } = {}) {
+/** The device for a request, or why it cannot take it (offline, needs a tap, switched off, ...). */
+function ready(target: string, type: string, opts: { armed?: boolean } = {}): Device {
   const d = find(target);
   if (!d) throw new Error(`No device named "${target}".\n${describeDevices()}`);
   if (!d.socket) throw new Error(`${d.name} is offline: its /device page is closed or the screen is off.`);
-  if (opts.armed && !d.armed) throw new Error(`${d.name} needs a tap on its screen first.`);
-  const missing = (NEEDS[request.type] ?? []).filter((f) => !d.features[f]);
-  if (missing.length) throw new Error(`${d.name} cannot do this: no ${missing.join(", ")} (or its page needs a reload).`);
+  const needs = NEEDS[type] ?? [];
+  if (needs.length && !needs.some((n) => can(d).includes(n))) {
+    if (needs.some((n) => off(d).includes(SWITCH[n]))) throw new Error(`${d.name} cannot do this: it is switched off on the device.`);
+    if (opts.armed && !d.armed) throw new Error(`${d.name} needs a tap on its screen first.`);
+    throw new Error(`${d.name} cannot do this (${needs.join(" or ")}): not allowed or not supported there (or its page needs a reload).`);
+  }
+  return d;
+}
+
+async function ask(target: string, request: Record<string, unknown> & { type: string }, timeoutMs: number, opts: { armed?: boolean } = {}) {
+  const d = ready(target, request.type, opts);
   const id = crypto.randomUUID();
   const result = new Promise<{ ok: boolean; data?: any; error?: string }>((resolve) => {
     waiting.set(id, resolve);
@@ -156,7 +188,7 @@ async function ask(target: string, request: Record<string, unknown> & { type: st
 
 /** Speak text out loud on a device; resolves once the device has played it. */
 export async function speakOn(target: string, text: string): Promise<string> {
-  if (!find(target)) throw new Error(`No device named "${target}".\n${describeDevices()}`);
+  ready(target, "speak", { armed: true }); // before making the speech
   const { audio, type } = await synthesize(text.slice(0, 1000));
   const { name } = await ask(target, { type: "speak", text, audio: Buffer.from(audio).toString("base64"), mime: type }, 60_000, { armed: true });
   return `Said it on ${name}.`;

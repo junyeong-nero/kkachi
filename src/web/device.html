@@ -66,6 +66,34 @@
   #heard + #said { margin-top: 8px; }
   @media (prefers-reduced-motion: reduce) { #talk.recording { box-shadow: 0 0 0 6px var(--accent-soft); } }
 
+  /* what this device does for Kkachi, each with its state; what is in use right now stands out */
+  /* inputs and outputs: one switch card each, in two sections */
+  #caps { margin-top: 28px; display: grid; gap: 16px; text-align: left; }
+  #caps h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
+  #caps h2 b { color: var(--text); font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .cap {
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 2px 10px; width: 100%; margin: 0;
+    padding: 12px; border-radius: var(--r-md); border: 1px solid transparent; background: var(--surface); color: var(--text);
+    font: inherit; text-align: left; cursor: pointer; transition: background-color 120ms var(--ease-out), opacity 120ms var(--ease-out);
+  }
+  .cap svg { width: 22px; height: 22px; grid-row: span 2; }
+  .cap .n { font-size: 15px; font-weight: 600; }
+  .cap .s { font-size: 13px; color: var(--muted); grid-column: 2; }
+  .cap .sw { grid-row: 1 / span 2; grid-column: 3; width: 38px; height: 22px; border-radius: var(--r-pill); background: var(--line); position: relative; transition: background-color 120ms var(--ease-out); }
+  .cap .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform 120ms var(--ease-out), background-color 120ms var(--ease-out); }
+  .cap[aria-checked=true] .sw { background: var(--text); }
+  .cap[aria-checked=true] .sw::after { transform: translateX(16px); background: var(--bg); }
+  .cap[aria-checked=false] svg, .cap[aria-checked=false] .n { opacity: .45; }
+  .cap:disabled { cursor: default; opacity: .45; }
+  .cap:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+  .cap.busy { background: var(--line); }
+  .cap.busy .s { color: var(--text); font-weight: 600; }
+  .cap.listening { background: var(--accent-soft); } /* teal: listening, as on the talk button */
+  .cap.listening svg, .cap.listening .s { color: var(--accent); }
+  @media (prefers-reduced-motion: reduce) { .cap .sw::after { transition: none; } }
+  #activity { font-size: 14px; color: var(--muted); margin: 14px 0 0; min-height: 1.5em; }
+
   /* lamp: the whole screen in one color (device_light); a tap turns it off */
   #lamp { position: fixed; inset: 0; z-index: 10; }
   #lamp-dim { position: absolute; inset: 0; background: #000; }
@@ -78,6 +106,11 @@
   <div class="brand"><img src="/favicon.png" alt="" />까치 기기</div>
   <h1 id="name">새 기기</h1>
   <p id="status" role="status"></p>
+  <section id="caps" hidden aria-label="이 기기로 할 수 있는 것">
+    <div><h2><b>출력</b> · 까치가 이 기기로</h2><div class="grid" id="caps-in"></div></div>
+    <div><h2><b>입력</b> · 이 기기가 까치에게</h2><div class="grid" id="caps-out"></div></div>
+  </section>
+  <p id="activity" aria-live="polite"></p>
 
   <form id="setup" hidden>
     <input id="name-input" maxlength="40" placeholder="이 기기 이름 (예: 거실)" aria-label="이 기기 이름" required />
@@ -118,8 +151,74 @@ const features = () => ({
 function status(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
 const armed = () => audio?.state === "running";
 function showReady() {
-  $("talk-area").hidden = !(allowed && armed());
+  $("talk-area").hidden = !(allowed && armed() && isOn("talk"));
   if (allowed) status(armed() ? "연결됨" : "연결됨 · 화면을 한 번 눌러 주세요", "ok");
+  renderCaps();
+}
+
+// ---- what this device can do for Kkachi, shown on screen so anyone in the room can see it ----
+// Permission per sense: ok | tap (ask with the start tap) | denied | none (this browser cannot).
+const f0 = features();
+const perm = { mic: f0.microphone ? "tap" : "none", camera: f0.camera ? "tap" : "none", motion: f0.motion ? "tap" : "none", location: f0.geolocation ? "tap" : "none" };
+const inUse = new Map(); // cap -> what it is doing now
+let lampOn = false;
+const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const CAPS = [
+  { key: "speak", to: "in", name: "말하기", icon: '<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/>', state: () => armed() ? "ok" : "tap" },
+  { key: "light", to: "in", name: "조명", icon: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>', state: () => "ok", ok: () => lampOn ? "비추는 중" : "켜짐" }, // the switch allows it; the words say whether it is lit
+  { key: "talk", to: "out", name: "말 걸기", icon: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', state: () => armed() ? perm.mic : "tap" },
+  { key: "camera", to: "out", name: "사진", icon: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', state: () => perm.camera },
+  { key: "sound", to: "out", name: "소리 크기", icon: '<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/>', state: () => armed() ? perm.mic : "tap" },
+  { key: "sensors", to: "out", name: "센서", icon: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>', state: () => perm.motion },
+  { key: "location", to: "out", name: "위치", icon: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', state: () => perm.location },
+];
+const STATE = { ok: "켜짐", tap: "탭 필요", denied: "권한 없음", none: "지원 안 함" };
+
+// Switches: turned off here, Kkachi cannot use it (the device refuses, and the server knows).
+const enabled = JSON.parse(store.get("enabled") || "{}");
+const isOn = (key) => enabled[key] !== false;
+function toggle(key) {
+  enabled[key] = !isOn(key);
+  store.set("enabled", JSON.stringify(enabled));
+  if (key === "light" && !isOn("light")) { $("lamp").hidden = true; lampOn = false; }
+  showReady(); // the talk button follows "말 걸기"
+  sendState();
+}
+
+const cards = {};
+function renderCaps() {
+  $("caps").hidden = !allowed;
+  for (const c of CAPS) {
+    let b = cards[c.key];
+    if (!b) { // built once, then updated in place (keeps keyboard focus)
+      b = cards[c.key] = document.createElement("button");
+      b.type = "button"; b.className = "cap"; b.setAttribute("role", "switch");
+      b.innerHTML = `${icon(c.icon)}<span class="n"></span><span class="s"></span><span class="sw" aria-hidden="true"></span>`;
+      b.querySelector(".n").textContent = c.name;
+      b.addEventListener("click", () => toggle(c.key));
+      $(`caps-${c.to}`).append(b);
+    }
+    const st = c.state(), on = isOn(c.key), doing = inUse.get(c.key);
+    const usable = st !== "none" && st !== "denied";
+    b.disabled = !usable;
+    b.setAttribute("aria-checked", String(on && usable));
+    const listening = !!doing && (c.key === "sound" || doing === "듣는 중");
+    b.classList.toggle("busy", !!doing && !listening);
+    b.classList.toggle("listening", listening);
+    b.querySelector(".s").textContent = doing ?? (!usable ? STATE[st] : !on ? "꺼 둠" : st === "ok" && c.ok ? c.ok() : STATE[st]);
+  }
+}
+const setBusy = (key, label) => { if (label) inUse.set(key, label); else inUse.delete(key); renderCaps(); };
+// The last thing Kkachi did through this device, with the time: nobody nearby is left guessing.
+function activity(text) {
+  const time = new Date().toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
+  $("activity").textContent = `${time} · ${text}`;
+}
+function sendState() {
+  renderCaps();
+  const granted = Object.fromEntries(Object.entries(perm).map(([k, v]) => [k, v === "ok"]));
+  const switches = Object.fromEntries(CAPS.map((c) => [c.key, isOn(c.key)]));
+  ws?.readyState === 1 && ws.send(JSON.stringify({ type: "state", armed: armed(), perms: granted, enabled: switches }));
 }
 
 // Play mp3 (base64) and show its words while they are spoken.
@@ -145,7 +244,7 @@ async function arm() {
   const silent = audio.createBufferSource(); silent.buffer = audio.createBuffer(1, 1, 22050); silent.connect(audio.destination); silent.start();
   await keepAwake();
   $("start").hidden = armed();
-  ws?.readyState === 1 && ws.send(JSON.stringify({ type: "state", armed: armed() }));
+  sendState();
   showReady();
 }
 async function keepAwake() {
@@ -155,7 +254,7 @@ async function keepAwake() {
 
 function connect() {
   ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/device/ws`);
-  ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: "hello", name: store.get("name"), token: store.get("token"), armed: armed(), features: features(), version: VERSION })); };
+  ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: "hello", name: store.get("name"), token: store.get("token"), armed: armed(), features: features(), version: VERSION })); sendState(); };
   ws.onmessage = (e) => onMessage(JSON.parse(e.data));
   ws.onclose = () => {
     if (!joined) return;
@@ -180,13 +279,29 @@ async function onMessage(m) {
   if (m.type === "ready") $("update").hidden = true; // told again on every connect when still old
   const handler = REQUESTS[m.type];
   if (handler && m.id) {
-    try { ws.send(JSON.stringify({ type: "result", id: m.id, ok: true, data: await handler(m) })); }
-    catch (err) {
+    const [cap, doing, did] = SHOWN[m.type](m);
+    const off = m.type === "sensors" ? !isOn("sensors") && !isOn("location") : !isOn(cap);
+    if (off) { ws.send(JSON.stringify({ type: "result", id: m.id, ok: false, error: "turned off on the device" })); return; }
+    setBusy(cap, doing);
+    try {
+      ws.send(JSON.stringify({ type: "result", id: m.id, ok: true, data: await handler(m) }));
+      activity(did);
+    } catch (err) {
       ws.send(JSON.stringify({ type: "result", id: m.id, ok: false, error: String(err.message || err) }));
       if (!armed()) $("start").hidden = false;
+    } finally {
+      setBusy(cap, null);
     }
   }
 }
+// How each request shows on screen: [cap, while doing it, afterwards].
+const SHOWN = {
+  speak: () => ["speak", "말하는 중", "까치가 말했어요"],
+  snapshot: () => ["camera", "찍는 중", "까치가 사진을 찍었어요 (저장 안 함)"],
+  sound: () => ["sound", "재는 중", "까치가 소리 크기를 쟀어요 (녹음 안 함)"],
+  sensors: () => ["sensors", "읽는 중", "까치가 센서를 읽었어요"],
+  light: (m) => ["light", m.on ? "켜는 중" : "끄는 중", m.on ? "까치가 조명을 켰어요" : "까치가 조명을 껌어요"],
+};
 
 // ---- what Kkachi can ask of this device (src/devices.ts). Nothing is kept here. ----
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -235,26 +350,31 @@ const REQUESTS = {
 
   async sensors() {
     const out = { unavailable: {} };
-    if (orient) Object.assign(out, orient);
-    else out.unavailable.orientation = motion.started ? "no readings: this device may have no such sensor" : motionState;
-    if (motion.started) {
-      out.motion = true;
-      const cut = Date.now() - 10 * 60_000;
-      motion.samples = motion.samples.filter((s) => s.t > cut);
-      out.maxRecent = +Math.max(0, ...motion.samples.map((s) => s.a)).toFixed(1);
-      if (motion.lastMoved) out.lastMovedAgoSec = Math.round((Date.now() - motion.lastMoved) / 1000);
-    } else out.unavailable.motion = motionState;
-    try { out.location = await locate(); } catch (err) { out.unavailable.location = String(err.message || err); }
+    if (!isOn("sensors")) out.unavailable["motion and orientation"] = "turned off on the device";
+    else {
+      if (orient) Object.assign(out, orient);
+      else out.unavailable.orientation = motion.started ? "no readings: this device may have no such sensor" : motionState;
+      if (motion.started) {
+        out.motion = true;
+        const cut = Date.now() - 10 * 60_000;
+        motion.samples = motion.samples.filter((s) => s.t > cut);
+        out.maxRecent = +Math.max(0, ...motion.samples.map((s) => s.a)).toFixed(1);
+        if (motion.lastMoved) out.lastMovedAgoSec = Math.round((Date.now() - motion.lastMoved) / 1000);
+      } else out.unavailable.motion = motionState;
+    }
+    if (!isOn("location")) out.unavailable.location = "turned off on the device";
+    else try { out.location = await locate(); } catch (err) { out.unavailable.location = String(err.message || err); }
     return out;
   },
 
   light(m) {
+    lampOn = !!m.on;
     $("lamp").hidden = !m.on;
     $("lamp").style.background = m.color;
     $("lamp-dim").style.opacity = String(1 - Math.max(0, Math.min(100, m.brightness)) / 100);
   },
 };
-$("lamp").addEventListener("click", () => { $("lamp").hidden = true; });
+$("lamp").addEventListener("click", () => { $("lamp").hidden = true; lampOn = false; renderCaps(); });
 $("update").addEventListener("click", () => location.reload());
 
 // ---- sensors: motion and orientation (iOS asks once, inside a tap), location ----
@@ -263,8 +383,9 @@ const motion = { started: false, samples: [], lastMoved: 0 };
 async function askMotion() {
   try { // both requests start inside the tap, before any await
     const answers = await Promise.all([window.DeviceMotionEvent, window.DeviceOrientationEvent].map((E) => E?.requestPermission?.() ?? "granted"));
-    if (answers.some((a) => a !== "granted")) { motionState = "denied"; return; }
-  } catch (err) { motionState = String(err.message || err); return; }
+    if (answers.some((a) => a !== "granted")) { motionState = "denied"; perm.motion = "denied"; return; }
+  } catch (err) { motionState = String(err.message || err); perm.motion = "denied"; return; }
+  perm.motion = "ok";
   if (motion.started) return;
   motion.started = true;
   addEventListener("devicemotion", (e) => {
@@ -295,10 +416,14 @@ function locate() {
       { timeout: 8000, maximumAge: 60_000 });
   });
 }
-const askLocation = () => locate().catch(() => {});
+const askLocation = () => locate()
+  .then(() => { perm.location = "ok"; }, (err) => { perm.location = err.message === "not allowed" ? "denied" : err.message === "not supported" ? "none" : "ok"; })
+  .finally(sendState);
 // Ask for the camera once now (and let go at once), so a later photo needs no prompt.
 async function askCamera() {
-  try { (await navigator.mediaDevices.getUserMedia({ video: true })).getTracks().forEach((t) => t.stop()); } catch {}
+  if (perm.camera === "none") return;
+  try { (await navigator.mediaDevices.getUserMedia({ video: true })).getTracks().forEach((t) => t.stop()); perm.camera = "ok"; }
+  catch { perm.camera = "denied"; }
 }
 
 // ---- hold to talk: record while the button is held, send when it is let go (src/port.ts) ----
@@ -326,9 +451,11 @@ async function openMic() {
     };
     const first = !mic;
     mic = { stream, nodes: [src, proc, sink] };
+    perm.mic = "ok";
     return first ? "granted" : "open";
   } catch {
     hint("마이크를 쓸 수 없어요. 브라우저 설정에서 허용해 주세요.");
+    if (perm.mic !== "none") perm.mic = "denied";
     return "denied";
   }
 }
@@ -343,7 +470,7 @@ async function startTalking() {
   if (m === "granted") { recording = false; hint("마이크 준비됐어요. 다시 누른 채로 말하세요"); return; } // the permission prompt took this press
   if (!recording) return; // let go while the mic was opening
   frames = []; recordStart = performance.now();
-  $("talk").classList.add("recording"); hint("듣고 있어요 · 떼면 보내요");
+  $("talk").classList.add("recording"); hint("듣고 있어요 · 떼면 보내요"); setBusy("talk", "듣는 중");
   maxTimer = setTimeout(stopTalking, MAX_MS);
 }
 
@@ -351,8 +478,8 @@ async function stopTalking() {
   if (!recording) return;
   recording = false; clearTimeout(maxTimer);
   $("talk").classList.remove("recording"); $("talk").style.setProperty("--level", "0");
-  if (performance.now() - recordStart < MIN_MS || frames.length < 2) { hint("누른 채로 말하고, 떼면 보내요"); return; }
-  busy = true; $("talk").disabled = true; hint("생각하는 중…");
+  if (performance.now() - recordStart < MIN_MS || frames.length < 2) { hint("누른 채로 말하고, 떼면 보내요"); setBusy("talk", null); return; }
+  busy = true; $("talk").disabled = true; hint("생각하는 중…"); setBusy("talk", "생각하는 중");
   try {
     const r = await fetch("/api/device/talk", { method: "POST", headers: { "Content-Type": "audio/wav", Authorization: `Bearer ${store.get("token")}` }, body: encodeWav(frames, audio.sampleRate, RATE) });
     if (!r.ok) throw new Error("talk " + r.status);
@@ -364,7 +491,7 @@ async function stopTalking() {
   } catch {
     hint("까치에 보내지 못했어요. 다시 말해 주세요");
   } finally {
-    busy = false; $("talk").disabled = false;
+    busy = false; $("talk").disabled = false; setBusy("talk", null);
   }
 }
 
@@ -410,7 +537,7 @@ document.addEventListener("visibilitychange", async () => {
   if (audio) await audio.resume().catch(() => {}); // iOS suspends audio in the background
   if (wakeLock?.released !== false) await keepAwake(); // the lock is released when the page is hidden
   $("start").hidden = armed() || !joined;
-  ws?.readyState === 1 && ws.send(JSON.stringify({ type: "state", armed: armed() }));
+  sendState();
   showReady();
 });
 

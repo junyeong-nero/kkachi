@@ -507,14 +507,17 @@ function applySpeak() {
   if (!readAloud() && !recording) { stopPlayback(); resetAudio(); setSession("auto"); } // nothing holds audio now
 }
 
-// Spare phones and tablets joined at /device: allow new ones, forget old ones.
+// Spare phones and tablets joined at /device: allow new ones, forget old ones. Each shows what
+// Kkachi can use there now (allowed and switched on, on the device's own screen).
+const CAN = { speak: "말하기", lamp: "조명", talk: "말 걸기", photo: "사진", "sound level": "소리 크기", "motion sensors": "센서", location: "위치" };
 function renderDevices(devices) {
   $("device-url").textContent = `${location.origin}/device`;
   if (!devices.length) { $("devices").replaceChildren(el("div", "loading", "아직 없어요")); return; }
   $("devices").replaceChildren(...devices.map((d) => {
     const row = el("div", "device", '<span><span class="name"></span><span class="sub"></span></span><button type="button" class="play"></button>');
     row.querySelector(".name").textContent = d.name;
-    row.querySelector(".sub").textContent = !d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있음" : d.armed ? "연결됨" : "연결됨 · 기기 화면을 한 번 눌러 주세요";
+    const can = (d.can ?? []).map((c) => CAN[c] ?? c).join(", ") || "쓸 수 있는 기능 없음";
+    row.querySelector(".sub").textContent = !d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있음" : `연결됨 · ${can}${d.armed ? "" : " · 기기 화면을 한 번 눌러 주세요"}`;
     const btn = row.querySelector("button");
     btn.textContent = d.allowed ? "삭제" : "허용";
     if (!d.allowed) btn.classList.add("allow");
