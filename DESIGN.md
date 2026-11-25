@@ -1,4 +1,4 @@
-# DESIGN.md — Kkachi web app
+# DESIGN.md: Kkachi web app
 
 Single source of truth for the app's visual system (`src/web/index.html`). Interaction design (voice flow, states, latency) lives in [docs/design.md](docs/design.md).
 
@@ -37,13 +37,21 @@ Single source of truth for the app's visual system (`src/web/index.html`). Inter
 
 - **Layout**: header (refresh, logo, settings) / transcript / composer: `(photo) [text box] (mic) (send)`, with a one-line status above it only when there is something to say (recording, transcribing, an error). Picked or taken photos (up to 4, scaled to 1600px JPEG on the phone) wait as 64px thumbnails with a remove button above the text box, and appear above your words in your bubble once sent. A photo alone can be sent. The mic is tap to start / tap to stop, or hold and let go; transcribed words are appended to the text box to check and fix, and nothing is sent until you press send (or Enter).
 - **Transcript**: last 30 turns of this page, as chat bubbles: yours a light `surface` fill on the right, Kkachi's outlined (`bg` with a `line` border) on the left (fill vs outline keeps them apart without heavy color) with the working dots and activity label inside it. Kkachi's bubble appears once your words are known and is removed if the turn ends without words. Replies are Markdown (marked + DOMPurify, vendored in `src/web/vendor/`); narration before a tool call stays in the bubble as a muted aside. Read-aloud is off by default (per device) and speaks only the first two sentences.
-- **Devices**: a settings section lists spare phones and tablets joined at `/device` (name, then 허용 대기 / 꺼져 있음 / 연결됨) with 허용 or 삭제. The `/device` page itself is dark only (it sits in a room all day): logo, the device name large, one status line, a "탭해서 시작" button until sound is unlocked, then two sections of switch cards in a grid, **출력 · 까치가 이 기기로** (말하기, 조명) and **입력 · 이 기기가 까치에게** (말 걸기, 사진, 소리 크기, 센서, 위치): line icon, name, state (켜짐 / 꺼 둠 / 탭 필요 / 권한 없음 / 지원 안 함, or what it is doing now: 말하는 중, 찍는 중, 재는 중, 비추는 중), and an on/off switch (on: `text` track; off: dimmed icon and name; unusable: disabled at 45%). A card in use gets the `line` background, or teal while listening (재는 중, 듣는 중). Below them one line with the time and the last thing Kkachi did there ("오후 3:02 · 까치가 사진을 찍었어요 (저장 안 함)"). Then a 112px round hold-to-talk button (mic icon; teal with a voice-level halo only while held, since that is listening), what was heard in quotes (`muted`), and the words spoken (current ones in `text`, earlier ones `muted`). No other teal: teal stays "listening" and "remembered". As a lamp (`device_light`) the whole screen is one color, dimmed by a black layer; a tap turns it off. An outdated page shows one "새 버전이 있어요 · 눌러서 새로고침" button.
+- **Devices**: a settings section lists spare phones and tablets joined at `/device` (name, then 허용 대기 / 꺼져 있음 / 연결됨 with what it can do now) with 허용 or 삭제.
+- **`/device` page**: dark only, because it sits in a room all day. From the top:
+  - logo, the device name large, one status line, and a "탭해서 시작" button until sound is unlocked
+  - switch cards in a grid, in two sections: 출력 · 까치가 이 기기로 (말하기, 조명) and 입력 · 이 기기가 까치에게 (말 걸기, 사진, 소리 크기, 센서, 위치). Each card has a line icon, a name, a state (켜짐 / 꺼 둠 / 탭 필요 / 권한 없음 / 지원 안 함, or what it is doing now: 말하는 중, 찍는 중, 재는 중, 비추는 중) and an on/off switch. The switch track is `text` when on; off dims the icon and name; an unusable card is disabled at 45%. A card in use gets the `line` background, or teal while listening (재는 중, 듣는 중)
+  - one line with the time and the last thing Kkachi did there ("오후 3:02 · 까치가 사진을 찍었어요 (저장 안 함)")
+  - a 112px round hold-to-talk button (mic icon, teal with a voice-level halo only while held, since that is listening), what was heard in quotes (`muted`), and the words spoken (current ones in `text`, earlier ones `muted`)
+
+  Teal appears nowhere else on the page. As a lamp (`device_light`) the whole screen is one color, dimmed by a black layer, and a tap turns it off. An outdated page shows a single "새 버전이 있어요 · 눌러서 새로고침" button.
 - **Device photos**: a photo Kkachi took through a device appears in its bubble under the words, full width (max 360px tall).
 - **First run**: example sentences to say, as plain quoted lines (not tappable-looking boxes), placed near the talk button.
 - **States**: mic idle / recording (teal, level ring) / thinking (dimmed) / speaking (bars) / disabled (mic permission denied). Icon buttons and settings controls have hover (pointer devices), active, focus-visible (3px teal ring).
 - **Keyboard**: Enter sends, Shift+Enter is a new line; outside the text box, hold Space to dictate.
 - **Browser surfaces**: selection, caret, and scrollbar use the palette.
 - **Dark mode**: designed per token, follows the system; `?theme=light` forces light for review.
+- **Docs images** (`docs/banner.svg`, `docs/architecture-simple.svg`, `docs/architecture.svg`): the same tokens in their light values, SUIT, radius 14px or less on cards and pills for tags. The banner is the logo, name, one line and tags on `accent-soft`, with a teal band at the bottom edge; the logo is the real icon embedded as a PNG, not a redrawn mascot. Diagrams place each client above the part it connects to, teal for the phone app (the personal port), and dashed lines for core-only or optional links.
 
 ## Slop audit (2026-11-21)
 
@@ -52,6 +60,8 @@ Checked against samber `frontend-design-deslop` slop-checklist, impeccable `craf
 Fixed: indigo-band accent (#2F5BD3, H≈265) → teal; Pretendard (Inter-derived) → SUIT; "무엇을 도와드릴까요?" category-default copy and centered icon-tile empty state → example sentences; instruction repeated in two slots; mixed radii and an 18px bubble; missing hover/disabled states; pointer-only mic → Space key; default selection and scrollbar; muted chip contrast below 4.5:1; keyword easing.
 
 Kept on purpose: centered single column and chat bubbles (familiar Operate-mode pattern the brief asks for); one font family (one family with weight steps suits a quiet tool).
+
+2026-11-25, docs images, against the same checklist: card radius 18px (over the 14px token) brought down to 14px. Kept: the pill tags in the banner (tags, not cards) and the three-box diagram (the content has three parts).
 
 ## Changelog
 
@@ -65,3 +75,4 @@ Kept on purpose: centered single column and chat bubbles (familiar Operate-mode 
 - 2026-11-25: hold-to-talk on `/device`.
 - 2026-11-25: device photos in Kkachi's bubble; lamp and update notice on `/device`.
 - 2026-11-25: input/output switch cards on `/device`; the settings sheet lists what each device can do now.
+- 2026-11-25: README banner and architecture diagrams.

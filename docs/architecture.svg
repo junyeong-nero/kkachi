@@ -67,7 +67,7 @@
 
   <!-- ===== kkachi-core ===== -->
   <text x="30" y="346" class="col">kkachi-core · 127.0.0.1:4300 · src/</text>
-  <rect x="30" y="354" width="530" height="430" rx="16" class="core"/>
+  <rect x="30" y="354" width="530" height="430" rx="14" class="core"/>
 
   <rect x="46" y="370" width="250" height="400" rx="10" class="teal"/>
   <text x="60" y="394" class="h">에이전트 루프 (Pi RPC)</text>
