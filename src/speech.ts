@@ -1,5 +1,4 @@
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { synthesize as tts } from "../lib/tts";
 import { config } from "./config";
 import { settings } from "./settings";
 
@@ -41,31 +40,4 @@ export async function transcribe(audio: Blob): Promise<string> {
 }
 
 /** voice/rate override the saved settings (used for previews in the settings sheet). */
-export async function synthesize(text: string, voice = settings().voice, rate = settings().rate): Promise<{ audio: ArrayBuffer; type: string }> {
-  if (config.tts.provider !== "edge") return openaiTts(text);
-  // The Edge service sometimes answers with no audio (NoAudioReceived); a second try usually works.
-  return edgeTts(text, voice, rate).catch(() => edgeTts(text, voice, rate));
-}
-
-// Edge TTS via the edge-tts CLI (`uv tool install edge-tts`). Free but unofficial.
-async function edgeTts(text: string, voice: string, rate: number) {
-  const out = join(tmpdir(), `kkachi-tts-${crypto.randomUUID()}.mp3`);
-  const rateArg = `--rate=${rate >= 0 ? "+" : ""}${rate}%`; // "=" form: argparse rejects a bare "-10%"
-  const p = Bun.spawn(["edge-tts", "--voice", voice, rateArg, "--text", text, "--write-media", out], { stderr: "pipe" });
-  if ((await p.exited) !== 0) throw new Error(`edge-tts: ${await new Response(p.stderr).text()}`);
-  const file = Bun.file(out);
-  const audio = await file.arrayBuffer();
-  await file.delete();
-  return { audio, type: "audio/mpeg" };
-}
-
-async function openaiTts(text: string) {
-  const { baseUrl, apiKey, model, voice } = config.tts;
-  const r = await fetch(`${baseUrl}/audio/speech`, {
-    method: "POST",
-    headers: { ...auth(apiKey), "Content-Type": "application/json" },
-    body: JSON.stringify({ model, voice, input: text, response_format: "mp3" }),
-  });
-  if (!r.ok) throw new Error(`tts ${r.status}: ${await r.text()}`);
-  return { audio: await r.arrayBuffer(), type: r.headers.get("Content-Type") ?? "audio/mpeg" };
-}
+export const synthesize = (text: string, voice = settings().voice, rate = settings().rate) => tts(text, voice, rate);

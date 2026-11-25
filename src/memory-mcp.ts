@@ -9,7 +9,7 @@ import { config } from "./config";
 import { COMMIT_PREFIX, commitAll, pull, pushIfAhead, undoLast } from "./git";
 import { cancelTidy, scheduleTidy } from "./librarian";
 import { log } from "./log";
-import type { McpTool } from "./mcp";
+import type { McpTool } from "../lib/mcp-server";
 import { MEMORY_TOOL_DEFS } from "./memory-tools";
 import { clean, mdFiles, moveNote } from "./notes";
 import { cancelReview, resumeReviews } from "./review";

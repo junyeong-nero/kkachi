@@ -1,6 +1,10 @@
 {
   "servers": {
-    "devices": { "url": "http://127.0.0.1:${KKACHI_PORT}/mcp/devices" },
+    "devices": {
+      "url": "http://127.0.0.1:4301/mcp",
+      "command": ["bun", "services/devices/server.ts"],
+      "routes": ["/device", "/api/device/", "/mcp/devices"]
+    },
     "memory": { "url": "http://127.0.0.1:${KKACHI_PORT}/mcp/memory" }
   },
   "agents": {

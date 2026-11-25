@@ -9,25 +9,30 @@ import { synthesize, transcribe } from "./speech";
 import { applyThinking, modelChoices, newConversation, runTurn, startConversation } from "./turn";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
-import { allowDevice, deviceByToken, deviceSocket, forgetDevice, listDevices, pageVersion } from "./devices";
-import { talk } from "./port";
+import { talk, warmPort } from "./port";
 import { handleMcp, SERVICES } from "./mcp";
+import { routeFor, startServices } from "./services";
+import { internal, trusted } from "../lib/trust";
+import type { ServerWebSocket } from "bun";
 
 const web = join(import.meta.dir, "web");
 
-// Kkachi runs commands for whoever reaches it, so only its own pages may call it:
-// - Host must be this computer (loopback) or its Tailscale name. Tailscale Serve keeps the Host
-//   header. Blocks DNS rebinding, where an attacker's domain resolves to 127.0.0.1.
-// - A browser's Origin must match Host. Blocks other websites posting to 127.0.0.1:4300.
-//   Clients without Origin (curl, Pi, other agents' MCP) are not browsers and pass.
-function trusted(req: Request): boolean {
-  const host = req.headers.get("host") ?? "";
-  const hostname = host.replace(/:\d+$/, "").toLowerCase();
-  if (!["127.0.0.1", "localhost", "[::1]"].includes(hostname) && !hostname.endsWith(".ts.net")) return false;
-  const origin = req.headers.get("origin");
-  if (!origin) return true;
-  try { return new URL(origin).host === host; } catch { return false; }
-}
+// A service's own socket (the devices page's), forwarded both ways from core's address.
+type Relay = { target: string; up?: WebSocket; queue: (string | Buffer)[] };
+const relay = {
+  open(ws: ServerWebSocket<Relay>) {
+    const up = new WebSocket(ws.data.target);
+    ws.data.up = up;
+    up.onopen = () => { for (const m of ws.data.queue.splice(0)) up.send(m); };
+    up.onmessage = (e) => ws.send(e.data as string);
+    up.onclose = () => ws.close();
+    up.onerror = () => ws.close();
+  },
+  message(ws: ServerWebSocket<Relay>, m: string | Buffer) {
+    if (ws.data.up?.readyState === WebSocket.OPEN) ws.data.up.send(m); else ws.data.queue.push(m);
+  },
+  close(ws: ServerWebSocket<Relay>) { ws.data.up?.close(); },
+};
 
 // Photos attached to a message (the app sends JPEGs it has already scaled down).
 const MAX_IMAGES = 4, MAX_IMAGE_CHARS = 8_000_000; // base64, about 6 MB
@@ -45,28 +50,30 @@ Bun.serve({
   port: config.port,
   hostname: "127.0.0.1", // reach it through Tailscale Serve only
   idleTimeout: 255,
-  websocket: deviceSocket,
+  websocket: relay,
   async fetch(req, server) {
     if (!trusted(req)) return new Response("forbidden", { status: 403 });
-    const { pathname } = new URL(req.url);
+    const { pathname, search } = new URL(req.url);
     try {
+      // A service's own pages and sockets ("routes" in kkachi.mcp.json), e.g. /device. Checked above.
+      const target = routeFor(pathname);
+      if (target) {
+        if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          return server.upgrade(req, { data: { target: target.replace(/^http/, "ws") + search, queue: [] } }) ? undefined : new Response("expected a WebSocket", { status: 400 });
+        }
+        const headers = new Headers(req.headers);
+        headers.delete("host"); headers.delete("origin"); // core has checked them; the service sees a local call
+        const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.arrayBuffer();
+        return await fetch(target + search, { method: req.method, headers, body, redirect: "manual" });
+      }
       const mcp = pathname.match(/^\/mcp\/(\w+)$/);
       if (mcp && SERVICES[mcp[1]]) return await handleMcp(SERVICES[mcp[1]], req);
-      if (pathname === "/api/device/ws") {
-        return server.upgrade(req, { data: {} }) ? undefined : new Response("expected a WebSocket", { status: 400 });
-      }
       if (req.method === "GET") {
         // no-cache: a home-screen web app otherwise keeps serving an old version after updates
         const noCache = { "Cache-Control": "no-cache" };
         if (pathname === "/") return new Response(Bun.file(join(web, "index.html")), { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
         if (pathname === "/manifest.webmanifest") return new Response(Bun.file(join(web, "manifest.webmanifest")), { headers: { ...noCache, "Content-Type": "application/manifest+json" } });
         if (pathname === "/app.js") return new Response(Bun.file(join(web, "app.js")), { headers: { ...noCache, "Content-Type": "text/javascript" } });
-        // A spare phone or tablet joins as a device here (see src/devices.ts)
-        if (pathname === "/device") {
-          const html = (await Bun.file(join(web, "device.html")).text()).replace("__PAGE_VERSION__", pageVersion());
-          return new Response(html, { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
-        }
-        if (pathname === "/api/devices") return Response.json({ devices: listDevices() });
         // Markdown rendering for replies: marked (MIT) and DOMPurify (Apache-2.0/MPL-2.0), vendored unmodified
         if (["/vendor/marked.min.js", "/vendor/purify.min.js"].includes(pathname)) {
           return new Response(Bun.file(join(web, pathname.slice(1))), { headers: { "Content-Type": "text/javascript", "Cache-Control": "max-age=86400" } });
@@ -87,12 +94,17 @@ Bun.serve({
         return Response.json({ settings: next });
       }
 
-      // Hold to talk on a device: its recording in, the reply (text and speech) out. See src/port.ts.
-      if (req.method === "POST" && pathname === "/api/device/talk") {
-        const device = deviceByToken(req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "");
-        if (!device) return new Response("unknown device", { status: 401 });
+      // Ports a service hosts (a device someone holds to talk to): it has checked who it is and calls
+      // with the internal token. Recording in, the reply (text and speech) out. See src/port.ts.
+      if (req.method === "POST" && pathname.startsWith("/api/port/")) {
+        if (!internal(req)) return new Response("forbidden", { status: 403 });
+        const { id, name, audio, mime } = await req.json();
+        if (typeof id !== "string" || typeof name !== "string") return new Response("bad port", { status: 400 });
+        const device = { id, name };
+        if (pathname === "/api/port/warm") { warmPort(id); return Response.json({}); }
+        if (pathname !== "/api/port/talk" || typeof audio !== "string") return new Response("not found", { status: 404 });
         const t0 = performance.now();
-        const raw = await transcribe(await req.blob());
+        const raw = await transcribe(new Blob([Buffer.from(audio, "base64")], { type: typeof mime === "string" ? mime : "audio/wav" }));
         const t1 = performance.now();
         const heard = await polish(raw);
         const t2 = performance.now();
@@ -104,12 +116,6 @@ Bun.serve({
         const ms = (a: number, b: number) => Math.round(b - a);
         log("device_talk", { device: device.name, sttMs: ms(t0, t1), polishMs: ms(t1, t2), turnMs: ms(t2, t3), ttsMs: ms(t3, performance.now()), tts: !!speech });
         return Response.json({ heard, reply, ...(speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type }) });
-      }
-
-      const deviceAction = req.method === "POST" && pathname.match(/^\/api\/devices\/(\w+)\/(allow|forget)$/);
-      if (deviceAction) {
-        const ok = deviceAction[2] === "allow" ? allowDevice(deviceAction[1]) : forgetDevice(deviceAction[1]);
-        return ok ? Response.json({ devices: listDevices() }) : new Response("no such device", { status: 404 });
       }
 
       if (req.method === "POST" && pathname === "/api/new-conversation") {
@@ -183,5 +189,6 @@ Bun.serve({
 });
 
 console.log(`Kkachi listening on http://127.0.0.1:${config.port} (memory: ${config.memoryDir}, models: ${modelOrder().join(", ")})`);
-// After listening: the conversation Pi lists its MCP tools from the servers, which may be this one.
+// After listening: the conversation Pi lists its MCP tools from the services, which must be up.
+await startServices();
 await startConversation();

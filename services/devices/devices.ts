@@ -1,11 +1,11 @@
 // Spare phones and tablets joined to Kkachi as devices. A device opens /device, connects over a
-// WebSocket and does things for the agent: speak, take a photo, measure sound, read its sensors, act
+// WebSocket and does things for agents: speak, take a photo, measure sound, read its sensors, act
 // as a lamp. A new device waits until you allow it in the app's settings; allowed devices are
 // remembered in data/devices.json with a secret token. Photos and readings pass through memory only.
 //
 // Device → server: {type:"hello", name, token?, armed, features, version},
 //   {type:"state", armed, perms, enabled} (permissions granted; the switches on its screen),
-//   {type:"result", id, ok, data?|error?}, {type:"warm"} (talk button went down, see src/port.ts),
+//   {type:"result", id, ok, data?|error?}, {type:"warm"} (talk button went down: core gets ready),
 //   {type:"done"|"failed", id, error?} (pages from before "result")
 // Server → device: {type:"pending"|"ready", name, token}, {type:"forgotten"}, {type:"update"},
 //   requests with an id: {type:"speak", text, audio, mime}, {type:"snapshot", camera},
@@ -14,10 +14,11 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ServerWebSocket, WebSocketHandler } from "bun";
-import { config } from "./config";
-import { log } from "./log";
-import { warmPort } from "./port";
-import { synthesize } from "./speech";
+import { log } from "../../lib/log";
+import type { Content } from "../../lib/mcp-server";
+import { dataDir } from "../../lib/paths";
+import { savedVoice, synthesize } from "../../lib/tts";
+import { core } from "./core";
 
 type Socket = ServerWebSocket<{ id?: string }>;
 type Features = Record<string, boolean>;
@@ -29,7 +30,7 @@ interface Device {
 }
 const bools = (o: unknown): Features => o && typeof o === "object" ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, !!v])) : {};
 
-const file = join(config.dataDir, "devices.json");
+const file = join(dataDir, "devices.json");
 const devices = new Map<string, Device>(); // allowed ones, plus pending ones while they are connected
 for (const d of existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : []) devices.set(d.id, { ...d, allowed: true, armed: false, features: {}, perms: {}, enabled: {} });
 
@@ -42,7 +43,7 @@ const randomId = () => Buffer.from(crypto.getRandomValues(new Uint8Array(24))).t
 const cleanName = (name: unknown) => String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 40) || "이름 없는 기기";
 
 // The page's version: a device sits unattended for days, so it is told when /device has changed.
-const page = join(import.meta.dir, "web", "device.html");
+export const page = join(import.meta.dir, "device.html");
 export const pageVersion = () => createHash("sha1").update(readFileSync(page)).digest("hex").slice(0, 12);
 
 // What Kkachi can do with a device right now: online, allowed there, and switched on.
@@ -124,7 +125,7 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       if (msg.perms) d.perms = bools(msg.perms);
       if (msg.enabled) d.enabled = bools(msg.enabled);
     }
-    if (msg.type === "warm" && d.allowed) warmPort(d.id);
+    if (msg.type === "warm" && d.allowed) core("/api/port/warm", { id: d.id, name: d.name }).catch(() => {});
     if (typeof msg.id === "string") {
       if (msg.type === "result") waiting.get(msg.id)?.({ ok: !!msg.ok, data: msg.data, error: msg.error });
       if (msg.type === "done") waiting.get(msg.id)?.({ ok: true });
@@ -189,12 +190,12 @@ async function ask(target: string, request: Record<string, unknown> & { type: st
 /** Speak text out loud on a device; resolves once the device has played it. */
 export async function speakOn(target: string, text: string): Promise<string> {
   ready(target, "speak", { armed: true }); // before making the speech
-  const { audio, type } = await synthesize(text.slice(0, 1000));
+  const { voice, rate } = savedVoice();
+  const { audio, type } = await synthesize(text.slice(0, 1000), voice, rate);
   const { name } = await ask(target, { type: "speak", text, audio: Buffer.from(audio).toString("base64"), mime: type }, 60_000, { armed: true });
   return `Said it on ${name}.`;
 }
 
-export type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 
 /** One photo from a device's camera, plus how bright it is (0 dark to 100 bright). Not kept. */
 export async function snapshotOn(target: string, camera: unknown): Promise<Content[]> {

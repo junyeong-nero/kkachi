@@ -523,7 +523,7 @@ function renderDevices(devices) {
     if (!d.allowed) btn.classList.add("allow");
     btn.addEventListener("click", async () => {
       if (d.allowed && !confirm(`'${d.name}' 기기를 삭제할까요?`)) return;
-      const r = await fetch(`/api/devices/${d.id}/${d.allowed ? "forget" : "allow"}`, { method: "POST" });
+      const r = await fetch(`/api/device/${d.id}/${d.allowed ? "forget" : "allow"}`, { method: "POST" });
       if (r.ok) renderDevices((await r.json()).devices); else toast("바꾸지 못했어요");
     });
     return row;
@@ -535,7 +535,7 @@ async function openSettings() {
   renderTextSize();
   renderDevicePrefs();
   dlg.showModal();
-  fetch("/api/devices").then((r) => r.json()).then((j) => renderDevices(j.devices)).catch(() => {});
+  fetch("/api/device/list").then((r) => r.json()).then((j) => renderDevices(j.devices)).catch(() => {});
   const r = await fetch("/api/settings");
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
   const { settings: s, voices, thinking, models, fallbacks } = await r.json();

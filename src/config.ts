@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { tts } from "../lib/tts";
 
 const env = process.env;
 const root = resolve(import.meta.dir, "..");
@@ -45,11 +46,5 @@ export const config = {
     apiKey: env.KKACHI_POLISH_API_KEY ?? env.GROQ_API_KEY ?? "",
     model: env.KKACHI_POLISH_MODEL ?? "openai/gpt-oss-120b",
   },
-  tts: {
-    provider: (env.KKACHI_TTS_PROVIDER ?? "edge") as "edge" | "openai",
-    voice: env.KKACHI_TTS_VOICE ?? "ko-KR-SunHiNeural",
-    baseUrl: env.KKACHI_TTS_BASE_URL ?? "https://api.openai.com/v1",
-    apiKey: env.KKACHI_TTS_API_KEY ?? env.OPENAI_API_KEY ?? "",
-    model: env.KKACHI_TTS_MODEL ?? "gpt-4o-mini-tts",
-  },
+  tts, // lib/tts.ts: shared with the devices service
 };

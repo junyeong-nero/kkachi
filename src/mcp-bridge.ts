@@ -1,6 +1,8 @@
 // Core's MCP connections. kkachi.mcp.json lists the MCP servers (Kkachi's own services and any
 // other) and which of their tools each agent gets:
-//   "servers": { "<name>": { "url": "http://…/mcp" } }        ${ENV} in strings is expanded
+//   "servers": { "<name>": { "url": "http://…/mcp",          ${ENV} in strings is expanded
+//                            "command": ["bun", "…"],         optional: core starts it (src/services.ts)
+//                            "routes": ["/device"] } }       optional: paths core forwards to it
 //   "agents":  { "chat": ["devices:*"], "port": ["memory:*", "devices:device_speak"] }
 // Before a Pi starts, its tools are listed from the servers and written to a file that
 // pi/kkachi.ts registers as Pi tools; calls then go straight to the server.
@@ -14,10 +16,15 @@ type ToolDef = { server: string; url: string; name: string; description?: string
 const file = process.env.KKACHI_MCP_CONFIG ?? join(config.root, "kkachi.mcp.json");
 const expand = (s: string) => s.replace(/\$\{(\w+)\}/g, (_, k) => (k === "KKACHI_PORT" ? String(config.port) : process.env[k] ?? ""));
 
-function load(): { servers: Record<string, { url: string }>; agents: Record<string, string[]> } {
+export type Server = { url: string; command?: string[]; routes: string[] };
+export function load(): { servers: Record<string, Server>; agents: Record<string, string[]> } {
   if (!existsSync(file)) return { servers: {}, agents: {} };
   const raw = JSON.parse(readFileSync(file, "utf8"));
-  const servers = Object.fromEntries(Object.entries<any>(raw.servers ?? {}).map(([name, s]) => [name, { url: expand(String(s.url)) }]));
+  const servers = Object.fromEntries(Object.entries<any>(raw.servers ?? {}).map(([name, s]) => [name, {
+    url: expand(String(s.url)),
+    command: Array.isArray(s.command) ? s.command.map((c: unknown) => expand(String(c))) : undefined,
+    routes: Array.isArray(s.routes) ? s.routes.map(String) : [],
+  }]));
   return { servers, agents: raw.agents ?? {} };
 }
 
@@ -28,7 +35,7 @@ const matches = (pattern: string, server: string, tool?: string) => {
   return glob(s, server) && (tool === undefined || glob(t, tool));
 };
 
-async function rpc(url: string, method: string, params: object = {}) {
+export async function rpc(url: string, method: string, params: object = {}) {
   const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: AbortSignal.timeout(10_000) });
   const body: any = await r.json();
   if (body.error) throw new Error(body.error.message);

@@ -1,8 +1,11 @@
-// The device tools, as the devices MCP server lists them (src/mcp.ts). Which agent gets which is
-// set in kkachi.mcp.json.
+// kkachi-devices as an MCP service: the tools and what they do. Which agent gets which is set in
+// core's kkachi.mcp.json.
+import type { McpService, McpTool } from "../../lib/mcp-server";
+import { describeDevices, lightOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
+
 const device = { type: "string", description: "Device name, as in list_devices" };
 
-export const DEVICE_TOOLS = [
+const DEFS = [
   {
     name: "list_devices",
     description: "List the user's Kkachi devices (spare phones or tablets around the home, named like 거실 or 부엌), whether each is online, and what it can do.",
@@ -43,3 +46,20 @@ export const DEVICE_TOOLS = [
     },
   },
 ];
+
+const name = (a: any) => String(a?.device ?? "");
+const looks = { readOnlyHint: true, openWorldHint: true }; // reads the room; changes nothing
+const RUN: Record<string, Pick<McpTool, "run" | "annotations">> = {
+  list_devices: { annotations: { readOnlyHint: true }, run: () => describeDevices() },
+  device_speak: { annotations: { readOnlyHint: false, destructiveHint: false }, run: (a) => speakOn(name(a), String(a?.text ?? "")) },
+  device_snapshot: { annotations: looks, run: (a) => snapshotOn(name(a), a?.camera) },
+  device_sound_level: { annotations: looks, run: (a) => soundLevelOn(name(a), a?.seconds) },
+  device_sensors: { annotations: looks, run: (a) => sensorsOn(name(a)) },
+  device_light: { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true }, run: (a) => lightOn(name(a), a) },
+};
+
+export const service: McpService = {
+  name: "kkachi-devices",
+  instructions: "Spare phones and tablets around the user's home that can speak, take photos, measure sound, read their sensors and act as lamps. Call list_devices to see their names and what each can do now.",
+  tools: DEFS.map((t) => ({ ...t, ...RUN[t.name] })),
+};
