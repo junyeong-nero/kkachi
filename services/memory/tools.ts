@@ -6,8 +6,8 @@
 //   idle review, and what the librarian needs.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path/posix";
-import { log } from "../../lib/log";
-import type { McpService, McpTool } from "../../lib/mcp-server";
+import type { McpService, McpTool } from "./lib/mcp-server";
+import { log } from "./log";
 import { commitAll, commitPaths, draftClose, draftOpen, draftPublish, filesIn, git, type Kind, locked, message, pull, pushIfAhead, stashLeftovers, undoLast } from "./git";
 import { clean, deleteNote, mdFiles, moveNote } from "./notes";
 

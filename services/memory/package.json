@@ -1,0 +1,13 @@
+{
+  "name": "kkachi-memory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Your Markdown notes in a git repo as one MCP service: list, search, read, write, edit, move, delete and undo, each change one commit.",
+  "type": "module",
+  "scripts": {
+    "start": "bun server.ts"
+  },
+  "engines": {
+    "bun": ">=1.2"
+  }
+}

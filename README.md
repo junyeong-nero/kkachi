@@ -52,12 +52,12 @@ Phone app, spare phones, other agents
        ├─ speech-to-text → (optional) transcript cleanup → Pi (RPC) → replies read on each device
        ├─ kkachi.mcp.json: which MCP servers, which tools each agent gets
        ├─ kkachi-devices (services/devices/, :4301): spare phones' inputs and outputs; runs on its own too
-       └─ kkachi-memory  (services/memory/, :4302): the notes and their git history
+       └─ kkachi-memory  (services/memory/, :4302): the notes and their git history; runs on its own too
 ```
 
 ![How Kkachi fits together](docs/architecture-simple.svg)
 
-Core starts the two services, restarts them if they stop, and forwards their pages from its own address. The devices service also runs by itself as an MCP server for any agent ([services/devices/README.md](services/devices/README.md)). Any other MCP server can be added in `kkachi.mcp.json`. A more detailed diagram is in [docs/architecture.svg](docs/architecture.svg).
+Core starts the two services, restarts them if they stop, and forwards their pages from its own address. Both services also run by themselves as MCP servers for any agent ([services/devices/README.md](services/devices/README.md), [services/memory/README.md](services/memory/README.md)). Any other MCP server can be added in `kkachi.mcp.json`. A more detailed diagram is in [docs/architecture.svg](docs/architecture.svg).
 
 ## What it does
 
