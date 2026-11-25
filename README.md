@@ -27,7 +27,7 @@ Kkachi runs on a computer that stays on (macOS, Windows, or Linux), and you use 
    - [Pi](https://pi.dev). Run `pi` once and sign in to a model provider with `/login`
    - [Tailscale](https://tailscale.com/download), on the computer **and** the phone, signed in to the same account
    - Nothing to hear replies: by default each phone and spare device reads them in its own built-in voice. Optional, for Microsoft's neural voices instead (made online): [uv](https://docs.astral.sh/uv/), then `uv tool install edge-tts`, and pick one of them in Settings
-   - Optional, to dictate: a free [Groq API key](https://console.groq.com/keys) (speech-to-text and transcript cleanup). Speech-to-text can also run on your computer with whisper.cpp, at about ten seconds a sentence on a laptop CPU ([docs/design.md](docs/design.md), Korean)
+   - Optional, to dictate: a free [Groq API key](https://console.groq.com/keys) for speech-to-text. Cleaning up transcripts with an LLM (English terms, noise) is off unless you set `KKACHI_POLISH_MODEL`, for example `openai/gpt-oss-120b` on the same key. Speech-to-text can also run on your computer with whisper.cpp, at about ten seconds a sentence on a laptop CPU ([docs/design.md](docs/design.md), Korean)
 2. Set it up:
    ```sh
    git clone https://github.com/junyeong-nero/kkachi.git
@@ -49,7 +49,7 @@ All settings are environment variables in `.env.local` (see `src/config.ts`), fo
 Phone app, spare phones, other agents
   → Tailscale Serve (HTTPS, tailnet only)
   → kkachi-core (src/, :4300): the agent loop and MCP orchestration
-       ├─ speech-to-text → transcript cleanup → Pi (RPC) → text-to-speech
+       ├─ speech-to-text → (optional) transcript cleanup → Pi (RPC) → replies read on each device
        ├─ kkachi.mcp.json: which MCP servers, which tools each agent gets
        ├─ kkachi-devices (services/devices/, :4301): spare phones' inputs and outputs
        └─ kkachi-memory  (services/memory/, :4302): the notes and their git history

@@ -40,11 +40,13 @@ export const config = {
     model: env.KKACHI_STT_MODEL ?? "whisper-large-v3", // not turbo: it reports no_speech_prob, which filters noise
     language: env.KKACHI_STT_LANGUAGE ?? "ko",
   },
-  // Transcript cleanup before the agent (OpenAI-compatible chat API). KKACHI_POLISH_MODEL= disables it.
+  // Transcript cleanup before the agent (OpenAI-compatible chat API). Off unless KKACHI_POLISH_MODEL
+  // is set (e.g. openai/gpt-oss-120b on Groq): it is one more outside call per dictation
+  // (docs/philosophy.md). Off, filler sounds are still dropped and the transcript goes as heard.
   polish: {
     baseUrl: env.KKACHI_POLISH_BASE_URL ?? "https://api.groq.com/openai/v1",
     apiKey: env.KKACHI_POLISH_API_KEY ?? env.GROQ_API_KEY ?? "",
-    model: env.KKACHI_POLISH_MODEL ?? "openai/gpt-oss-120b",
+    model: env.KKACHI_POLISH_MODEL ?? "",
   },
   tts, // lib/tts.ts: shared with the devices service
 };
