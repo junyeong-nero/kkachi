@@ -250,7 +250,18 @@ async function runTurn(my, view, body, t0) {
 
 // ---- transcript ----
 const MAX_TURNS = 30;
-function scrollDown() { const log = $("log"); log.scrollTop = log.scrollHeight; }
+// Follow new content only while the reader is at the bottom: someone scrolling up to read an earlier
+// reply is not pulled back down by every streamed word. Sending a message always goes to the bottom.
+let pinned = true;
+function scrollDown(force = false) {
+  const log = $("log");
+  if (force) pinned = true;
+  if (pinned) log.scrollTop = log.scrollHeight;
+}
+$("log").addEventListener("scroll", () => {
+  const log = $("log");
+  pinned = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+}, { passive: true });
 
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html) n.innerHTML = html; return n; };
 const DOTS = '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
@@ -302,7 +313,7 @@ function addTurn(text, images = [], from = null, fromKkachi = false) {
   const log = $("log");
   log.append(turn);
   while (log.querySelectorAll(".turn").length > MAX_TURNS) log.querySelector(".turn").remove();
-  scrollDown();
+  scrollDown(!from); // your own message: always; a device conversation arriving: only if at the bottom
   let raw = "", frame = 0;
   const render = () => { cancelAnimationFrame(frame); frame = 0; renderMarkdown(block, raw.trimStart()); scrollDown(); };
   return {
@@ -730,7 +741,11 @@ if (vv) {
   const root = document.documentElement.style;
   const fit = () => {
     root.setProperty("--vv-height", `${vv.height}px`);
-    root.setProperty("--vv-top", `${vv.offsetTop}px`);
+    // Follow the pan only while the keyboard is up. Pulling past the end of the conversation makes iOS
+    // bounce the page, which also moves offsetTop (below zero at the top): following that slid the app
+    // the opposite way to the finger.
+    const keyboard = vv.height < window.innerHeight - 80;
+    root.setProperty("--vv-top", `${keyboard ? Math.max(0, vv.offsetTop) : 0}px`);
   };
   vv.addEventListener("resize", () => { fit(); scrollDown(); }); // keyboard in or out: keep the latest message in view
   vv.addEventListener("scroll", fit);

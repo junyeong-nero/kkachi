@@ -24,50 +24,66 @@
     --accent: oklch(0.76 0.095 190); --accent-soft: oklch(0.3 0.045 192); --accent-ring: oklch(0.76 0.095 190 / .4);
     --accent-ink: oklch(0.2 0.03 192); /* icons on the light teal */
     --dim: oklch(0.1 0.005 250); /* the lamp's dimmer layer */
+    --scrim: oklch(0.1 0.005 250 / .6); /* behind the settings sheet */
+    --lamp-warm: oklch(0.9 0.07 70); --lamp-white: oklch(0.97 0.01 90); --lamp-night: oklch(0.55 0.13 40); /* lamp presets */
     --danger: oklch(0.74 0.13 40);
     --font: "SUIT Variable", "Apple SD Gothic Neo", sans-serif;
     --r-md: 14px; --r-pill: 999px; --ease-out: cubic-bezier(.22, 1, .36, 1);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow-x: clip; }
+  html, body { margin: 0; min-height: 100%; overflow-x: clip; overscroll-behavior: none; }
   body {
     background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased;
-    display: grid; place-items: center; padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+    display: flex; flex-direction: column; min-height: 100dvh;
+    padding: calc(12px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
     -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+    word-break: keep-all; overflow-wrap: anywhere;
   }
-  main { width: 100%; max-width: 520px; text-align: center; }
-  .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 16px; font-weight: 600; }
-  .brand img { width: 24px; height: 24px; border-radius: 7px; }
-  h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; margin: 16px 0 8px; line-height: 1.2; overflow-wrap: anywhere; text-wrap: balance; }
-  #status { font-size: 17px; color: var(--muted); margin: 0; line-height: 1.5; }
+  /* the main screen is for using the device: talking to Kkachi, and the lamp. Switches live in settings */
+  .top { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 560px; margin: 0 auto; min-height: 44px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+  .brand img { width: 28px; height: 28px; border-radius: 8px; flex: none; }
+  #name { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .icon-btn {
+    width: 44px; height: 44px; padding: 0; margin: 0; display: grid; place-items: center; flex: none;
+    border: 0; border-radius: var(--r-pill); background: transparent; color: var(--muted);
+    transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out);
+  }
+  .icon-btn svg { width: 22px; height: 22px; }
+  @media (hover: hover) { .icon-btn:hover { background: var(--surface); color: var(--text); } }
+  .icon-btn:active { background: var(--line); color: var(--text); }
+  main { flex: 1; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px; margin: 0 auto; text-align: center; }
+  #status { font-size: 16px; color: var(--muted); margin: 8px 0 0; line-height: 1.5; }
   #status.ok { color: var(--text); }
   #status.err { color: var(--danger); }
   #said { font-size: 26px; line-height: 1.45; margin: 40px 0 0; min-height: 1.45em; word-break: keep-all; overflow-wrap: anywhere; color: var(--muted); }
   #said.speaking { color: var(--text); } /* the words being spoken now; earlier ones fade */
-  form, #start { margin-top: 32px; }
+  form, #start { margin-top: 32px; width: 100%; }
   input {
     width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: var(--r-md); text-align: center;
     border: 1px solid var(--line); background: var(--surface); color: var(--text); outline: none;
   }
   input:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 1px; }
-  button {
-    font: inherit; font-size: 18px; font-weight: 700; padding: 16px 28px; border-radius: var(--r-pill); border: 0;
-    background: var(--text); color: var(--bg); cursor: pointer; margin-top: 12px;
+  button { font: inherit; cursor: pointer; }
+  .btn {
+    font-size: 18px; font-weight: 700; padding: 16px 28px; border-radius: var(--r-pill); border: 0;
+    background: var(--text); color: var(--bg); margin-top: 12px;
   }
   button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
-  button:active:not(:disabled) { transform: translateY(1px); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
   .note { font-size: 14px; color: var(--muted); margin: 16px 0 0; line-height: 1.5; }
   [hidden] { display: none !important; }
 
-  /* hold to talk: a big round button; teal only while it is listening (DESIGN.md) */
-  #talk-area { margin-top: 32px; }
+  /* hold to talk: a big round button in the middle of the screen; teal only while it is listening (DESIGN.md) */
+  #talk-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; padding: 24px 0; }
   #talk {
-    width: 112px; height: 112px; padding: 0; margin: 0; border-radius: var(--r-pill); display: inline-grid; place-items: center;
+    width: 136px; height: 136px; padding: 0; margin: 0; border-radius: var(--r-pill); display: inline-grid; place-items: center;
     background: var(--surface); color: var(--text); border: 1px solid var(--line);
     touch-action: none; -webkit-touch-callout: none; position: relative;
     transition: background-color 120ms var(--ease-out); /* never box-shadow: the focus ring must not fade in */
   }
-  #talk svg { width: 40px; height: 40px; }
+  #talk svg { width: 44px; height: 44px; }
+  #talk:active { background: var(--line); }
   /* the voice-level halo: a disc behind the button, scaled with transform (4 to 18px around it) */
   #talk::before {
     content: ""; position: absolute; inset: -5px; border-radius: inherit; background: var(--accent-soft);
@@ -76,13 +92,59 @@
   #talk.recording { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
   #talk.recording::before { opacity: 1; }
   #talk:disabled { color: var(--muted); cursor: progress; } /* waiting for Kkachi's answer */
-  #heard { font-size: 17px; color: var(--muted); margin: 32px 0 0; min-height: 1.5em; line-height: 1.5; overflow-wrap: anywhere; }
-  #heard + #said { margin-top: 8px; }
+  #talk-hint { margin-top: 20px; }
+  #heard { font-size: 17px; color: var(--muted); margin: 24px 0 0; min-height: 1.5em; line-height: 1.5; overflow-wrap: anywhere; }
+  #said { margin-top: 8px; }
+  #talk-off { flex: 1; display: grid; place-items: center; }
   @media (prefers-reduced-motion: reduce) { #talk::before { transform: scale(1.03); transition: none; } }
 
-  /* what this device does for Kkachi, each with its state; what is in use right now stands out */
+  /* the input environment at a glance: which senses are on, and which one Kkachi is using now.
+     Anyone in the room can see it; a tap opens the switches */
+  #senses {
+    display: inline-flex; gap: 4px; padding: 4px; margin: 0; border: 0; border-radius: var(--r-pill);
+    background: var(--surface); color: var(--text);
+  }
+  @media (hover: hover) { #senses:hover { background: var(--line); } }
+  #senses:active { background: var(--line); }
+  .sense { width: 40px; height: 36px; display: grid; place-items: center; border-radius: var(--r-pill); transition: background-color 120ms var(--ease-out); }
+  .sense svg { width: 20px; height: 20px; }
+  .sense.off { color: var(--muted); opacity: .4; }
+  .sense.busy { background: var(--line); }
+  .sense.listening { background: var(--accent-soft); color: var(--accent); } /* teal: listening */
+  #activity { font-size: 14px; color: var(--muted); margin: 10px 0 0; min-height: 1.5em; }
+
+  /* the lamp: a preset fills the screen; a tap on the lit screen turns it off */
+  #lamp-ctl { width: 100%; margin-top: 24px; padding: 16px; border-radius: var(--r-md); background: var(--surface); text-align: left; }
+  #lamp-ctl h2 { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
+  .swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .swatch {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 76px; padding: 12px 8px; margin: 0;
+    border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); color: var(--text); font-size: 15px; font-weight: 600;
+    transition: background-color 120ms var(--ease-out), border-color 120ms var(--ease-out);
+  }
+  .swatch i { width: 24px; height: 24px; border-radius: 50%; flex: none; }
+  @media (hover: hover) { .swatch:hover { border-color: var(--muted); } }
+  .swatch:active { background: var(--line); }
+  .swatch[aria-pressed=true] { border-color: var(--text); }
+  .bright { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 14px; color: var(--muted); }
+  .bright input { flex: 1; accent-color: var(--text); }
+  #lamp-ctl .note { margin-top: 8px; }
+
+  /* settings: a sheet with the switch cards, one per output and input */
+  dialog#settings {
+    margin: auto auto 0; width: 100%; max-width: 560px; max-height: 88dvh; padding: 0; border: 0; overflow: auto;
+    border-radius: var(--r-md) var(--r-md) 0 0; background: var(--bg); color: var(--text);
+  }
+  dialog#settings::backdrop { background: var(--scrim); }
+  .sheet { padding: 12px 20px calc(24px + env(safe-area-inset-bottom)); }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+  .sheet-head h2 { font-size: 19px; font-weight: 700; margin: 0; }
+  .text-btn { border: 0; background: transparent; color: var(--text); font-size: 16px; font-weight: 700; padding: 10px 8px; margin: 0; border-radius: 8px; }
+  .text-btn:active { background: var(--surface); }
+  .sheet .note { text-align: left; }
+
   /* inputs and outputs: one switch card each, in two sections */
-  #caps { margin-top: 28px; display: grid; gap: 16px; text-align: left; }
+  #caps { margin-top: 12px; display: grid; gap: 16px; text-align: left; }
   #caps h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px; text-wrap: balance; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .cap {
@@ -106,45 +168,66 @@
   .cap.listening { background: var(--accent-soft); } /* teal: listening, as on the talk button */
   .cap.listening svg, .cap.listening .s { color: var(--accent); }
   @media (prefers-reduced-motion: reduce) { .cap .sw::after { transition: none; } }
-  #activity { font-size: 14px; color: var(--muted); margin: 14px 0 0; min-height: 1.5em; }
 
-  /* lamp: the whole screen in one color (device_light); a tap turns it off */
+  /* lamp: the whole screen in one color (device_light, or a preset here); a tap turns it off */
   #lamp { position: fixed; inset: 0; z-index: 10; }
   #lamp-dim { position: absolute; inset: 0; background: var(--dim); }
-  #update { margin-top: 24px; }
+  #update { margin-top: 16px; }
   #cam { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; } /* iOS needs the video in the page */
 </style>
 </head>
 <body>
+<header class="top">
+  <div class="brand"><img src="/favicon.png" alt="까치" /><span id="name">새 기기</span></div>
+  <button type="button" class="icon-btn" id="open-settings" aria-label="설정" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+  </button>
+</header>
 <main>
-  <div class="brand"><img src="/favicon.png" alt="" />까치 기기</div>
-  <h1 id="name">새 기기</h1>
   <p id="status" role="status"></p>
-  <section id="caps" hidden aria-label="이 기기로 할 수 있는 것">
-    <div><h2>출력 (까치가 이 기기로)</h2><div class="grid" id="caps-in"></div></div>
-    <div><h2>입력 (이 기기가 까치에게)</h2><div class="grid" id="caps-out"></div></div>
-  </section>
-  <p id="activity" aria-live="polite"></p>
+  <button type="button" class="btn" id="update" hidden>새 버전이 있어요. 눌러서 새로고침</button>
 
   <form id="setup" hidden>
     <input id="name-input" maxlength="40" placeholder="이 기기 이름 (예: 거실)" aria-label="이 기기 이름" required />
-    <button type="submit">시작</button>
+    <button type="submit" class="btn">시작</button>
   </form>
   <div id="start" hidden>
-    <button type="button" id="start-btn">탭해서 시작</button>
-    <p class="note">소리를 내려면 화면을 한 번 눌러야 해요.</p>
+    <button type="button" class="btn" id="start-btn">탭해서 시작</button>
+    <p class="note">소리와 마이크를 쓰려면 화면을 한 번 눌러야 해요.</p>
   </div>
-  <div id="talk-area" hidden>
+
+  <section id="talk-area" hidden aria-label="까치에게 말 걸기">
     <button type="button" id="talk" aria-label="누르고 있는 동안 말하고, 떼면 까치에게 보내요">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
     </button>
     <p class="note" id="talk-hint">누른 채로 말하고, 떼면 보내요</p>
-  </div>
-  <p id="heard"></p>
-  <p id="said" aria-live="polite"></p>
+    <p id="heard"></p>
+    <p id="said" aria-live="polite"></p>
+  </section>
+  <p class="note" id="talk-off" hidden>말 걸기가 꺼져 있어요. 설정에서 켤 수 있어요.</p>
+
+  <button type="button" id="senses" hidden></button>
+  <p id="activity" aria-live="polite"></p>
+
+  <section id="lamp-ctl" hidden aria-labelledby="lamp-title">
+    <h2 id="lamp-title">조명</h2>
+    <div class="swatches" id="swatches"></div>
+    <label class="bright">밝기 <input type="range" id="bright" min="10" max="100" step="5" aria-label="밝기" /></label>
+    <p class="note">켜진 화면을 누르면 꺼져요. 기기 화면 밝기보다 밝아지지는 않아요.</p>
+  </section>
   <p class="note" id="lock-note" hidden>이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.</p>
-  <button type="button" id="update" hidden>새 버전이 있어요. 눌러서 새로고침</button>
 </main>
+
+<dialog id="settings" aria-labelledby="settings-title">
+  <form class="sheet" method="dialog">
+    <div class="sheet-head"><h2 id="settings-title">설정</h2><button class="text-btn" value="close">완료</button></div>
+    <section id="caps" aria-label="이 기기로 할 수 있는 것">
+      <div><h2>출력 (까치가 이 기기로)</h2><div class="grid" id="caps-in"></div></div>
+      <div><h2>입력 (이 기기가 까치에게)</h2><div class="grid" id="caps-out"></div></div>
+    </section>
+    <p class="note">꺼 둔 것은 이 기기가 거절하고, 까치에게 물으면 꺼 두었다고 답해요. 조명 스위치는 까치가 켜는 것만 막고, 이 화면의 조명은 그대로 쓸 수 있어요.</p>
+  </form>
+</dialog>
 <div id="lamp" hidden><div id="lamp-dim"></div></div>
 <video id="cam" playsinline muted></video>
 <script>
@@ -165,7 +248,12 @@ const features = () => ({
 function status(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
 const armed = () => audio?.state === "running";
 function showReady() {
-  $("talk-area").hidden = !(allowed && armed() && isOn("talk"));
+  const ready = allowed && armed();
+  $("talk-area").hidden = !(ready && isOn("talk"));
+  $("talk-off").hidden = !(ready && !isOn("talk"));
+  $("open-settings").hidden = !allowed;
+  $("senses").hidden = !allowed;
+  $("lamp-ctl").hidden = !joined; // the lamp works on its own, before Kkachi allows the device too
   if (allowed) status(armed() ? "연결됨" : "연결됨. 화면을 한 번 눌러 주세요", "ok");
   renderCaps();
 }
@@ -175,7 +263,7 @@ function showReady() {
 const f0 = features();
 const perm = { mic: f0.microphone ? "tap" : "none", camera: f0.camera ? "tap" : "none", motion: f0.motion ? "tap" : "none", location: f0.geolocation ? "tap" : "none" };
 const inUse = new Map(); // cap -> what it is doing now
-let lampOn = false;
+let lampOn = false, lampKey = null;
 const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const CAPS = [
   { key: "speak", to: "in", name: "말하기", icon: '<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/>', state: () => armed() ? "ok" : "tap" },
@@ -194,7 +282,7 @@ const isOn = (key) => enabled[key] !== false;
 function toggle(key) {
   enabled[key] = !isOn(key);
   store.set("enabled", JSON.stringify(enabled));
-  if (key === "light" && !isOn("light")) { $("lamp").hidden = true; lampOn = false; }
+  if (key === "light" && !isOn("light") && lampOn && !lampKey) lamp(false); // Kkachi lit it; a preset lit here stays
   showReady(); // the talk button follows "말 걸기"
   sendState();
 }
@@ -221,7 +309,63 @@ function renderCaps() {
     b.classList.toggle("listening", listening);
     b.querySelector(".s").textContent = doing ?? (!usable ? STATE[st] : !on ? "꺼 둠" : st === "ok" && c.ok ? c.ok() : STATE[st]);
   }
+  renderSenses();
 }
+
+// The input environment at a glance on the main screen: an icon per input, dim when off, marked
+// while Kkachi uses it (teal while listening). A tap opens the switches.
+const SENSES = ["talk", "camera", "sound", "sensors", "location"];
+function renderSenses() {
+  const strip = $("senses");
+  if (!strip.childElementCount) {
+    for (const key of SENSES) {
+      const s = document.createElement("span");
+      s.dataset.key = key;
+      s.innerHTML = icon(CAPS.find((c) => c.key === key).icon);
+      strip.append(s);
+    }
+  }
+  const words = [];
+  for (const s of strip.children) {
+    const c = CAPS.find((x) => x.key === s.dataset.key), st = c.state(), doing = inUse.get(c.key);
+    const usable = st !== "none" && st !== "denied", on = usable && isOn(c.key);
+    const listening = !!doing && (c.key === "sound" || doing === "듣는 중");
+    s.className = "sense" + (on ? "" : " off") + (doing ? (listening ? " listening" : " busy") : "");
+    words.push(`${c.name} ${doing ?? (on ? "켜짐" : usable ? "꺼 둠" : STATE[st])}`);
+  }
+  strip.setAttribute("aria-label", `입력 상태: ${words.join(", ")}. 눌러서 설정 열기`);
+}
+
+// ---- the lamp: presets lit from this screen, or Kkachi's device_light ----
+const LAMPS = [
+  { key: "warm", name: "따뜻하게", color: "var(--lamp-warm)" },
+  { key: "white", name: "하얗게", color: "var(--lamp-white)" },
+  { key: "night", name: "은은하게", color: "var(--lamp-night)" },
+];
+// lampKey: the preset lit from this screen; null when off or lit by Kkachi
+function lamp(on, color, brightness, key = null) {
+  lampOn = on; lampKey = on ? key : null;
+  $("lamp").hidden = !on;
+  if (on) {
+    $("lamp").style.background = color;
+    $("lamp-dim").style.opacity = String(1 - Math.max(0, Math.min(100, brightness)) / 100);
+  }
+  for (const b of $("swatches").children) b.setAttribute("aria-pressed", String(b.dataset.key === lampKey));
+  renderCaps();
+}
+$("bright").value = store.get("bright") || "80";
+$("bright").addEventListener("input", () => store.set("bright", $("bright").value));
+for (const l of LAMPS) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "swatch"; b.dataset.key = l.key; b.setAttribute("aria-pressed", "false");
+  b.innerHTML = `<i style="background: ${l.color}" aria-hidden="true"></i>`;
+  b.append(l.name);
+  b.addEventListener("click", () => lamp(true, l.color, Number($("bright").value), l.key));
+  $("swatches").append(b);
+}
+const openSettings = () => { if (!$("settings").open) $("settings").showModal(); };
+$("open-settings").addEventListener("click", openSettings);
+$("senses").addEventListener("click", openSettings);
 const setBusy = (key, label) => { if (label) inUse.set(key, label); else inUse.delete(key); renderCaps(); };
 // The last thing Kkachi did through this device, with the time: nobody nearby is left guessing.
 function activity(text) {
@@ -383,14 +527,9 @@ const REQUESTS = {
     return out;
   },
 
-  light(m) {
-    lampOn = !!m.on;
-    $("lamp").hidden = !m.on;
-    $("lamp").style.background = m.color;
-    $("lamp-dim").style.opacity = String(1 - Math.max(0, Math.min(100, m.brightness)) / 100);
-  },
+  light(m) { lamp(!!m.on, m.color, m.brightness); },
 };
-$("lamp").addEventListener("click", () => { $("lamp").hidden = true; lampOn = false; renderCaps(); });
+$("lamp").addEventListener("click", () => lamp(false));
 $("update").addEventListener("click", () => location.reload());
 
 // ---- sensors: motion and orientation (iOS asks once, inside a tap), location ----
@@ -573,6 +712,7 @@ function join() {
   joined = true;
   $("name").textContent = store.get("name");
   $("setup").hidden = true; $("start").hidden = false;
+  showReady();
   status("연결하는 중…");
   connect();
 }
