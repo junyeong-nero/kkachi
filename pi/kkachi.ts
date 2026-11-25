@@ -3,6 +3,7 @@
 // watches tool_execution_start events for them. Everything else (notes, devices) comes from the MCP
 // services core lists for this agent.
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { mcpPost } from "../lib/mcp-client";
@@ -68,6 +69,31 @@ export default function (pi: ExtensionAPI) {
       async execute(_id, params) { return { content: await callMcp(tool.server, tool.url, tool.name, params, tool.meta), details: {} }; },
     });
   }
+
+  // The user's own MCP servers (pi-mcp-adapter, which also brings in Claude Code's, Codex's, ...;
+  // or Pi's built-in MCP) are for the phone app. Anyone in the room can talk to a spare device, so a
+  // turn from one (a "[기기: …]" header) runs without them unless Settings → 공기계 대화 → 내 MCP
+  // says 공기계도 (docs/philosophy.md, 3). Kkachi's own tools, registered above, stay.
+  const userMcp = (t: any) => /pi-mcp-adapter/.test(`${t.sourceInfo?.source} ${t.sourceInfo?.path}`) || t.sourceInfo?.path === "builtin:mcp";
+  let setAside: string[] = [];
+  pi.on("before_agent_start", (event: any) => {
+    if (event.messageType !== "user") return;
+    const fromDevice = /\[기기: [^\]]+\]/.test(String(event.prompt ?? "").split("\n", 1)[0]);
+    const active = pi.getActiveTools();
+    if (fromDevice && deviceMcp() !== "all") {
+      const mcp = new Set(pi.getAllTools().filter(userMcp).map((t: any) => t.name));
+      const off = active.filter((n) => mcp.has(n));
+      if (off.length) { setAside = [...new Set([...setAside, ...off])]; pi.setActiveTools(active.filter((n) => !mcp.has(n))); }
+    } else if (setAside.length) {
+      pi.setActiveTools([...new Set([...active, ...setAside])]);
+      setAside = [];
+    }
+  });
+}
+
+// Read at each turn, so a change in Settings applies without restarting Pi.
+function deviceMcp(): string {
+  try { return JSON.parse(readFileSync(join(process.env.KKACHI_DATA_DIR ?? "", "settings.json"), "utf8")).deviceMcp ?? "phone"; } catch { return "phone"; }
 }
 
 // Text and images (a device photo) pass through; an error comes back as text starting with "Error:".

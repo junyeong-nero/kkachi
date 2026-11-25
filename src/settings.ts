@@ -15,6 +15,7 @@ export interface Settings {
   deviceReply: "source" | "phone" | "both";  // where the answer to a device goes
   devicePrivacy: "open" | "guarded" | "phone"; // private details: say them, keep them unsaid, or send them to the phone
   deviceTools: "full" | "limited";            // device sessions: the phone app's tools, or notes, speaking and the lamp
+  deviceMcp: "phone" | "all";                 // the user's own MCP servers (pi-mcp-adapter): phone app only, or devices too
   deviceIdleMin: number;                       // device sessions start over after this many quiet minutes (0: never)
 }
 
@@ -30,6 +31,7 @@ const defaults: Settings = {
   deviceReply: "source",
   devicePrivacy: "open",
   deviceTools: "full",
+  deviceMcp: "phone", // imported MCP servers can reach far (mail, repos, a browser); a device is open to the room
   deviceIdleMin: 10,
 };
 
@@ -76,6 +78,7 @@ export const DEVICE_OPTIONS: Record<string, { id: string | number; name: string 
   deviceReply: [{ id: "source", name: "들은 기기" }, { id: "phone", name: "폰" }, { id: "both", name: "둘 다" }],
   devicePrivacy: [{ id: "open", name: "그대로" }, { id: "guarded", name: "말하지 않기" }, { id: "phone", name: "폰으로" }],
   deviceTools: [{ id: "full", name: "전체" }, { id: "limited", name: "제한" }],
+  deviceMcp: [{ id: "phone", name: "폰 앱만" }, { id: "all", name: "공기계도" }],
   deviceIdleMin: [{ id: 5, name: "5분" }, { id: 10, name: "10분" }, { id: 30, name: "30분" }, { id: 0, name: "끄기" }],
 };
 

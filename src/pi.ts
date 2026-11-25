@@ -61,7 +61,7 @@ export class Pi {
     if (this.stopped) throw new Error("pi was stopped before it started");
     this.proc = Bun.spawn(args, {
       cwd: dir,
-      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}`, ...(mcp ? { KKACHI_MCP_TOOLS: mcp.file } : {}) },
+      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_DATA_DIR: config.dataDir, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}`, ...(mcp ? { KKACHI_MCP_TOOLS: mcp.file } : {}) },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });
     this.proc.exited.then((code) => this.exit(code));

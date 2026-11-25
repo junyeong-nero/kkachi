@@ -569,8 +569,8 @@ function renderDevices(devices) {
 
 // What is said to a spare device (docs/bus.md): one segmented control per option.
 const DEVICE_TALK_NOTE = {
-  all: "공기계에서 한 말이 이 대화에 이어지고, 여기와 같은 도구를 써요.",
-  own: "도구가 전체면 공기계에 말하는 누구나 명령을 실행시킬 수 있어요. 제한이면 노트, 말하기, 조명만 써요.",
+  all: "공기계에서 한 말이 이 대화에 이어지고, 여기와 같은 도구를 써요. 내 MCP(Claude Code 등에서 가져온 서버)는 공기계도일 때만 써요.",
+  own: "도구가 전체면 공기계에 말하는 누구나 명령을 실행시킬 수 있어요. 내 MCP 는 공기계도일 때만 써요. 제한이면 노트, 말하기, 조명만 써요.",
 };
 function renderDeviceTalk(options, s) {
   for (const [key, choices] of Object.entries(options)) {
