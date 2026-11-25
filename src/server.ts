@@ -10,7 +10,6 @@ import { applyThinking, modelChoices, newConversation, runTurn, startConversatio
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
 import { talk, warmPort } from "./port";
-import { handleMcp, SERVICES } from "./mcp";
 import { routeFor, startServices } from "./services";
 import { internal, trusted } from "../lib/trust";
 import type { ServerWebSocket } from "bun";
@@ -66,8 +65,6 @@ Bun.serve({
         const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.arrayBuffer();
         return await fetch(target + search, { method: req.method, headers, body, redirect: "manual" });
       }
-      const mcp = pathname.match(/^\/mcp\/(\w+)$/);
-      if (mcp && SERVICES[mcp[1]]) return await handleMcp(SERVICES[mcp[1]], req);
       if (req.method === "GET") {
         // no-cache: a home-screen web app otherwise keeps serving an old version after updates
         const noCache = { "Cache-Control": "no-cache" };

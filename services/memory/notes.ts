@@ -1,4 +1,5 @@
-// Structural note operations for the agents (pi/kkachi.ts, src/memory-mcp.ts): move and delete, with link repair.
+// Structural note operations (memory_move, memory_delete): move and delete, with link repair. Each
+// returns what to tell the agent and the paths it touched (to commit only those).
 // Paths are repo-relative. Everything is a git operation, so any change can be reverted.
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname, join, normalize, relative } from "node:path/posix"; // git paths use "/", also on Windows
@@ -54,7 +55,8 @@ export async function moveNote(dir: string, fromArg: string, toArg: string) {
   mkdirSync(dirname(join(dir, to)), { recursive: true });
   await git(dir, "mv", from, to);
   const touched = await repairLinks(dir, moved);
-  return `Moved ${from} -> ${to}.` + (touched.length ? ` Fixed links in: ${touched.join(", ")}.` : "");
+  const text = `Moved ${from} -> ${to}.` + (touched.length ? ` Fixed links in: ${touched.join(", ")}.` : "");
+  return { text, paths: [from, to, ...touched] };
 }
 
 export async function deleteNote(dir: string, pathArg: string) {
@@ -70,5 +72,6 @@ export async function deleteNote(dir: string, pathArg: string) {
       if (normalize(join(dirname(f), link)) === path) { linking.push(f); break; }
     }
   }
-  return `Deleted ${path}.` + (linking.length ? ` These notes still link to it; fix them: ${linking.join(", ")}.` : "");
+  const text = `Deleted ${path}.` + (linking.length ? ` These notes still link to it; fix them: ${linking.join(", ")}.` : "");
+  return { text, paths: [path] };
 }

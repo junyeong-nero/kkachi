@@ -3,21 +3,25 @@
 //   "servers": { "<name>": { "url": "http://…/mcp",          ${ENV} in strings is expanded
 //                            "command": ["bun", "…"],         optional: core starts it (src/services.ts)
 //                            "routes": ["/device"] } }       optional: paths core forwards to it
-//   "agents":  { "chat": ["devices:*"], "port": ["memory:*", "devices:device_speak"] }
+//   "agents":  { "chat": { "tools": ["devices:*"], "meta": { "commit": "later" } },
+//                "port": ["memory:*", "devices:device_speak"] }   a list is just the tools
+//   meta goes with every call the agent makes (params._meta), e.g. telling the memory service that
+//   core commits that agent's changes at the end of its turn.
 // Before a Pi starts, its tools are listed from the servers and written to a file that
 // pi/kkachi.ts registers as Pi tools; calls then go straight to the server.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
 
-export type Agent = "chat" | "port";
-type ToolDef = { server: string; url: string; name: string; description?: string; inputSchema: object };
+export type Agent = "chat" | "port" | "librarian";
+type ToolDef = { server: string; url: string; name: string; description?: string; inputSchema: object; meta: object };
+type AgentConfig = { tools: string[]; meta: object };
 
 const file = process.env.KKACHI_MCP_CONFIG ?? join(config.root, "kkachi.mcp.json");
 const expand = (s: string) => s.replace(/\$\{(\w+)\}/g, (_, k) => (k === "KKACHI_PORT" ? String(config.port) : process.env[k] ?? ""));
 
 export type Server = { url: string; command?: string[]; routes: string[] };
-export function load(): { servers: Record<string, Server>; agents: Record<string, string[]> } {
+export function load(): { servers: Record<string, Server>; agents: Record<string, AgentConfig> } {
   if (!existsSync(file)) return { servers: {}, agents: {} };
   const raw = JSON.parse(readFileSync(file, "utf8"));
   const servers = Object.fromEntries(Object.entries<any>(raw.servers ?? {}).map(([name, s]) => [name, {
@@ -25,7 +29,9 @@ export function load(): { servers: Record<string, Server>; agents: Record<string
     command: Array.isArray(s.command) ? s.command.map((c: unknown) => expand(String(c))) : undefined,
     routes: Array.isArray(s.routes) ? s.routes.map(String) : [],
   }]));
-  return { servers, agents: raw.agents ?? {} };
+  const agents = Object.fromEntries(Object.entries<any>(raw.agents ?? {}).filter(([k]) => !k.startsWith("_"))
+    .map(([k, a]) => [k, Array.isArray(a) ? { tools: a.map(String), meta: {} } : { tools: (a?.tools ?? []).map(String), meta: a?.meta ?? {} }]));
+  return { servers, agents };
 }
 
 // "server:tool" with * as a wildcard in either part; a tool name of * matches the whole server.
@@ -45,7 +51,7 @@ export async function rpc(url: string, method: string, params: object = {}) {
 /** The tools this agent may use, from every server that answers. Written for pi/kkachi.ts. */
 export async function toolsFor(agent: Agent): Promise<{ file: string; names: string[] }> {
   const { servers, agents } = load();
-  const patterns = agents[agent] ?? [];
+  const patterns = agents[agent]?.tools ?? [], meta = agents[agent]?.meta ?? {};
   const tools: ToolDef[] = [];
   for (const [server, { url }] of Object.entries(servers)) {
     if (!patterns.some((p) => matches(p, server))) continue; // nothing wanted from this server
@@ -54,7 +60,7 @@ export async function toolsFor(agent: Agent): Promise<{ file: string; names: str
       for (const t of (await rpc(url, "tools/list")).tools ?? []) {
         if (!patterns.some((p) => matches(p, server, t.name))) continue;
         if (tools.some((x) => x.name === t.name)) { console.error(`mcp: ${server} also has a tool named ${t.name}; skipped`); continue; }
-        tools.push({ server, url, name: t.name, description: t.description, inputSchema: t.inputSchema ?? { type: "object", properties: {} } });
+        tools.push({ server, url, name: t.name, description: t.description, inputSchema: t.inputSchema ?? { type: "object", properties: {} }, meta });
       }
     } catch (err) {
       console.error(`mcp: ${server} (${url}) did not answer; its tools are missing for now:`, (err as Error).message);

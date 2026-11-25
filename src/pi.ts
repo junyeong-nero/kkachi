@@ -16,7 +16,7 @@ export interface PiOptions {
   mode: "append" | "replace";
   session: "continue" | "none";
   reviewWorktree?: string; // isolated checkout; reviews need only the built-in note tools
-  mcp?: Agent; // which MCP tools it gets from kkachi.mcp.json (src/mcp-bridge.ts)
+  mcp?: Agent; // which MCP tools it gets from kkachi.mcp.json (src/mcp-bridge.ts), as which agent
   // A device someone talks to (src/port.ts): its own session, and only its MCP tools (the memory
   // tools cannot leave the memory repo). No shell, file tools, web, subagents or the user's MCP.
   port?: string; // device id

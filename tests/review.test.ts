@@ -11,7 +11,13 @@ const idle = 30 * 60_000;
 let review: typeof import("../src/review"), turns: typeof import("../src/turn"), library: typeof import("../src/librarian");
 // On Windows the real Pi is a .cmd launcher, which rejects multi-line arguments; the stand-in mirrors that.
 const win = process.platform === "win32";
-const env = { KKACHI_MEMORY_DIR: repo, KKACHI_DATA_DIR: data, KKACHI_PI_BIN: join(root, win ? "pi.cmd" : "pi") };
+// Git lives in the memory service (its own process); core reaches it through kkachi.mcp.json.
+const memoryPort = 4390 + Math.floor(Math.random() * 9), mcpConfig = join(root, "kkachi.mcp.json");
+const env = {
+  KKACHI_MEMORY_DIR: repo, KKACHI_DATA_DIR: data, KKACHI_PI_BIN: join(root, win ? "pi.cmd" : "pi"),
+  KKACHI_MCP_CONFIG: mcpConfig, KKACHI_MEMORY_PORT: String(memoryPort), KKACHI_INTERNAL_TOKEN: "test-internal-token",
+};
+let memoryService: ReturnType<typeof Bun.spawn>;
 const original = Object.fromEntries(Object.keys(env).map(k => [k, process.env[k]]));
 function git(cwd: string, ...args: string[]) {
   const p = Bun.spawnSync(["git", ...args], { cwd });
@@ -43,6 +49,9 @@ beforeAll(async () => {
   } else {
     copyFileSync(join(import.meta.dir, "fixtures/review-pi.mjs"), env.KKACHI_PI_BIN); chmodSync(env.KKACHI_PI_BIN, 0o700);
   }
+  writeFileSync(mcpConfig, JSON.stringify({ servers: { memory: { url: `http://127.0.0.1:${memoryPort}/mcp` } } }));
+  memoryService = Bun.spawn([process.execPath, join(import.meta.dir, "..", "services", "memory", "server.ts")], { env: { ...process.env }, stdout: "ignore", stderr: "inherit" });
+  for (let i = 0; i < 100; i++) { try { await fetch(`http://127.0.0.1:${memoryPort}/mcp`, { method: "POST", body: "{}" }); break; } catch { await Bun.sleep(100); } }
   review = await import("../src/review"); turns = await import("../src/turn"); library = await import("../src/librarian");
 });
 afterEach(async () => {
@@ -52,6 +61,7 @@ afterEach(async () => {
 afterAll(async () => {
   const pid = join(data, "test-pi.pid");
   if (existsSync(pid)) process.kill(Number(readFileSync(pid, "utf8")));
+  memoryService.kill(); await memoryService.exited;
   for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   for (let i = 0; ; i++) { // Windows: the killed stand-in may hold its cwd for a moment
     try { rmSync(root, { recursive: true, force: true }); break; } catch (err) { if (i >= 50) throw err; await Bun.sleep(100); }

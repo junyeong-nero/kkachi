@@ -1,9 +1,8 @@
 // A quiet spell ends a review batch, not the user's Pi conversation. Foreground turns take priority.
-import { appendFileSync, mkdtempSync, statSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { appendFileSync, statSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
-import { commitAll, git, pull, pushIfAhead, REVIEW_PREFIX } from "./git";
+import { memory } from "./memory";
 import { scheduleTidy, tidyIdle } from "./librarian";
 import { log } from "./log";
 import { currentModel, isLimitError, markLimited } from "./models";
@@ -73,39 +72,19 @@ async function inspect(dir: string, model: string, signal: AbortSignal): Promise
 async function review(signal: AbortSignal) {
   await tidyIdle();
   signal.throwIfAborted();
-  const repo = config.memoryDir;
-  if (await git(repo, "status", "--porcelain")) throw new Error("memory repo has uncommitted changes");
-  await pull(repo);
-  const base = await git(repo, "rev-parse", "HEAD");
-  signal.throwIfAborted();
-  const scratch = mkdtempSync(join(tmpdir(), "kkachi-review-"));
-  const dir = join(scratch, "notes");
-  let added = false;
+  // A draft (isolated checkout) from the memory service: a new turn just throws it away.
+  const draft = await memory.draftOpen();
   try {
-    await git(repo, "worktree", "add", "--quiet", "--detach", dir, base);
-    added = true;
+    signal.throwIfAborted();
     const model = currentModel();
-    const line = await inspect(dir, model, signal);
+    const line = await inspect(draft.path, model, signal);
     signal.throwIfAborted();
-    await git(dir, "add", "-A");
-    const files = (await git(dir, "diff", "--cached", "--name-status", "--no-renames", "-z")).split("\0");
-    for (let i = 0; i < files.length - 1; i += 2) {
-      const path = files[i + 1];
-      if (!["A", "M"].includes(files[i]) || !path.endsWith(".md") || ["AGENTS.md", "README.md"].includes(path)) {
-        throw new Error(`review changed a non-note or deleted a file: ${path}`);
-      }
-    }
-    const commit = await commitAll(dir, REVIEW_PREFIX + line);
-    if ((await git(repo, "rev-parse", "HEAD")) !== base || await git(repo, "status", "--porcelain")) throw new Error("notes changed during review");
-    signal.throwIfAborted();
-    // Once publication starts, finish it before letting the next turn use the repo.
-    if (commit) await git(repo, "merge", "--ff-only", "--quiet", commit);
-    await pushIfAhead(repo);
+    // Publishing accepts only new or changed notes, and only if the repo has not moved meanwhile.
+    const { commit, notes } = await memory.draftPublish(draft.path, "review", line);
     rmSync(pendingFile); // a new foreground turn waits for us before it can append
-    log("review", { model, commit, notes: (files.length - 1) / 2 });
+    log("review", { model, commit, notes });
   } finally {
-    if (added) await git(repo, "worktree", "remove", "--force", dir);
-    rmSync(scratch, { recursive: true, force: true });
+    await memory.draftClose(draft.path);
   }
   if (!signal.aborted) scheduleTidy();
 }

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
 import { log } from "./log";
-import { commitTurn, filesIn, pull, pushIfAhead, stashLeftovers } from "./git";
+import { memory } from "./memory";
 import { cancelTidy, scheduleTidy } from "./librarian";
 import { currentModel, isLimitError, markLimited, modelOrder } from "./models";
 import { cancelReview, recordTurn as queueForReview, resumeReviews, type ReviewIssue } from "./review";
@@ -81,7 +81,7 @@ export function now(): string {
 export async function startConversation() {
   // A previous run may have stopped mid-turn or mid-tidy. Set leftovers aside (recoverable with
   // `git stash list`) so they never leak into the next turn's commit.
-  if (await stashLeftovers(config.memoryDir)) console.error("memory repo had uncommitted changes; stashed them");
+  if ((await memory.setAside()).stashed) console.error("memory repo had uncommitted changes; stashed them");
   await conversation();
   resumeReviews();
 }
@@ -154,16 +154,10 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void, images
 }
 let queue: Promise<void> = Promise.resolve();
 
-/** Run fn once the turns already queued are done, so a memory change made over MCP never lands in a turn's commit. */
-export function afterTurns<T>(fn: () => Promise<T>): Promise<T> {
-  const op = queue.then(fn);
-  queue = op.then(() => {}, () => {});
-  return op;
-}
 
 async function doTurn(text: string, said: string, images: PiImage[], emit: (e: TurnEvent) => void) {
   try {
-    await pull(config.memoryDir);
+    await memory.sync();
   } catch (err) {
     console.error("pull failed", err);
     emit({ type: "error", message: "노트 저장소를 동기화하지 못했어요. 컴퓨터에서 확인이 필요해요." });
@@ -278,11 +272,12 @@ async function streamTurn(pi: Pi, message: string, text: string, images: PiImage
 
   let commit: string | null = null;
   try {
-    commit = await commitTurn(config.memoryDir, text);
-    // The agent may change notes with bash too; the commit is the authoritative list.
-    if (commit) for (const f of await filesIn(config.memoryDir, commit)) if (isNote(f)) changed.add(f);
+    // One turn, one commit, pushed (the memory service). The agent may change notes with bash too;
+    // the commit is the authoritative list.
+    const saved = await memory.checkpoint("change", text);
+    commit = saved.commit;
+    for (const f of saved.files) if (isNote(f)) changed.add(f);
     for (const c of changed) sources.add(c);
-    await pushIfAhead(config.memoryDir); // also pushes an undo commit made by undo_last_change
   } catch (err) {
     console.error("commit/push failed", err);
     emit({ type: "sentence", text: "기억은 해두었는데 GitHub 에 올리지는 못했어요." });

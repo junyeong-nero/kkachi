@@ -1,21 +1,10 @@
 // Kkachi's Pi extension. Loaded only in the Pi processes Kkachi starts (`pi -e pi/kkachi.ts`),
 // never in the user's own Pi sessions. Conversation-control tools are signals: the Kkachi web app
-// watches tool_execution_start events for them. Note tools run src/tools-cli.ts with Bun.
-import { execFile } from "node:child_process";
+// watches tool_execution_start events for them. Everything else (notes, devices) comes from the MCP
+// services core lists for this agent.
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-
-const root = process.env.KKACHI_ROOT!;
-
-function runCli(name: string, args: unknown): Promise<string> {
-  return new Promise((resolve) => {
-    execFile("bun", [join(root, "src", "tools-cli.ts"), name, JSON.stringify(args ?? {})], { cwd: root, timeout: 60_000 }, (err, stdout, stderr) => {
-      resolve(err ? `Error: ${(stderr || err.message).trim()}` : stdout.trim());
-    });
-  });
-}
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }], details: {} });
 const noArgs = Type.Object({});
@@ -38,14 +27,6 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerTool({
-    name: "undo_last_change",
-    label: "Undo last change",
-    description: "Revert the most recent change Kkachi saved to the memory repo (the previous turn), when the user asks to forget or cancel what they just said. Not for corrections; edit the note instead.",
-    parameters: noArgs,
-    async execute() { return text(await runCli("undo_last_change", {})); },
-  });
-
-  pi.registerTool({
     name: "tidy_notes",
     label: "Tidy notes",
     description: "Ask the librarian to reorganize the memory repo and refresh its README catalog in the background after this turn.",
@@ -53,45 +34,29 @@ export default function (pi: ExtensionAPI) {
     async execute() { return text("The librarian will tidy the notes in the background after this turn."); },
   });
 
-  pi.registerTool({
-    name: "move_note",
-    label: "Move note",
-    description: "Move or rename a note file or a whole folder inside the memory repo (git mv) and repair every link to and from it. Paths are repo-relative, e.g. inbox/idea.md -> projects/trip/index.md.",
-    parameters: Type.Object({ from: Type.String(), to: Type.String() }),
-    async execute(_id, params) { return text(await runCli("move_note", params)); },
-  });
-
-  pi.registerTool({
-    name: "delete_note",
-    label: "Delete note",
-    description: "Delete a note in the memory repo (git rm), only after merging its content into another note. Never AGENTS.md or README.md.",
-    parameters: Type.Object({ path: Type.String() }),
-    async execute(_id, params) { return text(await runCli("delete_note", params)); },
-  });
-
   // MCP tools Kkachi core chose for this agent from kkachi.mcp.json (src/mcp-bridge.ts), each
   // called on its own server. Nothing here knows what they are: add a server, get its tools.
   const file = process.env.KKACHI_MCP_TOOLS;
-  const tools: { server: string; url: string; name: string; description?: string; inputSchema: any }[] = file ? JSON.parse(readFileSync(file, "utf8")) : [];
+  const tools: { server: string; url: string; name: string; description?: string; inputSchema: any; meta?: object }[] = file ? JSON.parse(readFileSync(file, "utf8")) : [];
   for (const tool of tools) {
     pi.registerTool({
       name: tool.name,
       label: tool.name,
       description: tool.description ?? tool.name,
       parameters: Type.Unsafe(tool.inputSchema),
-      async execute(_id, params) { return { content: await callMcp(tool.server, tool.url, tool.name, params), details: {} }; },
+      async execute(_id, params) { return { content: await callMcp(tool.server, tool.url, tool.name, params, tool.meta), details: {} }; },
     });
   }
 }
 
 // Text and images (a device photo) pass through; an error comes back as text starting with "Error:".
 type Block = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
-async function callMcp(server: string, url: string, name: string, args: unknown): Promise<Block[]> {
+async function callMcp(server: string, url: string, name: string, args: unknown, meta: object = {}): Promise<Block[]> {
   try {
     const r = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args, _meta: meta } }),
     });
     const { result, error } = await r.json();
     if (result && !result.isError && Array.isArray(result.content)) return result.content;

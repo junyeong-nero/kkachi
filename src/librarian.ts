@@ -4,7 +4,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
-import { commitAll, git, pushIfAhead, TIDY_PREFIX } from "./git";
+import { memory } from "./memory";
 import { currentModel, isLimitError, markLimited } from "./models";
 import { Pi } from "./pi";
 
@@ -46,29 +46,17 @@ export async function cancelTidy() {
   return true;
 }
 
-async function discard() {
-  await git(config.memoryDir, "reset", "--hard", "--quiet");
-  await git(config.memoryDir, "clean", "-fdq");
-}
+const discard = () => memory.discard();
 
 async function changedSinceLastTidy(): Promise<string[]> {
-  const dir = config.memoryDir;
-  const last = existsSync(stateFile) ? (await Bun.file(stateFile).json()).tidiedAt : null;
-  try {
-    const out = last ? await git(dir, "diff", "--name-only", `${last}..HEAD`, "--", "*.md") : await git(dir, "ls-files", "*.md");
-    return out.split("\n").filter((f) => f && f !== "README.md");
-  } catch {
-    return (await git(dir, "ls-files", "*.md")).split("\n").filter(Boolean);
-  }
+  const last = existsSync(stateFile) ? (await Bun.file(stateFile).json()).tidiedAt : undefined;
+  return (await memory.changes(last)).filter((f) => f !== "README.md");
 }
 
 // Commit message from what actually changed, e.g. "이동 1, 병합·삭제 1, 수정 2, 목록 갱신".
 async function describeChanges(): Promise<string> {
-  await git(config.memoryDir, "add", "-A");
-  const lines = (await git(config.memoryDir, "status", "--porcelain")).split("\n").filter(Boolean);
   let moved = 0, deleted = 0, edited = 0, catalog = false;
-  for (const l of lines) {
-    const code = l.slice(0, 2).trim(), path = l.slice(3);
+  for (const { code, path } of await memory.staged()) {
     if (path === "README.md") catalog = true;
     else if (code.startsWith("R")) moved++;
     else if (code.startsWith("D")) deleted++;
@@ -85,7 +73,7 @@ async function tidy() {
   const model = currentModel();
   console.log(`librarian: tidying ${changed.length} changed notes with ${model}`);
 
-  const pi = new Pi({ prompt: "librarian.md", mode: "replace", session: "none" });
+  const pi = new Pi({ prompt: "librarian.md", mode: "replace", session: "none", mcp: "librarian" });
   current = pi;
   await pi.start(model);
   let error = "";
@@ -102,9 +90,8 @@ async function tidy() {
       return;
     }
     const line = await describeChanges();
-    const commit = await commitAll(config.memoryDir, TIDY_PREFIX + line);
-    await pushIfAhead(config.memoryDir);
-    await Bun.write(stateFile, JSON.stringify({ tidiedAt: await git(config.memoryDir, "rev-parse", "HEAD") }));
+    const { commit } = await memory.checkpoint("tidy", line);
+    await Bun.write(stateFile, JSON.stringify({ tidiedAt: await memory.head() }));
     console.log(`librarian: ${commit ? `committed ${commit}` : "no changes"} in ${Math.round((Date.now() - t0) / 1000)}s — ${line}`);
   } finally {
     current = null;

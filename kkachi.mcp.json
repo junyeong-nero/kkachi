@@ -5,11 +5,24 @@
       "command": ["bun", "services/devices/server.ts"],
       "routes": ["/device", "/api/device/", "/mcp/devices"]
     },
-    "memory": { "url": "http://127.0.0.1:${KKACHI_PORT}/mcp/memory" }
+    "memory": {
+      "url": "http://127.0.0.1:4302/mcp",
+      "command": ["bun", "services/memory/server.ts"],
+      "routes": ["/mcp/memory"]
+    }
   },
   "agents": {
-    "chat": ["devices:*"],
+    "chat": {
+      "tools": ["devices:*", "memory:memory_move", "memory:memory_delete", "memory:memory_undo"],
+      "meta": { "commit": "later" }
+    },
+    "librarian": {
+      "tools": ["memory:memory_move", "memory:memory_delete"],
+      "meta": { "commit": "later" }
+    },
     "port": ["memory:*", "devices:list_devices", "devices:device_speak", "devices:device_light"],
+    "_chat": "the phone app's conversation: edits notes as files; core commits each turn, so its note tools commit later",
+    "_librarian": "tidies the notes in place; core commits the whole tidy as one commit",
     "_port": "a device someone talks to (hold to talk): anyone nearby can use it, so it must not look or listen through the devices"
   }
 }
