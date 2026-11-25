@@ -20,8 +20,10 @@ export function locked<T>(fn: () => Promise<T>): Promise<T> {
   return p;
 }
 
+// core.quotePath=false: paths come out as they are. Git otherwise writes a note named in Korean as
+// "people/\354\227\204\353\247\210.md" (quoted, octal), which is no file, so search and list broke on it.
 export async function git(dir: string, ...args: string[]) {
-  const p = Bun.spawn(["git", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawn(["git", "-c", "core.quotePath=false", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   if (code !== 0) throw new Error(`git ${args.join(" ")}: ${err.trim() || out.trim()}`);
   return out.trim();

@@ -18,7 +18,7 @@ if (!src || !dst) throw new Error("usage: bun scripts/import-notes.ts <source-re
 const TOP: Record<string, string> = { "00_inbox": "inbox", "01_projects": "projects", "02_areas": "areas", "03_resources": "resources", "99_archive": "archive" };
 const SKIP = /(^|\/)(\.gitkeep|\.DS_Store)$/;
 
-const tracked = Bun.spawnSync(["git", "-C", src, "ls-files"]).stdout.toString().split("\n").filter(Boolean);
+const tracked = Bun.spawnSync(["git", "-C", src, "-c", "core.quotePath=false", "ls-files"]).stdout.toString().split("\n").filter(Boolean); // Korean names as they are, not "\354…"
 const files = tracked.filter((f) => TOP[f.split("/")[0]] && !SKIP.test(f));
 
 const mapPath = (old: string) => {
