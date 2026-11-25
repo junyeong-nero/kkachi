@@ -1,3 +1,5 @@
+![Kkachi: your own assistant, on your phone and around your home](docs/banner.svg)
+
 # Kkachi (까치)
 
 A self-hosted assistant for your phone. Type or dictate (check the words, then send). Replies come back as text and can be read aloud. It remembers what you tell it in your own Markdown notes (a git repo), and it can do anything your [Pi](https://github.com/earendil-works/pi) coding agent can: search the web, use MCP servers (browser, calendar, ...), and work on code.
@@ -45,7 +47,9 @@ Phone app, spare phones, other agents
        └─ kkachi-memory  (services/memory/, :4302): the notes and their git history
 ```
 
-Core starts the two services, restarts them if they stop, and forwards their pages from its own address; any other MCP server can be added in `kkachi.mcp.json`. See [docs/architecture.svg](docs/architecture.svg).
+![How Kkachi fits together](docs/architecture-simple.svg)
+
+Core starts the two services, restarts them if they stop, and forwards their pages from its own address; any other MCP server can be added in `kkachi.mcp.json`. The detailed picture: [docs/architecture.svg](docs/architecture.svg).
 
 - **Hands-free** — after one tap, Kkachi listens, answers out loud, and listens again. No typing, no commands: say "thanks, that's all" and it stops; say "I'll take it from the computer" and it hands off.
 - **Remembers quietly** — mention a plan or decision and it is saved to the right note, without "I've noted that". Each turn is one git commit; say "forget that" to revert.
