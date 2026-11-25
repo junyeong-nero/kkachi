@@ -13,6 +13,7 @@ import { accept, parseInput, warm } from "./bus";
 import { feedStream, pushFeed } from "./feed";
 import { routeFor, startServices } from "./services";
 import { internal, trusted } from "../lib/trust";
+import { BUILT_IN } from "../lib/tts";
 import type { ServerWebSocket } from "bun";
 
 const web = join(import.meta.dir, "web");
@@ -133,6 +134,8 @@ Bun.serve({
 
       if (req.method === "POST" && pathname === "/api/tts") {
         const { text, voice, rate } = await req.json();
+        // The device voice is made on the phone itself; the app does not ask for it here.
+        if ((voice ?? settings().voice) === BUILT_IN) return new Response("the device voice is spoken on the device", { status: 409 });
         const t0 = performance.now();
         try {
           const preview = typeof voice === "string" && VOICES.some((v) => v.id === voice);

@@ -15,7 +15,7 @@ On your phone you type or dictate (check the words, then send). Replies come bac
 Home Assistant adds AI to a house; Kkachi brings the agent you already use into your home. Three rules decide what goes in ([docs/philosophy.md](docs/philosophy.md), Korean):
 
 1. Light. One install, no VM or hub: the computer you have and the phones you no longer use. Heavier things, like Home Assistant or a local LLM, plug in when you need them.
-2. Yours. Your memory is plain Markdown in your own git repo, your data stays on your computer, and backups go where you choose, only when you choose. Apart from the LLM, Kkachi itself calls no outside service. Not there yet: speech still uses Groq and Edge TTS.
+2. Yours. Your memory is plain Markdown in your own git repo, your data stays on your computer, and backups go where you choose, only when you choose. Apart from the LLM, Kkachi itself calls no outside service. Not there yet: dictation still uses Groq.
 3. Bring your own. Your Pi subscription, your MCP servers (imported from Claude Code, Codex, Cursor or VS Code), your skills. Pi is the one runtime; everything else is imported.
 
 ## Install
@@ -26,7 +26,7 @@ Kkachi runs on a computer that stays on (macOS, Windows, or Linux), and you use 
    - [Git](https://git-scm.com/downloads) and [Bun](https://bun.sh)
    - [Pi](https://pi.dev). Run `pi` once and sign in to a model provider with `/login`
    - [Tailscale](https://tailscale.com/download), on the computer **and** the phone, signed in to the same account
-   - Optional, to hear replies: [uv](https://docs.astral.sh/uv/), then `uv tool install edge-tts` (free, unofficial Microsoft Edge voices)
+   - Nothing to hear replies: by default each phone and spare device reads them in its own built-in voice. Optional, for Microsoft's neural voices instead (made online): [uv](https://docs.astral.sh/uv/), then `uv tool install edge-tts`, and pick one of them in Settings
    - Optional, to dictate: a free [Groq API key](https://console.groq.com/keys) (speech-to-text and transcript cleanup)
 2. Set it up:
    ```sh
@@ -71,7 +71,7 @@ Core starts the two services, restarts them if they stop, and forwards their pag
 - It can search the web, use MCP tools, and work on code in other repos: whatever your Pi setup can do.
 - After 30 quiet minutes, Kkachi checks the conversation against the notes for anything it missed, such as a decision or an appointment. New information is committed as `kkachi: 대화 정리 — …` (and pushed if sync is on, see below); if there is nothing to add, there is no commit. Turns waiting for this review stay in the server's private `data/conversation.jsonl` (not the memory repo) until it succeeds, across restarts too. Your chat session is not reset.
 - A librarian then sorts the changed notes and rewrites the catalog in the memory repo's `README.md`. A new message always goes ahead of this background work.
-- It works with any model your Pi can use and falls back to the next one in `KKACHI_MODEL` when one is rate-limited. Speech uses the Groq free tier and Edge TTS for now; both are outside services, and moving them local is next (see Principles). Everything is configurable (`src/config.ts`).
+- It works with any model your Pi can use and falls back to the next one in `KKACHI_MODEL` when one is rate-limited. Dictation uses the Groq free tier for now, an outside service that is next to move local (see Principles). Replies are read in each device's own voice unless you pick an Edge TTS voice. Everything is configurable (`src/config.ts`).
 
 ## Memory repo
 

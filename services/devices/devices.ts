@@ -19,7 +19,7 @@ import type { ServerWebSocket, WebSocketHandler } from "bun";
 import { log } from "../../lib/log";
 import type { Content } from "../../lib/mcp-server";
 import { dataDir } from "../../lib/paths";
-import { savedVoice, synthesize } from "../../lib/tts";
+import { BUILT_IN, savedVoice, synthesize } from "../../lib/tts";
 import { core } from "./core";
 
 type Socket = ServerWebSocket<{ id?: string }>;
@@ -172,11 +172,12 @@ export async function replyOn(target: string, a: { inputId: string; heard: strin
   const d = find(target);
   if (!d) throw new Error(`No device named "${target}".`);
   let speech: { audio: ArrayBuffer; type: string } | null = null;
-  if (a.text && d.armed && on(d, "speak")) {
-    const { voice, rate } = savedVoice();
+  const { voice, rate } = savedVoice();
+  if (a.text && d.armed && on(d, "speak") && voice !== BUILT_IN) {
     speech = await synthesize(a.text.slice(0, 1000), voice, rate).catch(() => null); // the words still show
   }
-  const msg = { type: "reply", ...a, ...(speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type }) };
+  // Without audio the device says the text with its own voice, at this rate.
+  const msg = { type: "reply", ...a, rate, ...(speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type }) };
   replies.set(d.id, { msg, at: Date.now() });
   send(d, msg);
   log("device_reply", { name: d.name, heard: !!a.heard, spoken: !!speech, elsewhere: !!a.elsewhere, online: !!d.socket });
@@ -234,8 +235,9 @@ async function ask(target: string, request: Record<string, unknown> & { type: st
 export async function speakOn(target: string, text: string): Promise<string> {
   ready(target, "speak", { armed: true }); // before making the speech
   const { voice, rate } = savedVoice();
-  const { audio, type } = await synthesize(text.slice(0, 1000), voice, rate);
-  const { name } = await ask(target, { type: "speak", text, audio: Buffer.from(audio).toString("base64"), mime: type }, 60_000, { armed: true });
+  const speech = voice === BUILT_IN ? null : await synthesize(text.slice(0, 1000), voice, rate);
+  const audio = speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type };
+  const { name } = await ask(target, { type: "speak", text, rate, ...audio }, 60_000, { armed: true }); // no audio: its own voice
   return `Said it on ${name}.`;
 }
 

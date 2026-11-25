@@ -1,5 +1,7 @@
 // Text to speech, for core (replies) and the devices service (device_speak).
-// Edge TTS by default (free, unofficial), or any OpenAI-compatible speech API. Set with KKACHI_TTS_*.
+// By default nothing is made here: the voice "device" means each phone and spare device speaks with
+// its own built-in voice (Web Speech API), so no words leave the house. Any other voice is made on
+// the server: Edge TTS (free, unofficial, online) or an OpenAI-compatible speech API (KKACHI_TTS_*).
 // The voice and speed chosen in the app's settings live in data/settings.json; services read them.
 import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,11 +11,14 @@ import { dataDir } from "./paths";
 const env = process.env;
 export const tts = {
   provider: (env.KKACHI_TTS_PROVIDER ?? "edge") as "edge" | "openai",
-  voice: env.KKACHI_TTS_VOICE ?? "ko-KR-SunHiNeural",
+  voice: env.KKACHI_TTS_VOICE ?? "device",
   baseUrl: env.KKACHI_TTS_BASE_URL ?? "https://api.openai.com/v1",
   apiKey: env.KKACHI_TTS_API_KEY ?? env.OPENAI_API_KEY ?? "",
   model: env.KKACHI_TTS_MODEL ?? "gpt-4o-mini-tts",
 };
+
+/** The voice that is no server voice: each device speaks with its own. */
+export const BUILT_IN = "device";
 
 /** The voice and speed saved in the app's settings, else the defaults. */
 export function savedVoice(): { voice: string; rate: number } {

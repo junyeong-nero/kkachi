@@ -60,6 +60,7 @@ function audioOut() {
     setSession("play-and-record"); // not "playback": WebKit then refuses the mic
   }
   if (ctx.state !== "running") ctx.resume();
+  if (builtInVoice()) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } // iOS: the built-in voice too wants a tap first
 }
 
 // Music from other apps: while a web page captures the mic, iOS puts it in a play-and-record session
@@ -220,7 +221,7 @@ async function runTurn(my, view, body, t0) {
         if (my !== turnId) return;
         if (!buf) continue;
         if (!firstSound) { firstSound = performance.now(); diag("first sound", { ms: Math.round(firstSound - t0) }); }
-        await play(buf);
+        await (buf.say ? sayBuiltIn(buf.say) : play(buf));
       } else if (streamDone) return;
       else await new Promise((r) => setTimeout(r, 40));
     }
@@ -230,12 +231,12 @@ async function runTurn(my, view, body, t0) {
     await followTurn(body, () => my === turnId, (e) => {
       if (my !== turnId) return;
       if (e.type === "delta") view.stream(e.text);                       // live text on screen
-      else if (e.type === "sentence") { if (speak && !e.silent) queue.push(ttsBuffer(e.text)); } // speak as soon as a sentence is complete
+      else if (e.type === "sentence") { if (speak && !e.silent) queue.push(spoken(e.text)); } // speak as soon as a sentence is complete
       else if (e.type === "aside") { view.aside(); if (speak) { skipBefore = queue.length; stopPlayback(); } }
       else if (e.type === "activity") view.working(activityLabel(e.tool, e.path));
       else if (e.type === "photo") view.photo(e);
       else if (e.type === "done") { view.finish(); showChips(view.chips, e.sources, e.changed, e.titles); }
-      else if (e.type === "error") { view.fail(e.message); if (speak) queue.push(ttsBuffer(e.message)); earcon.error(); }
+      else if (e.type === "error") { view.fail(e.message); if (speak) queue.push(spoken(e.message)); earcon.error(); }
     });
     view.finish();
   } catch (e) {
@@ -356,6 +357,24 @@ function showChips(container, sources, changed, titles = {}) {
 }
 
 // ---- audio out ----
+// With the voice "device" (기기 목소리) the phone speaks with its own voice (Web Speech API) and
+// no words go to the server for speech; any other voice is made on the server, one sentence at a time.
+const builtInVoice = () => saved?.voice === "device" && "speechSynthesis" in window;
+if ("speechSynthesis" in window) speechSynthesis.getVoices(); // browsers fill the list only once asked
+const spoken = (text) => (builtInVoice() ? Promise.resolve({ say: text }) : ttsBuffer(text));
+
+function sayBuiltIn(text, rate = saved?.rate ?? 0) {
+  return new Promise((resolve) => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ko-KR";
+    const ko = speechSynthesis.getVoices().filter((v) => /^ko([-_]|$)/i.test(v.lang));
+    u.voice = ko.find((v) => v.localService) ?? ko[0] ?? null; // made on the phone first (desktop browsers also offer online ones)
+    u.rate = Math.max(0.5, Math.min(2, 1 + rate / 100));
+    u.onend = u.onerror = () => resolve();
+    speechSynthesis.speak(u);
+  });
+}
+
 async function ttsBuffer(text) {
   try {
     const r = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
@@ -375,7 +394,11 @@ function play(buf) {
   });
 }
 
-function stopPlayback() { try { currentSource?.stop(); } catch {} currentSource = null; }
+function stopPlayback() {
+  try { currentSource?.stop(); } catch {}
+  currentSource = null;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
 
 // ---- a turn's server-sent events ----
 // iOS cuts a backgrounded app's connections, but the turn keeps running on the server. So the app
@@ -633,6 +656,7 @@ async function openSettings() {
 async function preview(voice) {
   audioOut();
   stopPlayback();
+  if (voice === "device") { sayBuiltIn("안녕하세요, 까치예요. 오늘도 반가운 소식 전해 드릴게요.", Number($("rate").value)); return; }
   try {
     const r = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "안녕하세요, 까치예요. 오늘도 반가운 소식 전해 드릴게요.", voice, rate: Number($("rate").value) }) });
     if (!r.ok) throw new Error("tts " + r.status);
@@ -823,9 +847,11 @@ function showFeedItem(item) {
   v.stream(item.text || "");
   v.finish();
   const fresh = Date.now() - Date.parse(item.at) < 15_000;
-  if (item.speak && fresh && readAloud() && ctx && item.text) ttsBuffer(item.text).then((buf) => buf && play(buf));
+  if (item.speak && fresh && readAloud() && ctx && item.text) spoken(item.text).then((buf) => buf && (buf.say ? sayBuiltIn(buf.say) : play(buf)));
 }
 openFeed();
+// The voice setting decides how replies are read aloud, so it is needed before the first one.
+fetch("/api/settings").then((r) => r.json()).then((j) => { saved ??= j.settings; }).catch(() => {});
 
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);

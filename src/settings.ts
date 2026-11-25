@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { config } from "./config";
 
 export interface Settings {
-  voice: string;    // Edge TTS voice
+  voice: string;    // "device" (each device's own voice) or an Edge TTS voice
   rate: number;     // speech speed in percent, -50..+100 (0 = normal)
   model: string;    // primary Pi model; config.models stay as fallbacks
   thinking: string; // Pi thinking level
@@ -52,8 +52,10 @@ export function updateSettings(patch: Partial<Settings>): Settings {
   return current;
 }
 
-// Edge TTS voices that speak Korean. Multilingual voices read English terms more naturally.
+// The device's own voice first (made on the phone or spare device, nothing sent out), then Edge TTS
+// voices that speak Korean (made online). Multilingual voices read English terms more naturally.
 export const VOICES = [
+  { id: "device", name: "기기 목소리", note: "폰과 공기계에 들어 있는 목소리. 까치 서버에서 만들지 않아요" },
   { id: "ko-KR-SunHiNeural", name: "선희", note: "여성, 차분한 한국어" },
   { id: "ko-KR-InJoonNeural", name: "인준", note: "남성, 또렷한 한국어" },
   { id: "ko-KR-HyunsuMultilingualNeural", name: "현수", note: "남성, 영어 섞인 말에 자연스러움" },

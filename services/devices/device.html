@@ -390,19 +390,43 @@ function sendState() {
   ws?.readyState === 1 && ws.send(JSON.stringify({ type: "state", armed: armed(), perms: granted, enabled: switches }));
 }
 
-// Play mp3 (base64) and show its words while they are spoken.
-async function play(b64, words) {
+// Say {text, audio?, rate?} and show the words while they are spoken: the server's audio (a server
+// voice), or this device's own voice when none came (기기 목소리: the words never leave the house).
+async function speakOut(m) {
+  $("said").textContent = m.text; $("said").className = "speaking";
+  try { if (m.audio) await play(m.audio); else await say(m.text, m.rate); } finally { $("said").className = ""; }
+}
+
+// Play mp3 (base64).
+async function play(b64) {
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const buffer = await audio.decodeAudioData(bytes.buffer);
-  $("said").textContent = words; $("said").className = "speaking";
   const src = audio.createBufferSource(); src.buffer = buffer; src.connect(audio.destination);
   await new Promise((resolve) => { src.onended = resolve; src.start(); });
-  $("said").className = "";
+}
+
+// The built-in voice (Web Speech API), Korean if the device has one. rate: percent, as in settings.
+if ("speechSynthesis" in window) speechSynthesis.getVoices(); // browsers fill the list only once asked
+function say(text, rate = 0) {
+  if (!("speechSynthesis" in window)) return Promise.reject(new Error("this browser has no built-in voice"));
+  return new Promise((resolve, reject) => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ko-KR";
+    const ko = speechSynthesis.getVoices().filter((v) => /^ko([-_]|$)/i.test(v.lang));
+    u.voice = ko.find((v) => v.localService) ?? ko[0] ?? null; // made on the device first (desktop browsers also offer online ones)
+    u.rate = Math.max(0.5, Math.min(2, 1 + (Number(rate) || 0) / 100));
+    u.onend = () => resolve();
+    u.onerror = (e) => (e.error === "interrupted" || e.error === "canceled" ? resolve() : reject(new Error(`voice: ${e.error}`)));
+    speechSynthesis.speak(u);
+  });
 }
 
 // Sound needs one tap (iOS). The same tap keeps the screen on, which keeps the page alive, and asks
 // for the sensors now, while someone is there to allow them (a later prompt would wait for nobody).
 async function arm() {
+  if ("speechSynthesis" in window) { // iOS speaks only after a first utterance started in a tap
+    const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u);
+  }
   audio ??= new (window.AudioContext || window.webkitAudioContext)();
   const motionAsk = askMotion(); // must start inside the tap on iOS
   await audio.resume().catch(() => {});
@@ -471,7 +495,7 @@ const SHOWN = {
   snapshot: () => ["camera", "찍는 중", "까치가 사진을 찍었어요 (저장 안 함)"],
   sound: () => ["sound", "재는 중", "까치가 소리 크기를 쟀어요 (녹음 안 함)"],
   sensors: () => ["sensors", "읽는 중", "까치가 센서를 읽었어요"],
-  light: (m) => ["light", m.on ? "켜는 중" : "끄는 중", m.on ? "까치가 조명을 켰어요" : "까치가 조명을 껌어요"],
+  light: (m) => ["light", m.on ? "켜는 중" : "끄는 중", m.on ? "까치가 조명을 켰어요" : "까치가 조명을 껐어요"],
 };
 
 // ---- what Kkachi can ask of this device (src/devices.ts). Nothing is kept here. ----
@@ -480,7 +504,7 @@ const REQUESTS = {
   async speak(m) {
     if (!armed()) throw new Error("needs a tap on the screen");
     $("heard").textContent = "";
-    await play(m.audio, m.text);
+    await speakOut(m);
   },
 
   // One frame from the camera, scaled to at most 1280 px, and the mean brightness of the scene.
@@ -686,9 +710,9 @@ async function onReply(m) {
   if (!m.heard) { $("heard").textContent = ""; hint("잘 못 들었어요. 다시 말해 주세요"); return; }
   $("heard").textContent = `“${m.heard}”`;
   if (m.elsewhere) { $("said").textContent = m.elsewhere; $("said").className = ""; return; }
-  if (m.audio && armed() && isOn("speak")) {
+  if (m.text && armed() && isOn("speak")) {
     setBusy("speak", "말하는 중");
-    try { await play(m.audio, m.text); } catch { $("said").textContent = m.text; } finally { setBusy("speak", null); }
+    try { await speakOut(m); } catch {} finally { setBusy("speak", null); } // the words stay on screen
   } else { $("said").textContent = m.text; $("said").className = ""; }
 }
 
