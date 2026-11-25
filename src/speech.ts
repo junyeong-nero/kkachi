@@ -42,7 +42,9 @@ export async function transcribe(audio: Blob): Promise<string> {
 
 /** voice/rate override the saved settings (used for previews in the settings sheet). */
 export async function synthesize(text: string, voice = settings().voice, rate = settings().rate): Promise<{ audio: ArrayBuffer; type: string }> {
-  return config.tts.provider === "edge" ? edgeTts(text, voice, rate) : openaiTts(text);
+  if (config.tts.provider !== "edge") return openaiTts(text);
+  // The Edge service sometimes answers with no audio (NoAudioReceived); a second try usually works.
+  return edgeTts(text, voice, rate).catch(() => edgeTts(text, voice, rate));
 }
 
 // Edge TTS via the edge-tts CLI (`uv tool install edge-tts`). Free but unofficial.

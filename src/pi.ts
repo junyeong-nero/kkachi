@@ -3,6 +3,8 @@
 // own extension (pi/kkachi.ts) and system prompt. Every Pi command Kkachi uses lives in this file.
 import { join } from "node:path";
 import { config } from "./config";
+import { DEVICE_TOOLS } from "./device-tools";
+import { MEMORY_TOOL_DEFS } from "./memory-tools";
 import { settings } from "./settings";
 
 export type PiEvent = { type: string; [k: string]: any };
@@ -15,7 +17,12 @@ export interface PiOptions {
   mode: "append" | "replace";
   session: "continue" | "none";
   reviewWorktree?: string; // isolated checkout; reviews need only the built-in note tools
+  // A device someone talks to (src/port.ts): its own session, and only the memory and device tools,
+  // which cannot leave the memory repo. No shell, file tools, web, subagents or MCP.
+  port?: string; // device id
 }
+
+const PORT_TOOLS = [...MEMORY_TOOL_DEFS, ...DEVICE_TOOLS].map((t) => t.name).join(",");
 
 // Dialog requests block Pi until answered. A voice UI cannot show them, so they are cancelled.
 const DIALOGS = new Set(["select", "confirm", "input", "editor"]);
@@ -42,11 +49,14 @@ export class Pi {
       "--model", model,
       ...promptArgs,
       ...(this.opts.reviewWorktree ? ["--tools", "read,ls,find,grep,edit,write"] : ["-e", join(config.root, "pi", "kkachi.ts")]),
-      ...(this.opts.session === "continue" ? ["--session-dir", join(config.dataDir, "pi-sessions"), "--continue"] : ["--no-session"]),
+      ...(this.opts.port ? ["--no-mcp", "--tools", PORT_TOOLS] : []),
+      ...(this.opts.session === "continue"
+        ? ["--session-dir", this.opts.port ? join(config.dataDir, "pi-sessions-ports", this.opts.port) : join(config.dataDir, "pi-sessions"), "--continue"]
+        : ["--no-session"]),
     ];
     this.proc = Bun.spawn(args, {
       cwd: dir,
-      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}` },
+      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}`, ...(this.opts.port ? { KKACHI_PORT_TOOLS: "1" } : {}) },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });
     this.exited = this.proc.exited;

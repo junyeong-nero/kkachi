@@ -2,13 +2,15 @@
 // WebSocket and does things for the agent (speak, for now). A new device waits until you allow it
 // in the app's settings; allowed devices are remembered in data/devices.json with a secret token.
 //
-// Device → server: {type:"hello", name, token?, armed}, {type:"state", armed}, {type:"done"|"failed", id, error?}
+// Device → server: {type:"hello", name, token?, armed}, {type:"state", armed}, {type:"done"|"failed", id, error?},
+//   {type:"warm"} (the talk button went down: get its Pi ready, see src/port.ts)
 // Server → device: {type:"pending"|"ready", name, token}, {type:"speak", id, text, audio, mime}, {type:"forgotten"}
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ServerWebSocket, WebSocketHandler } from "bun";
 import { config } from "./config";
 import { log } from "./log";
+import { warmPort } from "./port";
 import { synthesize } from "./speech";
 
 type Socket = ServerWebSocket<{ id?: string }>;
@@ -29,6 +31,12 @@ const cleanName = (name: unknown) => String(name ?? "").replace(/\s+/g, " ").tri
 export type DeviceInfo = { id: string; name: string; allowed: boolean; online: boolean; armed: boolean };
 export const listDevices = (): DeviceInfo[] =>
   [...devices.values()].map(({ id, name, allowed, armed, socket }) => ({ id, name, allowed, online: !!socket, armed: !!socket && armed }));
+
+/** The allowed device holding this token (a device authenticates its requests with it). */
+export function deviceByToken(token: string): { id: string; name: string } | undefined {
+  const d = token ? [...devices.values()].find((x) => x.allowed && x.token === token) : undefined;
+  return d && { id: d.id, name: d.name };
+}
 
 export function allowDevice(id: string): boolean {
   const d = devices.get(id);
@@ -72,6 +80,7 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
     const d = ws.data.id ? devices.get(ws.data.id) : undefined;
     if (!d) return;
     if (msg.type === "state") d.armed = !!msg.armed;
+    if (msg.type === "warm" && d.allowed) warmPort(d.id);
     if ((msg.type === "done" || msg.type === "failed") && typeof msg.id === "string") {
       waiting.get(msg.id)?.(msg.type === "done" ? null : String(msg.error ?? "playback failed"));
     }

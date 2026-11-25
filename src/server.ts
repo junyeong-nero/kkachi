@@ -9,7 +9,8 @@ import { synthesize, transcribe } from "./speech";
 import { applyThinking, modelChoices, newConversation, runTurn, startConversation } from "./turn";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
-import { allowDevice, deviceSocket, forgetDevice, listDevices } from "./devices";
+import { allowDevice, deviceByToken, deviceSocket, forgetDevice, listDevices } from "./devices";
+import { talk } from "./port";
 import { handleMcp, SERVICES } from "./mcp";
 
 const web = join(import.meta.dir, "web");
@@ -82,6 +83,25 @@ Bun.serve({
         await applyThinking(); // model changes apply on the next turn
         log("settings", { ...next });
         return Response.json({ settings: next });
+      }
+
+      // Hold to talk on a device: its recording in, the reply (text and speech) out. See src/port.ts.
+      if (req.method === "POST" && pathname === "/api/device/talk") {
+        const device = deviceByToken(req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "");
+        if (!device) return new Response("unknown device", { status: 401 });
+        const t0 = performance.now();
+        const raw = await transcribe(await req.blob());
+        const t1 = performance.now();
+        const heard = await polish(raw);
+        const t2 = performance.now();
+        if (!heard) return Response.json({ heard: "" });
+        const reply = await talk(device, heard);
+        const t3 = performance.now();
+        let speech: { audio: ArrayBuffer; type: string } | null = null;
+        try { speech = await synthesize(reply.slice(0, 1000)); } catch (err) { console.error("device reply tts failed", err); } // the device shows the words instead
+        const ms = (a: number, b: number) => Math.round(b - a);
+        log("device_talk", { device: device.name, sttMs: ms(t0, t1), polishMs: ms(t1, t2), turnMs: ms(t2, t3), ttsMs: ms(t3, performance.now()), tts: !!speech });
+        return Response.json({ heard, reply, ...(speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type }) });
       }
 
       const deviceAction = req.method === "POST" && pathname.match(/^\/api\/devices\/(\w+)\/(allow|forget)$/);

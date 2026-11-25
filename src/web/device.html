@@ -50,6 +50,21 @@
   button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
   .note { font-size: 14px; color: var(--muted); margin: 16px 0 0; line-height: 1.5; }
   [hidden] { display: none !important; }
+
+  /* hold to talk: a big round button; teal only while it is listening (DESIGN.md) */
+  #talk-area { margin-top: 32px; }
+  #talk {
+    width: 112px; height: 112px; padding: 0; margin: 0; border-radius: var(--r-pill); display: inline-grid; place-items: center;
+    background: var(--surface); color: var(--text); border: 1px solid var(--line);
+    touch-action: none; -webkit-touch-callout: none;
+    transition: background-color 120ms var(--ease-out), box-shadow 80ms linear;
+  }
+  #talk svg { width: 40px; height: 40px; }
+  #talk.recording { background: var(--accent); color: oklch(0.99 0 0); border-color: transparent; box-shadow: 0 0 0 calc(4px + var(--level, 0) * 14px) var(--accent-soft); }
+  #talk:disabled { opacity: .5; cursor: progress; }
+  #heard { font-size: 17px; color: var(--muted); margin: 32px 0 0; min-height: 1.5em; line-height: 1.5; overflow-wrap: anywhere; }
+  #heard + #said { margin-top: 8px; }
+  @media (prefers-reduced-motion: reduce) { #talk.recording { box-shadow: 0 0 0 6px var(--accent-soft); } }
 </style>
 </head>
 <body>
@@ -66,6 +81,13 @@
     <button type="button" id="start-btn">탭해서 시작</button>
     <p class="note">소리를 내려면 화면을 한 번 눌러야 해요.</p>
   </div>
+  <div id="talk-area" hidden>
+    <button type="button" id="talk" aria-label="누르고 있는 동안 말하고, 떼면 까치에게 보내요">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+    <p class="note" id="talk-hint">누른 채로 말하고, 떼면 보내요</p>
+  </div>
+  <p id="heard"></p>
   <p id="said" aria-live="polite"></p>
   <p class="note" id="lock-note" hidden>이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.</p>
 </main>
@@ -76,7 +98,20 @@ let ws = null, audio = null, wakeLock = null, retry = 0, joined = false, allowed
 
 function status(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
 const armed = () => audio?.state === "running";
-const showReady = () => allowed && status(armed() ? "연결됨 · 까치가 이 기기로 말할 수 있어요" : "연결됨 · 화면을 한 번 눌러 주세요", "ok");
+function showReady() {
+  $("talk-area").hidden = !(allowed && armed());
+  if (allowed) status(armed() ? "연결됨" : "연결됨 · 화면을 한 번 눌러 주세요", "ok");
+}
+
+// Play mp3 (base64) and show its words while they are spoken.
+async function play(b64, words) {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const buffer = await audio.decodeAudioData(bytes.buffer);
+  $("said").textContent = words; $("said").className = "speaking";
+  const src = audio.createBufferSource(); src.buffer = buffer; src.connect(audio.destination);
+  await new Promise((resolve) => { src.onended = resolve; src.start(); });
+  $("said").className = "";
+}
 
 // Sound needs one tap (iOS). The same tap keeps the screen on, which keeps the page alive.
 async function arm() {
@@ -119,12 +154,8 @@ async function onMessage(m) {
   if (m.type === "speak") {
     try {
       if (!armed()) throw new Error("needs a tap");
-      const bytes = Uint8Array.from(atob(m.audio), (c) => c.charCodeAt(0));
-      const buffer = await audio.decodeAudioData(bytes.buffer);
-      $("said").textContent = m.text; $("said").className = "speaking";
-      const src = audio.createBufferSource(); src.buffer = buffer; src.connect(audio.destination);
-      await new Promise((resolve) => { src.onended = resolve; src.start(); });
-      $("said").className = "";
+      $("heard").textContent = "";
+      await play(m.audio, m.text);
       ws.send(JSON.stringify({ type: "done", id: m.id }));
     } catch (err) {
       ws.send(JSON.stringify({ type: "failed", id: m.id, error: String(err.message || err) }));
@@ -132,6 +163,96 @@ async function onMessage(m) {
     }
   }
 }
+
+// ---- hold to talk: record while the button is held, send when it is let go (src/port.ts) ----
+const MIN_MS = 300, MAX_MS = 30_000, RATE = 16000;
+let mic = null, frames = [], recording = false, recordStart = 0, busy = false, maxTimer = null;
+const hint = (text) => { $("talk-hint").textContent = text; };
+
+// The mic stays open once allowed: this device sits in one place for this job.
+async function openMic() {
+  if (mic && mic.stream.getAudioTracks()[0]?.readyState === "live") return "open";
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    const src = audio.createMediaStreamSource(stream), proc = audio.createScriptProcessor(4096, 1, 1), sink = audio.createGain();
+    sink.gain.value = 0; src.connect(proc); proc.connect(sink); sink.connect(audio.destination);
+    proc.onaudioprocess = (e) => {
+      if (!recording) return;
+      const f = new Float32Array(e.inputBuffer.getChannelData(0));
+      frames.push(f);
+      let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
+      $("talk").style.setProperty("--level", Math.min(Math.sqrt(sum / f.length) / 0.08, 1).toFixed(2));
+    };
+    const first = !mic;
+    mic = { stream, nodes: [src, proc, sink] };
+    return first ? "granted" : "open";
+  } catch {
+    hint("마이크를 쓸 수 없어요. 브라우저 설정에서 허용해 주세요.");
+    return "denied";
+  }
+}
+
+async function startTalking() {
+  if (busy || recording) return;
+  recording = true; frames = [];
+  ws?.readyState === 1 && ws.send(JSON.stringify({ type: "warm" })); // Kkachi gets ready while you speak
+  await audio.resume().catch(() => {});
+  const m = await openMic();
+  if (m === "denied") { recording = false; return; }
+  if (m === "granted") { recording = false; hint("마이크 준비됐어요. 다시 누른 채로 말하세요"); return; } // the permission prompt took this press
+  if (!recording) return; // let go while the mic was opening
+  frames = []; recordStart = performance.now();
+  $("talk").classList.add("recording"); hint("듣고 있어요 · 떼면 보내요");
+  maxTimer = setTimeout(stopTalking, MAX_MS);
+}
+
+async function stopTalking() {
+  if (!recording) return;
+  recording = false; clearTimeout(maxTimer);
+  $("talk").classList.remove("recording"); $("talk").style.setProperty("--level", "0");
+  if (performance.now() - recordStart < MIN_MS || frames.length < 2) { hint("누른 채로 말하고, 떼면 보내요"); return; }
+  busy = true; $("talk").disabled = true; hint("생각하는 중…");
+  try {
+    const r = await fetch("/api/device/talk", { method: "POST", headers: { "Content-Type": "audio/wav", Authorization: `Bearer ${store.get("token")}` }, body: encodeWav(frames, audio.sampleRate, RATE) });
+    if (!r.ok) throw new Error("talk " + r.status);
+    const { heard, reply, audio: speech } = await r.json();
+    if (!heard) { hint("잘 못 들었어요. 다시 말해 주세요"); return; }
+    $("heard").textContent = `“${heard}”`;
+    hint("누른 채로 말하고, 떼면 보내요");
+    if (speech) await play(speech, reply); else $("said").textContent = reply;
+  } catch {
+    hint("까치에 보내지 못했어요. 다시 말해 주세요");
+  } finally {
+    busy = false; $("talk").disabled = false;
+  }
+}
+
+// 16 kHz mono 16-bit WAV, as the phone app sends (src/web/app.js).
+function encodeWav(frames, inRate, outRate) {
+  const total = frames.reduce((n, f) => n + f.length, 0);
+  const all = new Float32Array(total); let o = 0;
+  for (const f of frames) { all.set(f, o); o += f.length; }
+  const ratio = inRate / outRate, outLen = Math.floor(total / ratio);
+  const pcm = new Int16Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const s = Math.floor(i * ratio), e = Math.min(Math.floor((i + 1) * ratio), total);
+    let acc = 0; for (let j = s; j < e; j++) acc += all[j];
+    const v = Math.max(-1, Math.min(1, acc / Math.max(1, e - s)));
+    pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+  }
+  const buf = new ArrayBuffer(44 + pcm.byteLength), d = new DataView(buf);
+  const w = (p, s) => { for (let i = 0; i < s.length; i++) d.setUint8(p + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); d.setUint32(4, 36 + pcm.byteLength, true); w(8, "WAVE"); w(12, "fmt ");
+  d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+  d.setUint32(24, outRate, true); d.setUint32(28, outRate * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true);
+  w(36, "data"); d.setUint32(40, pcm.byteLength, true);
+  new Int16Array(buf, 44).set(pcm);
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+$("talk").addEventListener("pointerdown", (e) => { e.preventDefault(); $("talk").setPointerCapture?.(e.pointerId); startTalking(); });
+for (const ev of ["pointerup", "pointercancel"]) $("talk").addEventListener(ev, stopTalking);
+$("talk").addEventListener("contextmenu", (e) => e.preventDefault()); // long press: no menu
 
 function join() {
   joined = true;

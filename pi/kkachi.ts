@@ -6,6 +6,7 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { DEVICE_TOOLS } from "../src/device-tools";
+import { MEMORY_TOOL_DEFS } from "../src/memory-tools";
 
 const root = process.env.KKACHI_ROOT!;
 
@@ -69,21 +70,25 @@ export default function (pi: ExtensionAPI) {
     async execute(_id, params) { return text(await runCli("delete_note", params)); },
   });
 
-  // Devices (spare phones and tablets): the same tools Kkachi serves over MCP, called through it.
-  for (const tool of DEVICE_TOOLS) {
-    pi.registerTool({
-      name: tool.name,
-      label: tool.name,
-      description: tool.description,
-      parameters: Type.Unsafe(tool.inputSchema),
-      async execute(_id, params) { return text(await callDevices(tool.name, params)); },
-    });
+  // Devices (spare phones and tablets), and for a device port (src/port.ts) the memory: the same
+  // tools Kkachi serves over MCP, called through it. A port's Pi has no other tools (pi --tools).
+  const services = [["devices", DEVICE_TOOLS], ...(process.env.KKACHI_PORT_TOOLS ? [["memory", MEMORY_TOOL_DEFS]] : [])] as const;
+  for (const [service, tools] of services) {
+    for (const tool of tools) {
+      pi.registerTool({
+        name: tool.name,
+        label: tool.name,
+        description: tool.description,
+        parameters: Type.Unsafe(tool.inputSchema),
+        async execute(_id, params) { return text(await callMcp(service, tool.name, params)); },
+      });
+    }
   }
 }
 
-async function callDevices(name: string, args: unknown): Promise<string> {
+async function callMcp(service: string, name: string, args: unknown): Promise<string> {
   try {
-    const r = await fetch(`${process.env.KKACHI_URL}/mcp/devices`, {
+    const r = await fetch(`${process.env.KKACHI_URL}/mcp/${service}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
@@ -92,6 +97,6 @@ async function callDevices(name: string, args: unknown): Promise<string> {
     const out = result?.content?.map((c: any) => c.text).join("\n") ?? error?.message ?? `HTTP ${r.status}`;
     return result && !result.isError ? out : `Error: ${out}`;
   } catch (err) {
-    return `Error: Kkachi's device service is unreachable (${(err as Error).message})`;
+    return `Error: Kkachi's ${service} service is unreachable (${(err as Error).message})`;
   }
 }
