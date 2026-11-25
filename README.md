@@ -27,7 +27,7 @@ Kkachi runs on a computer that stays on (macOS, Windows, or Linux), and you use 
    - [Pi](https://pi.dev). Run `pi` once and sign in to a model provider with `/login`
    - [Tailscale](https://tailscale.com/download), on the computer **and** the phone, signed in to the same account
    - Nothing to hear replies: by default each phone and spare device reads them in its own built-in voice. Optional, for Microsoft's neural voices instead (made online): [uv](https://docs.astral.sh/uv/), then `uv tool install edge-tts`, and pick one of them in Settings
-   - Optional, to dictate: a free [Groq API key](https://console.groq.com/keys) (speech-to-text and transcript cleanup)
+   - Optional, to dictate: a free [Groq API key](https://console.groq.com/keys) (speech-to-text and transcript cleanup). Speech-to-text can also run on your computer with whisper.cpp, at about ten seconds a sentence on a laptop CPU ([docs/design.md](docs/design.md), Korean)
 2. Set it up:
    ```sh
    git clone https://github.com/junyeong-nero/kkachi.git

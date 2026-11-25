@@ -133,10 +133,30 @@
 
 | | 인터페이스 | 클라우드 예 | 로컬 예 |
 |---|---|---|---|
-| 받아쓰기 | `POST /v1/audio/transcriptions` | Groq Whisper, OpenAI | OpenAI 호환 서버로 띄운 Qwen3-ASR 또는 faster-whisper |
-| TTS | `POST /v1/audio/speech` | OpenAI TTS | 아직 클라우드만 |
+| 받아쓰기 | `POST /v1/audio/transcriptions` | Groq Whisper, OpenAI | whisper.cpp 의 `whisper-server` (아래), OpenAI 호환 서버로 띄운 Qwen3-ASR 또는 faster-whisper |
+| TTS | `POST /v1/audio/speech` | OpenAI TTS | 기본값인 기기 목소리가 이미 로컬 |
 
 설정은 provider 마다 `BASE_URL`, `API_KEY`, `MODEL` (TTS 는 `VOICE` 추가)이다.
+
+### 로컬 받아쓰기 (선택)
+
+whisper.cpp 의 `whisper-server` 는 까치가 보내는 요청을 그대로 받는다. `verbose_json` 에 무음 확률(`no_speech_prob`)도 담겨 잡음 거르기가 같이 동작한다. 코드는 그대로이고 설정만 바꾼다.
+
+1. [whisper.cpp 릴리스](https://github.com/ggml-org/whisper.cpp/releases)에서 실행 파일(Windows 는 `whisper-bin-x64.zip`)을, [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp)에서 모델(`ggml-small.bin`, 466MB)을 받는다.
+2. `whisper-server -m ggml-small.bin -l ko -t 8 --port 8091 --inference-path /v1/audio/transcriptions` 로 띄운다. Git Bash 에서는 경로가 Windows 경로로 바뀌지 않게 앞에 `MSYS_NO_PATHCONV=1` 을 붙인다.
+3. `.env.local` 에 `KKACHI_STT_BASE_URL=http://127.0.0.1:8091/v1`, `KKACHI_STT_MODEL=whisper-small` 을 넣는다. 모델 이름에 `whisper` 가 들어가야 무음 확률을 요청한다.
+
+이 노트북(i5-10210U, GPU 없음, 8스레드)에서 잰 값이다. 모델을 올려 둔 뒤 짧은 문장(약 6초) 기준이다.
+
+| 모델 | 짧은 문장 | 14초 문장 | 한국어 |
+|---|---|---|---|
+| Groq `whisper-large-v3` (기본, 외부) | 0.4초 | 0.5초 | 정확 |
+| `base` | 2.9초 | 4.1초 | 뜻이 바뀌는 오류 ("예약해 두고" → "이야기해두고") |
+| `small` | 10초 | 14초 | 정확 |
+| `small-q5_1` | 11.5초 | 15초 | 정확, 더 빠르지 않음 |
+| `large-v3-turbo-q5_0` | | 15초 넘게 인코딩에만 | 반복해서 말을 지어냄 |
+
+인코더는 말 길이와 상관없이 30초 분량을 처리해서 짧은 말도 느리다. `-ac 512` 로 줄이면 `small` 이 3.6초까지 빨라지지만 10초를 넘는 말은 뒷부분을 잘못 쓴다. 그래서 GPU 없는 노트북에서는 Groq 가 기본이고, 로컬은 기다릴 수 있을 때 고르는 선택이다. iPhone 에서는 키보드의 받아쓰기 버튼도 있다. 입력창에 글로 들어가고, 까치 서버를 거치지 않는다.
 
 ## iOS 제약
 
