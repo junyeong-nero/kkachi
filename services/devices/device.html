@@ -11,18 +11,25 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css" />
 <title>까치 기기</title>
 <style>
+  /* Hallmark · checked: 2026-11-25 · genre: modern-minimal (inferred) · shape: app screen
+   * floor: 0 FAIL · fixed: 9 (7a, 15, 22, 26b, 34, 38iii, 39a, 40, 48, 63) · structural: 0 printed
+   * built: the project · redesign: polish · v2.0.0 */
+  /* Hallmark · waive 28b · the video is 1px, transparent and never the LCP · it is the camera surface device photos are taken from, never shown */
+  /* Hallmark · answered F23 · a device page opened on the user's own tailnet, never shared as a link */
   /* A spare phone or tablet that Kkachi can speak through. Tokens from DESIGN.md (dark only: it
      sits in a room all day, so it stays dim). */
   :root {
     --bg: oklch(0.185 0.006 250); --surface: oklch(0.235 0.008 250); --line: oklch(0.31 0.01 250);
     --text: oklch(0.94 0.005 250); --muted: oklch(0.71 0.012 250);
     --accent: oklch(0.76 0.095 190); --accent-soft: oklch(0.3 0.045 192); --accent-ring: oklch(0.76 0.095 190 / .4);
+    --accent-ink: oklch(0.2 0.03 192); /* icons on the light teal */
+    --dim: oklch(0.1 0.005 250); /* the lamp's dimmer layer */
     --danger: oklch(0.74 0.13 40);
     --font: "SUIT Variable", "Apple SD Gothic Neo", sans-serif;
     --r-md: 14px; --r-pill: 999px; --ease-out: cubic-bezier(.22, 1, .36, 1);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; }
+  html, body { margin: 0; height: 100%; overflow-x: clip; }
   body {
     background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased;
     display: grid; place-items: center; padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
@@ -31,7 +38,7 @@
   main { width: 100%; max-width: 520px; text-align: center; }
   .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 16px; font-weight: 600; }
   .brand img { width: 24px; height: 24px; border-radius: 7px; }
-  h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; margin: 16px 0 8px; line-height: 1.2; overflow-wrap: anywhere; }
+  h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; margin: 16px 0 8px; line-height: 1.2; overflow-wrap: anywhere; text-wrap: balance; }
   #status { font-size: 17px; color: var(--muted); margin: 0; line-height: 1.5; }
   #status.ok { color: var(--text); }
   #status.err { color: var(--danger); }
@@ -42,12 +49,13 @@
     width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: var(--r-md); text-align: center;
     border: 1px solid var(--line); background: var(--surface); color: var(--text); outline: none;
   }
-  input:focus { border-color: var(--accent); }
+  input:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 1px; }
   button {
     font: inherit; font-size: 18px; font-weight: 700; padding: 16px 28px; border-radius: var(--r-pill); border: 0;
     background: var(--text); color: var(--bg); cursor: pointer; margin-top: 12px;
   }
   button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+  button:active:not(:disabled) { transform: translateY(1px); }
   .note { font-size: 14px; color: var(--muted); margin: 16px 0 0; line-height: 1.5; }
   [hidden] { display: none !important; }
 
@@ -56,21 +64,26 @@
   #talk {
     width: 112px; height: 112px; padding: 0; margin: 0; border-radius: var(--r-pill); display: inline-grid; place-items: center;
     background: var(--surface); color: var(--text); border: 1px solid var(--line);
-    touch-action: none; -webkit-touch-callout: none;
-    transition: background-color 120ms var(--ease-out), box-shadow 80ms linear;
+    touch-action: none; -webkit-touch-callout: none; position: relative;
+    transition: background-color 120ms var(--ease-out); /* never box-shadow: the focus ring must not fade in */
   }
   #talk svg { width: 40px; height: 40px; }
-  #talk.recording { background: var(--accent); color: oklch(0.99 0 0); border-color: transparent; box-shadow: 0 0 0 calc(4px + var(--level, 0) * 14px) var(--accent-soft); }
-  #talk:disabled { opacity: .5; cursor: progress; }
+  /* the voice-level halo: a disc behind the button, scaled with transform (4 to 18px around it) */
+  #talk::before {
+    content: ""; position: absolute; inset: -5px; border-radius: inherit; background: var(--accent-soft);
+    z-index: -1; opacity: 0; transform: scale(calc(1 + var(--level, 0) * 0.23)); transition: transform 80ms linear;
+  }
+  #talk.recording { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  #talk.recording::before { opacity: 1; }
+  #talk:disabled { color: var(--muted); cursor: progress; } /* waiting for Kkachi's answer */
   #heard { font-size: 17px; color: var(--muted); margin: 32px 0 0; min-height: 1.5em; line-height: 1.5; overflow-wrap: anywhere; }
   #heard + #said { margin-top: 8px; }
-  @media (prefers-reduced-motion: reduce) { #talk.recording { box-shadow: 0 0 0 6px var(--accent-soft); } }
+  @media (prefers-reduced-motion: reduce) { #talk::before { transform: scale(1.03); transition: none; } }
 
   /* what this device does for Kkachi, each with its state; what is in use right now stands out */
   /* inputs and outputs: one switch card each, in two sections */
   #caps { margin-top: 28px; display: grid; gap: 16px; text-align: left; }
-  #caps h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
-  #caps h2 b { color: var(--text); font-weight: 700; }
+  #caps h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px; text-wrap: balance; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .cap {
     display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 2px 10px; width: 100%; margin: 0;
@@ -85,7 +98,8 @@
   .cap[aria-checked=true] .sw { background: var(--text); }
   .cap[aria-checked=true] .sw::after { transform: translateX(16px); background: var(--bg); }
   .cap[aria-checked=false] svg, .cap[aria-checked=false] .n { opacity: .45; }
-  .cap:disabled { cursor: default; opacity: .45; }
+  .cap:disabled { background: transparent; border-color: var(--line); color: var(--muted); cursor: not-allowed; }
+  .cap:active:not(:disabled) { background: var(--line); }
   .cap:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
   .cap.busy { background: var(--line); }
   .cap.busy .s { color: var(--text); font-weight: 600; }
@@ -96,7 +110,7 @@
 
   /* lamp: the whole screen in one color (device_light); a tap turns it off */
   #lamp { position: fixed; inset: 0; z-index: 10; }
-  #lamp-dim { position: absolute; inset: 0; background: #000; }
+  #lamp-dim { position: absolute; inset: 0; background: var(--dim); }
   #update { margin-top: 24px; }
   #cam { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; } /* iOS needs the video in the page */
 </style>
@@ -107,8 +121,8 @@
   <h1 id="name">새 기기</h1>
   <p id="status" role="status"></p>
   <section id="caps" hidden aria-label="이 기기로 할 수 있는 것">
-    <div><h2><b>출력</b> · 까치가 이 기기로</h2><div class="grid" id="caps-in"></div></div>
-    <div><h2><b>입력</b> · 이 기기가 까치에게</h2><div class="grid" id="caps-out"></div></div>
+    <div><h2>출력 (까치가 이 기기로)</h2><div class="grid" id="caps-in"></div></div>
+    <div><h2>입력 (이 기기가 까치에게)</h2><div class="grid" id="caps-out"></div></div>
   </section>
   <p id="activity" aria-live="polite"></p>
 
@@ -129,7 +143,7 @@
   <p id="heard"></p>
   <p id="said" aria-live="polite"></p>
   <p class="note" id="lock-note" hidden>이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.</p>
-  <button type="button" id="update" hidden>새 버전이 있어요 · 눌러서 새로고침</button>
+  <button type="button" id="update" hidden>새 버전이 있어요. 눌러서 새로고침</button>
 </main>
 <div id="lamp" hidden><div id="lamp-dim"></div></div>
 <video id="cam" playsinline muted></video>
@@ -152,7 +166,7 @@ function status(text, cls = "") { $("status").textContent = text; $("status").cl
 const armed = () => audio?.state === "running";
 function showReady() {
   $("talk-area").hidden = !(allowed && armed() && isOn("talk"));
-  if (allowed) status(armed() ? "연결됨" : "연결됨 · 화면을 한 번 눌러 주세요", "ok");
+  if (allowed) status(armed() ? "연결됨" : "연결됨. 화면을 한 번 눌러 주세요", "ok");
   renderCaps();
 }
 
@@ -212,7 +226,7 @@ const setBusy = (key, label) => { if (label) inUse.set(key, label); else inUse.d
 // The last thing Kkachi did through this device, with the time: nobody nearby is left guessing.
 function activity(text) {
   const time = new Date().toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
-  $("activity").textContent = `${time} · ${text}`;
+  $("activity").textContent = `${time}에 ${text}`;
 }
 function sendState() {
   renderCaps();
@@ -470,7 +484,7 @@ async function startTalking() {
   if (m === "granted") { recording = false; hint("마이크 준비됐어요. 다시 누른 채로 말하세요"); return; } // the permission prompt took this press
   if (!recording) return; // let go while the mic was opening
   frames = []; recordStart = performance.now();
-  $("talk").classList.add("recording"); hint("듣고 있어요 · 떼면 보내요"); setBusy("talk", "듣는 중");
+  $("talk").classList.add("recording"); hint("듣고 있어요. 떼면 보내요"); setBusy("talk", "듣는 중");
   maxTimer = setTimeout(stopTalking, MAX_MS);
 }
 

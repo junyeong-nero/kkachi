@@ -14,6 +14,11 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css" />
 <title>까치</title>
 <style>
+  /* Hallmark · checked: 2026-11-25 · genre: modern-minimal (inferred) · shape: app screen
+   * floor: 0 FAIL · fixed: 7 (15, 34, 39a, 40, 48, 50, 63) · structural: 0 printed
+   * built: the project · redesign: polish · v2.0.0 */
+  /* Hallmark · dismissed 3 · the stripe marks a quoted passage inside a Markdown reply, the usual sign of a quote */
+  /* Hallmark · answered F23 · a private app reached only on the user's tailnet, never shared as a link */
   /* Tokens: see DESIGN.md. Color in OKLCH; accent is the teal sheen of a magpie's wing. */
   :root {
     --bg: oklch(0.992 0.002 240);
@@ -24,10 +29,12 @@
     --accent: oklch(0.54 0.105 192);
     --accent-soft: oklch(0.948 0.03 192);
     --accent-ring: oklch(0.54 0.105 192 / .35);
+    --accent-ink: oklch(0.99 0.004 192); /* icons and text on the accent */
     --danger: oklch(0.53 0.17 35);
     --button: var(--text);
     --button-ink: var(--bg);
     --shadow: 0 1px 2px oklch(0.2 0.02 250 / .12);
+    --scrim: oklch(0.2 0.02 250 / .4); /* behind the settings sheet */
 
     --font: "SUIT Variable", "Apple SD Gothic Neo", sans-serif;
     --scale: 1; /* text size setting (per device): body font size / 16px */
@@ -47,6 +54,7 @@
       --accent: oklch(0.76 0.095 190);
       --accent-soft: oklch(0.3 0.045 192);
       --accent-ring: oklch(0.76 0.095 190 / .4);
+      --accent-ink: oklch(0.2 0.03 192); /* the dark accent is light: ink on it is dark */
       --danger: oklch(0.74 0.13 40);
       --shadow: none;
     }
@@ -54,9 +62,10 @@
 
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
+  html { overflow-x: clip; }
   body {
     background: var(--bg); color: var(--text); font-family: var(--font); font-size: var(--t-base);
-    display: flex; flex-direction: column; overflow: hidden;
+    display: flex; flex-direction: column; overflow: clip;
     /* pinned to the visible area (set from visualViewport in app.js): when the on-screen keyboard
        opens, iOS pans the page instead of shrinking it, which pushed the header and the
        conversation out of view. Fixed children (status shield, toast) follow the body. */
@@ -80,7 +89,7 @@
 
   /* header */
   .bar {
-    display: grid; grid-template-columns: 44px 1fr 44px; align-items: center;
+    display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center;
     padding: calc(6px + env(safe-area-inset-top)) 8px 4px;
   }
   @media (display-mode: standalone) { .bar { padding-top: calc(16px + env(safe-area-inset-top)); } }
@@ -119,7 +128,7 @@
   .md p, .md ul, .md ol, .md pre, .md table, .md blockquote { margin: 0 0 .7em; }
   .md ul, .md ol { padding-left: 1.3em; }
   .md li + li { margin-top: .2em; }
-  .md h1, .md h2, .md h3, .md h4 { font-size: var(--t-base); font-weight: 700; margin: 1em 0 .4em; line-height: 1.4; }
+  .md h1, .md h2, .md h3, .md h4 { font-size: var(--t-base); font-weight: 700; margin: 1em 0 .4em; line-height: 1.4; text-wrap: balance; }
   .md h1, .md h2 { font-size: var(--t-md); }
   .md a { color: var(--accent); text-underline-offset: 2px; }
   .md code { font: .9em/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface); border-radius: 5px; padding: .1em .35em; }
@@ -149,7 +158,7 @@
 
   /* first run: real things to say, near where you talk */
   .intro { margin-top: auto; width: 100%; max-width: 640px; margin-inline: auto; padding-bottom: 8px; }
-  .intro h1 { font-size: var(--t-lg); font-weight: 700; letter-spacing: -0.015em; margin: 0 0 14px; line-height: 1.3; }
+  .intro h1 { font-size: var(--t-lg); font-weight: 700; letter-spacing: -0.015em; margin: 0 0 14px; line-height: 1.3; text-wrap: balance; }
   /* examples are things to say, not buttons: plain quoted lines, no tappable-looking boxes */
   .intro ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .intro li { font-size: var(--t-md); line-height: 1.45; color: var(--muted); }
@@ -174,17 +183,17 @@
   #send {
     flex: none; width: 44px; height: 44px; border-radius: var(--r-pill); border: 0; cursor: pointer;
     background: var(--button); color: var(--button-ink); display: grid; place-items: center;
-    transition: opacity var(--dur) var(--ease-out);
+    transition: background-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
   }
   #send svg { width: 20px; height: 20px; }
-  #send:disabled { opacity: .3; cursor: default; }
+  #send:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
 
   /* mic: tap to start, tap again (or let go after holding) to stop */
   #mic {
     flex: none; position: relative; width: 44px; height: 44px; border-radius: var(--r-pill); cursor: pointer;
     border: 1px solid var(--line); background: var(--bg); color: var(--text); display: grid; place-items: center;
     touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
-    transition: background-color var(--dur) var(--ease-out), box-shadow 80ms linear;
+    transition: background-color var(--dur) var(--ease-out); /* never box-shadow: the focus ring must not fade in */
   }
   #mic svg { width: 21px; height: 21px; }
   @media (hover: hover) { #mic:hover { background: var(--surface); } }
@@ -212,11 +221,14 @@
   .you .photos:not(:last-child) { margin-bottom: 8px; }
   .you .photos img { display: block; max-width: 160px; max-height: 160px; border-radius: var(--r-sm); }
   .kkachi .photos img { display: block; max-width: 100%; max-height: 360px; border-radius: var(--r-sm); } /* a device photo, under the words */
-  /* signature: a soft halo that follows your voice while recording (max 8px: stays clear of the text box) */
-  body[data-state=recording] #mic {
-    background: var(--accent); color: oklch(0.99 0 0); border-color: transparent;
-    box-shadow: 0 0 0 calc(2px + var(--level, 0) * 6px) var(--accent-soft);
+  /* signature: a soft halo that follows your voice while recording (2 to 8px: stays clear of the text box).
+     A disc behind the button, scaled with transform, so nothing animates box-shadow. */
+  #mic::before {
+    content: ""; position: absolute; inset: -3px; border-radius: inherit; background: var(--accent-soft);
+    z-index: -1; opacity: 0; transform: scale(calc(1 + var(--level, 0) * 0.24)); transition: transform 80ms linear;
   }
+  body[data-state=recording] #mic { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  body[data-state=recording] #mic::before { opacity: 1; }
   /* transcribing: a spinning arc around the button */
   #mic::after {
     content: ""; position: absolute; inset: -4px; border-radius: inherit;
@@ -228,7 +240,7 @@
   @media (prefers-reduced-motion: reduce) {
     .dots i { animation: none; opacity: .7; }
     body[data-state=transcribing] #mic::after { animation: none; border-color: var(--accent); opacity: .5; }
-    body[data-state=recording] #mic { box-shadow: 0 0 0 3px var(--accent-soft); }
+    #mic::before { transform: scale(1.06); transition: none; }
   }
 
   /* settings sheet */
@@ -237,7 +249,7 @@
     border-radius: var(--r-md) var(--r-md) 0 0; background: var(--bg); color: var(--text); overflow: auto;
   }
   @media (min-width: 640px) { dialog#settings { margin: auto; max-width: 520px; border-radius: var(--r-md); } }
-  dialog#settings::backdrop { background: oklch(0.2 0.02 250 / .4); }
+  dialog#settings::backdrop { background: var(--scrim); }
   dialog#settings[open] { animation: rise var(--dur) var(--ease-out); }
   @keyframes rise { from { transform: translateY(16px); } }
   @media (prefers-reduced-motion: reduce) { dialog#settings[open] { animation: none; } }
@@ -279,7 +291,7 @@
     transition: background-color var(--dur-fast) var(--ease-out);
   }
   @media (hover: hover) { .plain-btn:hover { background: var(--line); } }
-  .plain-btn:disabled { opacity: .5; cursor: progress; }
+  .plain-btn:disabled { color: var(--muted); cursor: progress; } /* waiting for the server */
   .loading { padding: 14px; font-size: var(--t-sm); color: var(--muted); }
   .device { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; }
   .device + .device { border-top: 1px solid var(--line); }

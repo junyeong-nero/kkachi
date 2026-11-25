@@ -151,7 +151,7 @@ async function startRecording() {
   prerollCount = recordFrames.length;
   recordStart = performance.now();
   earcon.start();
-  setState("recording", "듣고 있어요 · 다시 누르면 받아적어요");
+  setState("recording", "듣고 있어요. 다시 누르면 받아적어요");
   clearTimeout(holdTimer);
   holdTimer = setTimeout(stopRecording, MAX_RECORD_MS);
 }
@@ -517,7 +517,7 @@ function renderDevices(devices) {
     const row = el("div", "device", '<span><span class="name"></span><span class="sub"></span></span><button type="button" class="play"></button>');
     row.querySelector(".name").textContent = d.name;
     const can = (d.can ?? []).map((c) => CAN[c] ?? c).join(", ") || "쓸 수 있는 기능 없음";
-    row.querySelector(".sub").textContent = !d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있음" : `연결됨 · ${can}${d.armed ? "" : " · 기기 화면을 한 번 눌러 주세요"}`;
+    row.querySelector(".sub").textContent = !d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있음" : `연결됨. 쓸 수 있는 기능: ${can}${d.armed ? "" : ". 기기 화면을 한 번 눌러 주세요"}`;
     const btn = row.querySelector("button");
     btn.textContent = d.allowed ? "삭제" : "허용";
     if (!d.allowed) btn.classList.add("allow");
@@ -720,7 +720,7 @@ const demo = new URLSearchParams(location.search).get("demo");
 if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.dataset.theme = "light";
 if (demo === "settings") openSettings();
 else if (demo) {
-  const hints = { recording: "듣고 있어요 · 다시 누르면 받아적어요", transcribing: "받아적는 중…" };
+  const hints = { recording: "듣고 있어요. 다시 누르면 받아적어요", transcribing: "받아적는 중…" };
   if (hints[demo]) setState(demo, hints[demo]);
   mic.style.setProperty("--level", "0.7");
   const sample = (you, reply) => { const v = addTurn(you); if (reply) { v.stream(reply); v.finish(); } return v; };
