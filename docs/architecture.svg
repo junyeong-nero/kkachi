@@ -56,7 +56,7 @@
 
   <!-- ===== Tailscale band ===== -->
   <rect x="30" y="256" width="1440" height="50" rx="12" fill="#eef1f4" stroke="#b9c2cb"/>
-  <text x="48" y="278" class="h">Tailscale Serve · HTTPS :8443 · tailnet 전용</text>
+  <text x="48" y="278" class="h">Tailscale Serve · HTTPS · tailnet 전용</text>
   <text x="48" y="297" class="m">한 주소로 들어와 core 가 검사 · 서비스 몫은 그대로 넘김</text>
 
   <path d="M500 240 V350" class="lt" marker-end="url(#t)"/>

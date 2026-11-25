@@ -1,6 +1,7 @@
 {
   "name": "kkachi",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "start": "bun src/server.ts",

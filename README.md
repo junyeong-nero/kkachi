@@ -22,9 +22,23 @@ Home Assistant adds AI to a house; Kkachi brings the agent you already use into 
 
 Kkachi runs on a computer that stays on (macOS, Windows, or Linux), and you use it from your phone.
 
+One command installs what is missing ([Git](https://git-scm.com/downloads), [Bun](https://bun.sh), [Pi](https://pi.dev), [Tailscale](https://tailscale.com/download)), puts Kkachi in `~/kkachi` and runs its setup, which signs you in to a model provider and to Tailscale on the way:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/junyeong-nero/kkachi/main/install.sh | sh          # macOS, Linux
+```
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/junyeong-nero/kkachi/main/install.ps1 | iex"   # Windows
+```
+
+Then install Tailscale on your phone too, signed in to the same account, and open the address the setup prints. Run the command again any time: it installs nothing that is there and updates Kkachi.
+
+Or step by step:
+
 1. Install the tools on the computer:
    - [Git](https://git-scm.com/downloads) and [Bun](https://bun.sh)
-   - [Pi](https://pi.dev). Run `pi` once and sign in to a model provider with `/login`
+   - [Pi](https://pi.dev). The setup signs you in to a model provider (`pi auth login`), or do it yourself first
    - [Tailscale](https://tailscale.com/download), on the computer **and** the phone, signed in to the same account
    - Nothing to hear replies: by default each phone and spare device reads them in its own built-in voice. Optional, for Microsoft's neural voices instead (made online): [uv](https://docs.astral.sh/uv/), then `uv tool install edge-tts`, and pick one of them in Settings
    - Optional, to dictate: a free [Groq API key](https://console.groq.com/keys) for speech-to-text. Cleaning up transcripts with an LLM (English terms, noise) is off unless you set `KKACHI_POLISH_MODEL`, for example `openai/gpt-oss-120b` on the same key. Speech-to-text can also run on your computer with whisper.cpp, at about ten seconds a sentence on a laptop CPU ([docs/design.md](docs/design.md), Korean)
@@ -34,7 +48,7 @@ Kkachi runs on a computer that stays on (macOS, Windows, or Linux), and you use 
    cd kkachi
    bun run init
    ```
-   `init` checks the tools, creates your memory repo (or uses an existing one), lets you pick a model your Pi can use, offers to bring in the MCP servers you set up for Claude Code, Codex, Cursor or VS Code (through [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter)), saves settings to `.env.local`, starts Kkachi now and at every login, and makes it reachable on your tailnet with Tailscale Serve. You can run it again later; it keeps what is already set up.
+   `init` checks the tools, creates your memory repo (or uses an existing one), signs Pi in to a model provider if it is not yet and lets you pick a model, offers to bring in the MCP servers you set up for Claude Code, Codex, Cursor or VS Code (through [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter)), saves settings to `.env.local`, starts Kkachi now and at every login, and makes it reachable on your tailnet with Tailscale Serve (signing this computer in to Tailscale first if needed). You can run it again later; it keeps what is already set up.
 3. Open the printed `https://<computer>.<tailnet>.ts.net` address on your phone and add it to the home screen. Add `?debug` to the URL for an on-screen log.
 
 Manage the background server with `bun run service status | install | uninstall`. Its log is `data/service.log`. To run in the foreground instead, use `bun start`.
@@ -88,3 +102,7 @@ bun -e 'await (await import("./src/librarian")).tidyNow(); process.exit(0)'
 ```
 
 Do not store secrets (ID numbers, bank accounts, passwords) in it.
+
+## License
+
+[MIT](LICENSE). The two services carry the same license in their folders.

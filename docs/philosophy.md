@@ -46,4 +46,4 @@
 2026-11-25 기준이다. 할 일은 [plan.md](plan.md) 의 M12.
 
 - 음성 인식(Groq Whisper)이 외부 API 다. 받아쓴 말 다듬기(Groq LLM)는 고를 때만 켜지도록 바꿨다. 로컬 Whisper(whisper.cpp)는 설정만으로 쓸 수 있지만, GPU 없는 노트북에서 정확한 모델(small)이 한 문장에 10초쯤 걸려 기본으로 두지 않았다([design.md](design.md) "로컬 받아쓰기").
-- 설치가 한 번에 끝나지 않는다. Git, Bun, Pi, Tailscale 을 먼저 깔아야 한다.
+- 설치 명령 하나(`install.sh`, `install.ps1`)가 빠진 도구를 깔고 설정까지 이어 가지만, 아무것도 없는 컴퓨터에서 끝까지 돌려 보지는 않았다. 레포가 비공개라 그 명령은 공개한 뒤에 동작한다.
