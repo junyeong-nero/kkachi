@@ -1,7 +1,8 @@
 // Kkachi's services run as their own processes. Core starts the servers in kkachi.mcp.json that
 // have a "command", restarts one that stops, and forwards its "routes" (its own pages and sockets)
 // from core's address, so the phone still reaches everything at one place. Services get
-// KKACHI_CORE_URL and a shared KKACHI_INTERNAL_TOKEN to call core back (see lib/trust.ts).
+// KKACHI_CORE_URL and a shared KKACHI_INTERNAL_TOKEN to call core back (see lib/trust.ts), and core's
+// data directory, so their state sits with core's.
 import { config } from "./config";
 import { load, rpc, type Server } from "./mcp-bridge";
 
@@ -13,7 +14,7 @@ function run(name: string, s: Server) {
   const [bin, ...args] = s.command!;
   const p = Bun.spawn([bin === "bun" ? process.execPath : bin, ...args], {
     cwd: config.root,
-    env: { ...process.env, KKACHI_CORE_URL: `http://127.0.0.1:${config.port}` },
+    env: { ...process.env, KKACHI_CORE_URL: `http://127.0.0.1:${config.port}`, KKACHI_DATA_DIR: config.dataDir },
     stdout: "inherit", stderr: "inherit",
   });
   children.add(p);

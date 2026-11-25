@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="까치 기기" />
 <meta name="theme-color" content="#16181c" />
-<link rel="icon" href="/favicon.png" type="image/png" />
+<link rel="icon" href="/api/device/icon.png" type="image/png" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css" />
 <title>까치 기기</title>
@@ -205,7 +205,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand"><img src="/favicon.png" alt="까치" /><span id="name">새 기기</span></div>
+  <div class="brand"><img src="/api/device/icon.png" alt="까치" /><span id="name">새 기기</span></div>
   <button type="button" class="icon-btn" id="open-settings" aria-label="설정" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
   </button>
@@ -697,7 +697,7 @@ function flushOutbox() {
   for (const x of outbox) ws.send(JSON.stringify({ type: "input", id: x.id, kind: "talk", age: Date.now() - x.at, audio: x.audio, mime: x.mime }));
 }
 setInterval(flushOutbox, 5000);
-const ACK_ERRORS = { "switched off": "말 걸기가 꺼져 있어요", expired: "너무 늦게 도착해서 버렸어요. 다시 말해 주세요" };
+const ACK_ERRORS = { "switched off": "말 걸기가 꺼져 있어요", expired: "너무 늦게 도착해서 버렸어요. 다시 말해 주세요", "no agent": "들을 까치가 연결돼 있지 않아요" };
 function onAck(m) {
   if (!outbox.some((x) => x.id === m.id)) return;
   outbox = outbox.filter((x) => x.id !== m.id);

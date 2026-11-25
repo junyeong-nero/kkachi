@@ -1,13 +1,16 @@
 // kkachi-devices: spare phones and tablets as one MCP service. Its own process, started by Kkachi
 // core (kkachi.mcp.json), which forwards /device and /api/device/* here from the phone's address.
+// It also runs on its own (README.md): this folder imports nothing from outside it.
 //   /mcp, /mcp/devices       MCP (list_devices, device_speak, device_snapshot, ...); the second for
 //                            agents on other computers, through core's address
 //   /device                  the page a spare phone opens
 //   /api/device/ws           that page's connection
 //   /api/device/list         devices for the app's settings; /api/device/<id>/allow|forget
+//   /api/device/icon.png     the page's icon
 //   what someone says to a device comes in over its WebSocket and goes to core's bus (docs/bus.md)
-import { handleMcp } from "../../lib/mcp-server";
-import { trusted } from "../../lib/trust";
+import { join } from "node:path";
+import { handleMcp } from "./lib/mcp-server";
+import { trusted } from "./lib/trust";
 import { allowDevice, deviceSocket, forgetDevice, listDevices, page, pageVersion } from "./devices";
 import { service } from "./tools";
 
@@ -29,6 +32,7 @@ Bun.serve({
         const html = (await Bun.file(page).text()).replace("__PAGE_VERSION__", pageVersion());
         return new Response(html, { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
       }
+      if (req.method === "GET" && pathname === "/api/device/icon.png") return new Response(Bun.file(join(import.meta.dir, "icon.png")), { headers: { "Content-Type": "image/png", "Cache-Control": "max-age=86400" } });
       if (req.method === "GET" && pathname === "/api/device/list") return Response.json({ devices: listDevices() });
       const action = req.method === "POST" && pathname.match(/^\/api\/device\/(\w+)\/(allow|forget)$/);
       if (action) {

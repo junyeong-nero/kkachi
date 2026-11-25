@@ -1,0 +1,13 @@
+{
+  "name": "kkachi-devices",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Spare phones and tablets as one MCP service: they speak, take photos, measure sound, read sensors, light up as a lamp, and pass on what people say to them.",
+  "type": "module",
+  "scripts": {
+    "start": "bun server.ts"
+  },
+  "engines": {
+    "bun": ">=1.2"
+  }
+}

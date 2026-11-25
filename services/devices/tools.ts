@@ -1,6 +1,6 @@
 // kkachi-devices as an MCP service: the tools and what they do. Which agent gets which is set in
 // core's kkachi.mcp.json.
-import type { McpService, McpTool } from "../../lib/mcp-server";
+import type { McpService, McpTool } from "./lib/mcp-server";
 import { describeDevices, lightOn, replyOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
 
 const device = { type: "string", description: "Device name, as in list_devices" };

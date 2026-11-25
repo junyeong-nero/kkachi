@@ -2,6 +2,7 @@
 // WebSocket and does things for agents: speak, take a photo, measure sound, read its sensors, act
 // as a lamp. A new device waits until you allow it in the app's settings; allowed devices are
 // remembered in data/devices.json with a secret token. Photos and readings pass through memory only.
+// The messages below are written up in PROTOCOL.md.
 //
 // Device → server: {type:"hello", name, token?, armed, features, version},
 //   {type:"state", armed, perms, enabled} (permissions granted; the switches on its screen),
@@ -16,11 +17,9 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ServerWebSocket, WebSocketHandler } from "bun";
-import { log } from "../../lib/log";
-import type { Content } from "../../lib/mcp-server";
-import { dataDir } from "../../lib/paths";
-import { BUILT_IN, savedVoice, synthesize } from "../../lib/tts";
-import { core } from "./core";
+import { core, speech } from "./core";
+import { dataDir, log } from "./data";
+import type { Content } from "./lib/mcp-server";
 
 type Socket = ServerWebSocket<{ id?: string }>;
 type Features = Record<string, boolean>;
@@ -150,6 +149,7 @@ async function receive(d: Device, msg: any) {
   if (msg.kind !== "talk") return ack(false, "unknown kind");
   if (!on(d, "talk")) return ack(false, "switched off");
   if (typeof msg.audio !== "string" || msg.audio.length > MAX_AUDIO_CHARS) return ack(false, "bad audio");
+  if (!process.env.KKACHI_CORE_URL) return ack(false, "no agent"); // running on its own: nobody to hear it
   for (const [k, v] of seen) if (Date.now() - v.at > 10 * 60_000) seen.delete(k);
   const prior = seen.get(id);
   if (prior) { if (prior.done) ack(true); return; } // a resend: already with core, or still on its way
@@ -171,16 +171,12 @@ const replies = new Map<string, { msg: object; at: number }>();
 export async function replyOn(target: string, a: { inputId: string; heard: string; text?: string; elsewhere?: string }): Promise<string> {
   const d = find(target);
   if (!d) throw new Error(`No device named "${target}".`);
-  let speech: { audio: ArrayBuffer; type: string } | null = null;
-  const { voice, rate } = savedVoice();
-  if (a.text && d.armed && on(d, "speak") && voice !== BUILT_IN) {
-    speech = await synthesize(a.text.slice(0, 1000), voice, rate).catch(() => null); // the words still show
-  }
   // Without audio the device says the text with its own voice, at this rate.
-  const msg = { type: "reply", ...a, rate, ...(speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type }) };
+  const said = a.text && d.armed && on(d, "speak") ? await speech(a.text).catch(() => ({ rate: 0 })) : { rate: 0 }; // the words still show
+  const msg = { type: "reply", ...a, ...said };
   replies.set(d.id, { msg, at: Date.now() });
   send(d, msg);
-  log("device_reply", { name: d.name, heard: !!a.heard, spoken: !!speech, elsewhere: !!a.elsewhere, online: !!d.socket });
+  log("device_reply", { name: d.name, heard: !!a.heard, audio: "audio" in said, elsewhere: !!a.elsewhere, online: !!d.socket });
   return d.socket ? "delivered" : "device offline; kept for two minutes";
 }
 
@@ -234,10 +230,8 @@ async function ask(target: string, request: Record<string, unknown> & { type: st
 /** Speak text out loud on a device; resolves once the device has played it. */
 export async function speakOn(target: string, text: string): Promise<string> {
   ready(target, "speak", { armed: true }); // before making the speech
-  const { voice, rate } = savedVoice();
-  const speech = voice === BUILT_IN ? null : await synthesize(text.slice(0, 1000), voice, rate);
-  const audio = speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type };
-  const { name } = await ask(target, { type: "speak", text, rate, ...audio }, 60_000, { armed: true }); // no audio: its own voice
+  const said = await speech(text); // no audio: the device's own voice
+  const { name } = await ask(target, { type: "speak", text, ...said }, 60_000, { armed: true });
   return `Said it on ${name}.`;
 }
 

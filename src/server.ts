@@ -99,6 +99,7 @@ Bun.serve({
         if (!internal(req)) return new Response("forbidden", { status: 403 });
         const body = await req.json();
         if (pathname === "/api/bus/warm" && typeof body?.source?.id === "string") { warm(body.source); return Response.json({}); }
+        if (pathname === "/api/bus/voice") return Response.json({ voice: settings().voice, rate: settings().rate }); // how devices speak
         const input = pathname === "/api/bus/input" ? parseInput(body) : null;
         if (!input) return new Response("bad input", { status: 400 });
         return Response.json(accept(input), { status: 202 });
