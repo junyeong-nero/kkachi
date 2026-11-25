@@ -36,12 +36,16 @@ All settings are environment variables in `.env.local` (see `src/config.ts`), fo
 ## How it works
 
 ```
-Phone (mic/speaker) → Tailscale Serve (HTTPS) → Kkachi web app (Bun, localhost)
-                                                  ├─ speech-to-text → transcript cleanup (small LLM)
-                                                  ├─ Pi (RPC mode): your extensions, skills, MCP servers
-                                                  ├─ text-to-speech
-                                                  └─ git: commit and push the memory repo
+Phone app, spare phones, other agents
+  → Tailscale Serve (HTTPS, tailnet only)
+  → kkachi-core (src/, :4300): the agent loop and MCP orchestration
+       ├─ speech-to-text → transcript cleanup → Pi (RPC) → text-to-speech
+       ├─ kkachi.mcp.json: which MCP servers, which tools each agent gets
+       ├─ kkachi-devices (services/devices/, :4301): spare phones' inputs and outputs
+       └─ kkachi-memory  (services/memory/, :4302): the notes and their git history
 ```
+
+Core starts the two services, restarts them if they stop, and forwards their pages from its own address; any other MCP server can be added in `kkachi.mcp.json`. See [docs/architecture.svg](docs/architecture.svg).
 
 - **Hands-free** — after one tap, Kkachi listens, answers out loud, and listens again. No typing, no commands: say "thanks, that's all" and it stops; say "I'll take it from the computer" and it hands off.
 - **Remembers quietly** — mention a plan or decision and it is saved to the right note, without "I've noted that". Each turn is one git commit; say "forget that" to revert.

@@ -1,6 +1,6 @@
 # 공기계 센서·기능 체크리스트
 
-공기계(iPhone 웹 페이지 `/device`)에서 쓸 수 있는 기능을 까치 도구로 붙인 현황. 계획은 [plan.md](plan.md) "확장 방향: 에이전트 허브", 구현은 `src/devices.ts`(서버), `src/web/device.html`(기기), `src/device-tools.ts`(도구 정의).
+공기계(iPhone 웹 페이지 `/device`)에서 쓸 수 있는 기능을 까치 도구로 붙인 현황. 계획은 [plan.md](plan.md) "확장 방향: 에이전트 허브", 구현은 kkachi-devices 서비스: `services/devices/devices.ts`(기기 허브), `device.html`(기기 페이지), `tools.ts`(MCP 도구).
 
 ## 원칙
 
