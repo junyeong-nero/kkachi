@@ -8,7 +8,7 @@
   - 예외: 사진은 모델이 봐야 하므로 그 턴의 Pi 대화 기록(`data/pi-sessions/`, 이 컴퓨터)에 남는다. 앱에서 첨부한 사진(M5)과 같다
 - **기기 화면에서 입력·출력을 하나씩 켜고 끈다.** 출력(말하기, 조명)과 입력(말 걸기, 사진, 소리 크기, 센서, 위치) 스위치 카드. 꺼 둔 것은 기기가 거절하고 서버도 알아서, 까치가 "기기에서 꺼 두었어요"라고 답한다. 스위치는 기기(localStorage)에 남아 새로고침해도 유지. 까치가 지금 하는 일(찍는 중, 재는 중 …)과 마지막으로 한 일이 기기 화면에 보인다
 - **권한은 "탭해서 시작" 한 번에 받는다.** 카메라·마이크·움직임·위치 권한 창을 그때 띄운다. 나중에 뜨는 권한 창은 아무도 누르지 않아 멈춘다
-- **공기계 포트(누르고 말하기)는 보고 듣는 도구를 못 쓴다.** 방에 있는 누구나 말할 수 있으므로 `device_snapshot`·`device_sound_level`·`device_sensors` 는 폰 앱(개인 포트)에서만. 포트는 `list_devices`·`device_speak`·`device_light` 와 노트 도구만
+- **공기계에 말한 것이 어떤 도구를 쓸지는 설정이 정한다** ([bus.md](bus.md)). 기본은 폰 앱 대화와 같은 세션·도구다. "제한"이면 `list_devices`·`device_speak`·`device_light` 와 노트 도구만 쓰고, 카메라·소리·센서는 폰 앱에서만
 - 기기는 접속할 때 지원하는 웹 API 를 보고한다(`GET /api/device/list` 의 `features`). 아래 "실기기 확인"은 이 값과 실제 동작으로 채운다
 
 ## 체크리스트
@@ -25,7 +25,7 @@
 | 카메라 | `getUserMedia` (video) | `device_snapshot` | ✅ | ✅ 1280×720 JPEG, 모델이 내용 설명 | ⬜ | 후면 기본, `camera: "front"`. 찍을 때만 켜고 바로 끔(초록 점 잠깐). 폰 앱 답 아래 사진 표시 |
 | 밝기 (조도 센서 대신) | 카메라 프레임 평균 휘도 | `device_snapshot` 결과 | ✅ | ✅ 41/100 | ⬜ | 0 어두움 ~ 100 밝음. 자동 노출 때문에 대략값 |
 | 마이크: 소음 크기 | Web Audio (RMS) | `device_sound_level` | ✅ | ✅ -20 dBFS (가짜 마이크의 삐 소리) | ⬜ | 1~10초, quiet / moderate / loud. 녹음은 남기지 않음. 정확한 측정을 위해 자동 게인·잡음 억제 끔 |
-| 마이크: 말 걸기 | `getUserMedia` (audio) | 누르고 말하기 (M8) | ✅ | ✅ (가짜 기기로 STT→답→음성) | ⬜ | `/api/device/talk` |
+| 마이크: 말 걸기 | `getUserMedia` (audio) | 누르고 말하기 (M8, M10) | ✅ | ✅ (가짜 기기로 STT→답→음성, 실제 페이지로 대기열→ACK→답) | ⬜ | WebSocket `input`/`ack`/`reply` ([bus.md](bus.md)) |
 | 가속도·자이로 | `DeviceMotionEvent` | `device_sensors` | ✅ | ➖ 데스크톱에 센서 없음 | ⬜ | 마지막으로 움직인 때, 최근 10분 최대 흔들림. iOS 는 탭할 때 권한 요청 |
 | 방향·나침반 | `DeviceOrientationEvent` (`webkitCompassHeading`) | `device_sensors` | ✅ | ➖ 데스크톱에 센서 없음 | ⬜ | 놓인 자세(화면 위로/세워짐/옆으로), 방위 |
 | 위치 | Geolocation | `device_sensors` | ✅ | ➖ headless 는 권한 없음 (카드가 "권한 없음"으로 비활성화됨) | ⬜ | 위도·경도·오차. 센서와 따로 켜고 끔. 집에 둔 기기는 쓸 일 적음 |

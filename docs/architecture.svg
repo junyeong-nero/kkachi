@@ -45,7 +45,7 @@
   <rect x="1060" y="116" width="66" height="22" rx="11" fill="#dce9f3"/><text x="1093" y="131" class="badge" fill="#2a5f86" text-anchor="middle">제한 포트</text>
   <text x="618" y="158" class="t">탭해서 시작(소리 · 화면 유지 · 권한) · 스위치 카드로 하나씩 켜고 끄기</text>
   <text x="618" y="180" class="t"><tspan font-weight="700">출력</tspan> 말하기 · 조명    <tspan font-weight="700">입력</tspan> 말 걸기 · 사진 · 소리 크기 · 센서 · 위치</text>
-  <text x="618" y="202" class="t">누르고 말하기 → 그 기기에서 소리로 답 (port 에이전트)</text>
+  <text x="618" y="202" class="t">누르고 말하기 → 사건으로 내보냄, 답은 설정한 곳으로</text>
   <text x="618" y="226" class="m">kkachi-devices 에 붙음 (WebSocket) · 기기 토큰</text>
 
   <rect x="1180" y="106" width="290" height="134" rx="14" class="box"/>
@@ -85,10 +85,10 @@
   <text x="60" y="756" class="m">turn · port · librarian · review.ts</text>
 
   <rect x="308" y="370" width="238" height="112" rx="10" class="box"/>
-  <text x="322" y="394" class="h">포트 API /api/port/*</text>
-  <text x="322" y="418" class="t">서비스만 호출 (내부 토큰)</text>
-  <text x="322" y="440" class="t">talk: 받아쓰기 → port Pi</text>
-  <text x="322" y="460" class="t">        → TTS · warm</text>
+  <text x="322" y="394" class="h">입력 버스 /api/bus/*</text>
+  <text x="322" y="418" class="t">사건 접수 (id 한 번, 60초 안)</text>
+  <text x="322" y="440" class="t">설정대로 세션 → 답하는 곳</text>
+  <text x="322" y="460" class="t">폰 앱 피드 /api/feed</text>
 
   <rect x="308" y="494" width="238" height="138" rx="10" class="box"/>
   <text x="322" y="518" class="h">MCP 브리지</text>
@@ -113,7 +113,7 @@
   <text x="618" y="430" class="t" font-weight="700">MCP 도구</text>
   <text x="618" y="452" class="t">list_devices · device_speak · device_snapshot</text>
   <text x="618" y="474" class="t">device_sound_level · device_sensors · device_light</text>
-  <text x="618" y="500" class="t">누르고 말하기: 기기 토큰 확인 → core 포트 API 로</text>
+  <text x="618" y="500" class="t">말 걸기: input → core 버스 → ack, 답은 device_reply</text>
   <text x="618" y="524" class="t" font-weight="700" fill="#1f8a80">사진 · 측정값은 중계만 · 저장 안 함</text>
   <text x="618" y="546" class="m">services/devices/</text>
 

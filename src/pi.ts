@@ -17,9 +17,11 @@ export interface PiOptions {
   session: "continue" | "none";
   reviewWorktree?: string; // isolated checkout; reviews need only the built-in note tools
   mcp?: Agent; // which MCP tools it gets from kkachi.mcp.json (src/mcp-bridge.ts), as which agent
-  // A device someone talks to (src/port.ts): its own session, and only its MCP tools (the memory
-  // tools cannot leave the memory repo). No shell, file tools, web, subagents or the user's MCP.
-  port?: string; // device id
+  // A device session (src/port.ts): its own session directory. With portTools "limited", only its MCP
+  // tools (the memory tools cannot leave the memory repo) and send_to_phone: no shell, file tools,
+  // web, subagents or the user's MCP. With "full", the phone app's tools.
+  port?: string; // session key: "home" or a device id
+  portTools?: "full" | "limited";
 }
 
 // Dialog requests block Pi until answered. A voice UI cannot show them, so they are cancelled.
@@ -30,7 +32,10 @@ export class Pi {
   private nextId = 0;
   private pending = new Map<string, (r: any) => void>();
   private listeners = new Set<(e: PiEvent) => void>();
-  exited!: Promise<number>;
+  // Exists from the start: callers watch it before start() has spawned anything (it awaits the MCP tools first).
+  private exit!: (code: number) => void;
+  readonly exited = new Promise<number>((resolve) => (this.exit = resolve));
+  private stopped = false;
 
   constructor(private opts: PiOptions) {}
 
@@ -48,17 +53,18 @@ export class Pi {
       "--model", model,
       ...promptArgs,
       ...(this.opts.reviewWorktree ? ["--tools", "read,ls,find,grep,edit,write"] : ["-e", join(config.root, "pi", "kkachi.ts")]),
-      ...(this.opts.port ? ["--no-mcp", ...(mcp?.names.length ? ["--tools", mcp.names.join(",")] : ["--no-tools"])] : []),
+      ...(this.opts.port && this.opts.portTools !== "full" ? ["--no-mcp", "--tools", [...(mcp?.names ?? []), "send_to_phone"].join(",")] : []),
       ...(this.opts.session === "continue"
         ? ["--session-dir", this.opts.port ? join(config.dataDir, "pi-sessions-ports", this.opts.port) : join(config.dataDir, "pi-sessions"), "--continue"]
         : ["--no-session"]),
     ];
+    if (this.stopped) throw new Error("pi was stopped before it started");
     this.proc = Bun.spawn(args, {
       cwd: dir,
       env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}`, ...(mcp ? { KKACHI_MCP_TOOLS: mcp.file } : {}) },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });
-    this.exited = this.proc.exited;
+    this.proc.exited.then((code) => this.exit(code));
     this.readStdout();
     this.readStderr();
     await this.command({ type: "set_auto_retry", enabled: false }); // Kkachi falls back to another model instead
@@ -163,11 +169,15 @@ export class Pi {
 
   /** Stop an isolated worker before its scratch directory is removed, even during startup. */
   async terminate() {
-    if (this.proc && this.proc.exitCode === null) this.proc.kill("SIGKILL");
+    this.stopped = true;
+    if (!this.proc) { this.exit(-1); return; } // not spawned yet: start() will not spawn it now
+    if (this.proc.exitCode === null) this.proc.kill("SIGKILL");
     await this.exited;
   }
 
   stop() {
+    this.stopped = true;
+    if (!this.proc) { this.exit(-1); return; }
     try { (this.proc.stdin as import("bun").FileSink).end(); } catch {}
     setTimeout(() => this.proc.kill(), 5000);
   }

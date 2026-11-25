@@ -11,6 +11,7 @@
 // pi/kkachi.ts registers as Pi tools; calls then go straight to the server.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { INTERNAL_HEADER } from "../lib/trust";
 import { config } from "./config";
 
 export type Agent = "chat" | "port" | "librarian";
@@ -40,6 +41,22 @@ const matches = (pattern: string, server: string, tool?: string) => {
   const [s, t = "*"] = pattern.split(":");
   return glob(s, server) && (tool === undefined || glob(t, tool));
 };
+
+/** Call a tool on one of the services as Kkachi core (with the internal token, so core-only tools
+ * answer too). Returns the text result; throws on an error result. */
+export async function callTool(server: string, name: string, args: object = {}): Promise<string> {
+  const url = load().servers[server]?.url;
+  if (!url) throw new Error(`no ${server} service in kkachi.mcp.json`);
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", [INTERNAL_HEADER]: process.env.KKACHI_INTERNAL_TOKEN ?? "" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+  });
+  const { result, error } = (await r.json()) as any;
+  const text = result?.content?.[0]?.text ?? error?.message ?? `HTTP ${r.status}`;
+  if (!result || result.isError) throw new Error(`${server} ${name}: ${text}`);
+  return text;
+}
 
 export async function rpc(url: string, method: string, params: object = {}) {
   const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: AbortSignal.timeout(10_000) });

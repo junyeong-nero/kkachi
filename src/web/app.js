@@ -280,10 +280,13 @@ function renderMarkdown(target, text) {
 
 // One turn in the transcript. It appears the moment you send and fills in live.
 const dataUrl = (img) => `data:${img.mimeType};base64,${img.data}`;
-function addTurn(text, images = []) {
+// from: where it came from when not this app ("거실에서", a device conversation), shown above it.
+function addTurn(text, images = [], from = null, fromKkachi = false) {
   $("intro")?.remove();
   const turn = el("article", "turn");
+  if (from) { const label = el("div", fromKkachi ? "from left" : "from"); label.textContent = from; turn.append(label); }
   const you = el("div", "you");
+  if (!text && !images.length) you.hidden = true; // a message Kkachi sent: no words of yours
   if (images.length) {
     const photos = el("div", "photos");
     for (const img of images) { const im = new Image(); im.src = dataUrl(img); im.alt = "보낸 사진"; photos.append(im); }
@@ -530,6 +533,34 @@ function renderDevices(devices) {
   }));
 }
 
+// What is said to a spare device (docs/bus.md): one segmented control per option.
+const DEVICE_TALK_NOTE = {
+  all: "공기계에서 한 말이 이 대화에 이어지고, 여기와 같은 도구를 써요.",
+  own: "도구가 전체면 공기계에 말하는 누구나 명령을 실행시킬 수 있어요. 제한이면 노트, 말하기, 조명만 써요.",
+};
+function renderDeviceTalk(options, s) {
+  for (const [key, choices] of Object.entries(options)) {
+    $(key).replaceChildren(...choices.map((c) => {
+      const l = document.createElement("label");
+      l.innerHTML = `<input type="radio" name="${key}">`;
+      l.append(c.name);
+      const input = l.querySelector("input");
+      input.checked = c.id === s[key];
+      input.addEventListener("change", async () => {
+        await saveSettings({ [key]: c.id });
+        showDeviceTalk(saved);
+      });
+      return l;
+    }));
+  }
+  showDeviceTalk(s);
+}
+function showDeviceTalk(s) {
+  const shared = s.deviceSession === "all"; // the phone app's session: its tools, and it never starts over
+  $("device-own-session").hidden = shared;
+  $("device-talk-note").textContent = shared ? DEVICE_TALK_NOTE.all : DEVICE_TALK_NOTE.own;
+}
+
 async function openSettings() {
   const dlg = $("settings");
   renderTextSize();
@@ -538,7 +569,7 @@ async function openSettings() {
   fetch("/api/device/list").then((r) => r.json()).then((j) => renderDevices(j.devices)).catch(() => {});
   const r = await fetch("/api/settings");
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
-  const { settings: s, voices, thinking, models, fallbacks } = await r.json();
+  const { settings: s, voices, thinking, models, fallbacks, deviceOptions } = await r.json();
   saved = s;
 
   $("voices").replaceChildren(...voices.map((v) => {
@@ -558,6 +589,8 @@ async function openSettings() {
   rate.value = s.rate; $("rate-out").textContent = rateLabel(s.rate);
   rate.oninput = () => ($("rate-out").textContent = rateLabel(Number(rate.value)));
   rate.onchange = () => saveSettings({ rate: Number(rate.value) });
+
+  renderDeviceTalk(deviceOptions, s);
 
   $("thinking").replaceChildren(...thinking.map((t) => {
     const l = document.createElement("label");
@@ -755,10 +788,34 @@ else if (demo) {
   }
 }
 
+// ---- the feed (docs/bus.md): conversations on spare devices and messages sent to the phone ----
+// Listened to while the app is open. The last event id is kept, so reopening shows what came
+// meanwhile; only fresh items are read aloud.
+let feed = null;
+function openFeed() {
+  if (feed || demo || document.visibilityState !== "visible") return;
+  const last = localStorage.getItem("kkachi.feed");
+  feed = new EventSource(`/api/feed${last ? `?last=${encodeURIComponent(last)}` : ""}`);
+  feed.onmessage = (e) => {
+    if (e.lastEventId) localStorage.setItem("kkachi.feed", e.lastEventId);
+    const item = JSON.parse(e.data);
+    if (item.kind !== "hello") showFeedItem(item);
+  };
+}
+function closeFeed() { feed?.close(); feed = null; }
+function showFeedItem(item) {
+  const v = item.kind === "turn" ? addTurn(item.heard, [], `${item.from}에서`) : addTurn("", [], "까치가 보냈어요", true);
+  v.stream(item.text || "");
+  v.finish();
+  const fresh = Date.now() - Date.parse(item.at) < 15_000;
+  if (item.speak && fresh && readAloud() && ctx && item.text) ttsBuffer(item.text).then((buf) => buf && play(buf));
+}
+openFeed();
+
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);
-  if (document.visibilityState === "hidden") { stopRecording(); resetAudio(); } // iOS will cut the mic anyway; keep what was said
+  if (document.visibilityState === "hidden") { stopRecording(); resetAudio(); closeFeed(); } // iOS will cut the mic anyway; keep what was said
   // Back in the app: the turn stream may be dead without having errored yet. Restart it now; it
   // resumes from the last event received (see followTurn).
-  else liveStream?.abort();
+  else { liveStream?.abort(); openFeed(); }
 });

@@ -49,6 +49,8 @@ Single source of truth for the app's visual system (`src/web/index.html`). Inter
   - a 112px round hold-to-talk button (mic icon, teal with an `accent-ink` icon and a voice-level halo only while held, since that is listening; `muted` while waiting for the answer), what was heard in quotes (`muted`), and the words spoken (current ones in `text`, earlier ones `muted`)
 
   Teal appears nowhere else on the page. As a lamp (`device_light`) the whole screen is one color, dimmed by a `dim` layer, and a tap turns it off. An outdated page shows a single "새 버전이 있어요. 눌러서 새로고침" button. Status lines are sentences, never joined with middle dots.
+- **Device talk settings**: a "공기계 대화" section of segmented controls, each with a small `muted` name above it (not tracked, not caps): 대화, 답하는 곳, 개인적인 내용, and, only when the devices have their own session, 도구 and 조용하면 새 대화 (four segments). One note below says what the current choice means.
+- **Feed bubbles**: a device conversation shows in the transcript like any turn, with "거실에서" in `muted` small type right-aligned above your bubble; a message Kkachi sent to the phone is a Kkachi bubble alone, with "까치가 보냈어요" left-aligned above it.
 - **Device photos**: a photo Kkachi took through a device appears in its bubble under the words, full width (max 360px tall).
 - **First run**: example sentences to say, as plain quoted lines (not tappable-looking boxes), placed near the talk button.
 - **States**: mic idle / recording (teal with `accent-ink`, level halo) / thinking (dimmed) / speaking (bars) / disabled (mic permission denied). Icon buttons and settings controls have hover (pointer devices), active, focus-visible (3px teal ring, instant). Disabled is never opacity alone: send goes `line` with a `muted` arrow and a not-allowed cursor; a button waiting on the server goes `muted` with a progress cursor.
@@ -82,4 +84,5 @@ Kept on purpose: centered single column and chat bubbles (familiar Operate-mode 
 - 2026-11-25: device photos in Kkachi's bubble; lamp and update notice on `/device`.
 - 2026-11-25: input/output switch cards on `/device`; the settings sheet lists what each device can do now.
 - 2026-11-25: README banner and architecture diagrams.
+- 2026-11-25: device talk settings; feed bubbles with where they came from; `/device` hints 보내는 중…, 전했어요.
 - 2026-11-25: Hallmark polish: `accent-ink`, `scrim` and `dim` tokens, the halo as a scaled disc, disabled states with fill, ink and cursor, a pressed state on `/device`, status lines as sentences.

@@ -34,6 +34,26 @@ export default function (pi: ExtensionAPI) {
     async execute() { return text("The librarian will tidy the notes in the background after this turn."); },
   });
 
+  // The phone app as an output (docs/bus.md): it shows the message, and reads it aloud if set to.
+  pi.registerTool({
+    name: "send_to_phone",
+    label: "Send to phone",
+    description: "Show a message in the user's Kkachi phone app: details you should not say aloud on a device, or anything the user asks to send to their phone. Markdown is fine.",
+    parameters: Type.Object({ text: Type.String() }),
+    async execute(_id, params) {
+      try {
+        const r = await fetch(`${process.env.KKACHI_URL}/api/feed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-kkachi-internal": process.env.KKACHI_INTERNAL_TOKEN ?? "" },
+          body: JSON.stringify({ text: params.text }),
+        });
+        return text(r.ok ? "Sent to the phone app." : `Error: the phone app did not take it (HTTP ${r.status})`);
+      } catch (err) {
+        return text(`Error: Kkachi is unreachable (${(err as Error).message})`);
+      }
+    },
+  });
+
   // MCP tools Kkachi core chose for this agent from kkachi.mcp.json (src/mcp-bridge.ts), each
   // called on its own server. Nothing here knows what they are: add a server, get its tools.
   const file = process.env.KKACHI_MCP_TOOLS;

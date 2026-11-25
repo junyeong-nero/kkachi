@@ -126,17 +126,20 @@ const isNote = (rel: string) => rel.endsWith(".md") && !rel.startsWith("/") && !
 
 // A new utterance supersedes the one still being handled: abort it, wait for it to wind down
 // (it still commits whatever it already changed), then run the new one.
-export async function runTurn(text: string, emit: (e: TurnEvent) => void, images: PiImage[] = []) {
-  if (currentTurn) await agent?.abort();
+// A device turn (docs/bus.md) waits its turn instead of stopping the one running, and names its
+// device in the prompt's header, the commit and the review journal.
+export type TurnSource = { device: string; header: string };
+export async function runTurn(text: string, emit: (e: TurnEvent) => void, images: PiImage[] = [], source?: TurnSource) {
+  if (currentTurn && !source) await agent?.abort();
   // Photos go to the model only. The log, the commit message and the review journal note that there were some.
-  const said = images.length ? `${text} [사진 ${images.length}장]`.trim() : text;
+  const said = (source ? `[${source.device}] ` : "") + (images.length ? `${text} [사진 ${images.length}장]`.trim() : text);
   const turn = queue.then(async () => {
     await Promise.all([cancelReview(), cancelTidy()]); // a foreground turn has priority over both jobs
     const t = new Date().toISOString();
     let reply = "", saved: string[] = [];
     let issue: ReviewIssue | undefined;
     try {
-      await doTurn(text, said, images, (e) => {
+      await doTurn(text, said, images, source?.header ?? "", (e) => {
         if (e.type === "delta") reply += e.text;
         if (e.type === "aside") reply = ""; // keep the answer, not progress before a tool call
         if (e.type === "done") saved = e.changed;
@@ -154,8 +157,15 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void, images
 }
 let queue: Promise<void> = Promise.resolve();
 
+/** Run fn in line with conversation turns, so two agents never edit the notes at the same time. */
+export function inTurnQueue<T>(fn: () => Promise<T>): Promise<T> {
+  const op = queue.then(fn);
+  queue = op.then(() => {}, () => {});
+  return op;
+}
 
-async function doTurn(text: string, said: string, images: PiImage[], emit: (e: TurnEvent) => void) {
+
+async function doTurn(text: string, said: string, images: PiImage[], header: string, emit: (e: TurnEvent) => void) {
   try {
     await memory.sync();
   } catch (err) {
@@ -166,7 +176,7 @@ async function doTurn(text: string, said: string, images: PiImage[], emit: (e: T
   // Retry on the next model when a model is rate-limited before saying anything.
   for (let attempt = 0; ; attempt++) {
     const pi = await conversation();
-    const limited = await streamTurn(pi, `[지금: ${now()}]\n${text}`, said, images, emit);
+    const limited = await streamTurn(pi, `[지금: ${now()}]${header ? " " + header : ""}\n${text}`, said, images, emit);
     if (!limited) break;
     if (!markLimited(agentModel, limited) || attempt + 1 >= modelOrder().length) {
       emit({ type: "error", message: "지금 모델들이 모두 바빠요. 잠시 뒤에 다시 말해 주세요." });

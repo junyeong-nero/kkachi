@@ -268,7 +268,7 @@ async function keepAwake() {
 
 function connect() {
   ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/device/ws`);
-  ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: "hello", name: store.get("name"), token: store.get("token"), armed: armed(), features: features(), version: VERSION })); sendState(); };
+  ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: "hello", name: store.get("name"), token: store.get("token"), armed: armed(), features: features(), version: VERSION })); sendState(); flushOutbox(); };
   ws.onmessage = (e) => onMessage(JSON.parse(e.data));
   ws.onclose = () => {
     if (!joined) return;
@@ -290,6 +290,8 @@ async function onMessage(m) {
     status("이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.", "err");
   }
   if (m.type === "update") $("update").hidden = false;
+  if (m.type === "ack") onAck(m);
+  if (m.type === "reply") onReply(m);
   if (m.type === "ready") $("update").hidden = true; // told again on every connect when still old
   const handler = REQUESTS[m.type];
   if (handler && m.id) {
@@ -442,7 +444,7 @@ async function askCamera() {
 
 // ---- hold to talk: record while the button is held, send when it is let go (src/port.ts) ----
 const MIN_MS = 300, MAX_MS = 30_000, RATE = 16000;
-let mic = null, frames = [], recording = false, recordStart = 0, busy = false, maxTimer = null, meter = null;
+let mic = null, frames = [], recording = false, recordStart = 0, maxTimer = null, meter = null;
 const hint = (text) => { $("talk-hint").textContent = text; };
 
 // The mic stays open once allowed: this device sits in one place for this job.
@@ -475,7 +477,7 @@ async function openMic() {
 }
 
 async function startTalking() {
-  if (busy || recording) return;
+  if (recording) return;
   recording = true; frames = [];
   ws?.readyState === 1 && ws.send(JSON.stringify({ type: "warm" })); // Kkachi gets ready while you speak
   await audio.resume().catch(() => {});
@@ -493,20 +495,51 @@ async function stopTalking() {
   recording = false; clearTimeout(maxTimer);
   $("talk").classList.remove("recording"); $("talk").style.setProperty("--level", "0");
   if (performance.now() - recordStart < MIN_MS || frames.length < 2) { hint("누른 채로 말하고, 떼면 보내요"); setBusy("talk", null); return; }
-  busy = true; $("talk").disabled = true; hint("생각하는 중…"); setBusy("talk", "생각하는 중");
-  try {
-    const r = await fetch("/api/device/talk", { method: "POST", headers: { "Content-Type": "audio/wav", Authorization: `Bearer ${store.get("token")}` }, body: encodeWav(frames, audio.sampleRate, RATE) });
-    if (!r.ok) throw new Error("talk " + r.status);
-    const { heard, reply, audio: speech } = await r.json();
-    if (!heard) { hint("잘 못 들었어요. 다시 말해 주세요"); return; }
-    $("heard").textContent = `“${heard}”`;
-    hint("누른 채로 말하고, 떼면 보내요");
-    if (speech) await play(speech, reply); else $("said").textContent = reply;
-  } catch {
-    hint("까치에 보내지 못했어요. 다시 말해 주세요");
-  } finally {
-    busy = false; $("talk").disabled = false; setBusy("talk", null);
-  }
+  setBusy("talk", null);
+  const at = Date.now();
+  const wav = await toBase64(encodeWav(frames, audio.sampleRate, RATE));
+  outbox.push({ id: newId(), at, audio: wav, mime: "audio/wav" });
+  hint("보내는 중…");
+  flushOutbox();
+}
+
+// ---- what this device says goes out as an input, not a request (docs/bus.md) ----
+// It waits in the outbox until Kkachi acks it, and is sent again every 5 s and on every reconnect
+// with the same id, so it is handled once. Past 60 s it is dropped: a late "불 꺼줘" must not run.
+// The device does not wait for an answer: one comes as a "reply" only if Kkachi answers here.
+const INPUT_TTL = 60_000;
+let outbox = [], lastReply = null;
+const newId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+async function toBase64(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function flushOutbox() {
+  const expired = outbox.filter((x) => Date.now() - x.at > INPUT_TTL);
+  if (expired.length) { outbox = outbox.filter((x) => !expired.includes(x)); hint("까치에 전하지 못했어요. 다시 말해 주세요"); }
+  if (ws?.readyState !== 1) return;
+  for (const x of outbox) ws.send(JSON.stringify({ type: "input", id: x.id, kind: "talk", age: Date.now() - x.at, audio: x.audio, mime: x.mime }));
+}
+setInterval(flushOutbox, 5000);
+const ACK_ERRORS = { "switched off": "말 걸기가 꺼져 있어요", expired: "너무 늦게 도착해서 버렸어요. 다시 말해 주세요" };
+function onAck(m) {
+  if (!outbox.some((x) => x.id === m.id)) return;
+  outbox = outbox.filter((x) => x.id !== m.id);
+  hint(m.ok ? "전했어요" : ACK_ERRORS[m.error] ?? "까치가 받지 못했어요");
+}
+async function onReply(m) {
+  if (m.inputId === lastReply) return; // sent again after a reconnect
+  lastReply = m.inputId;
+  hint("누른 채로 말하고, 떼면 보내요");
+  if (!m.heard) { $("heard").textContent = ""; hint("잘 못 들었어요. 다시 말해 주세요"); return; }
+  $("heard").textContent = `“${m.heard}”`;
+  if (m.elsewhere) { $("said").textContent = m.elsewhere; $("said").className = ""; return; }
+  if (m.audio && armed() && isOn("speak")) {
+    setBusy("speak", "말하는 중");
+    try { await play(m.audio, m.text); } catch { $("said").textContent = m.text; } finally { setBusy("speak", null); }
+  } else { $("said").textContent = m.text; $("said").className = ""; }
 }
 
 // 16 kHz mono 16-bit WAV, as the phone app sends (src/web/app.js).

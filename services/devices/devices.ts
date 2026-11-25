@@ -6,8 +6,10 @@
 // Device → server: {type:"hello", name, token?, armed, features, version},
 //   {type:"state", armed, perms, enabled} (permissions granted; the switches on its screen),
 //   {type:"result", id, ok, data?|error?}, {type:"warm"} (talk button went down: core gets ready),
+//   {type:"input", id, kind:"talk", age, audio, mime} (something said; acked once core has it, docs/bus.md),
 //   {type:"done"|"failed", id, error?} (pages from before "result")
 // Server → device: {type:"pending"|"ready", name, token}, {type:"forgotten"}, {type:"update"},
+//   {type:"ack", id, ok, error?}, {type:"reply", inputId, heard, text?, elsewhere?, audio?, mime?},
 //   requests with an id: {type:"speak", text, audio, mime}, {type:"snapshot", camera},
 //   {type:"sound", seconds}, {type:"sensors"}, {type:"light", on, color, brightness}
 import { createHash } from "node:crypto";
@@ -67,12 +69,6 @@ export type DeviceInfo = { id: string; name: string; allowed: boolean; online: b
 export const listDevices = (): DeviceInfo[] =>
   [...devices.values()].map((d) => ({ id: d.id, name: d.name, allowed: d.allowed, online: !!d.socket, armed: !!d.socket && d.armed, can: can(d), off: off(d), features: d.features }));
 
-/** The allowed device holding this token (a device authenticates its requests with it). */
-export function deviceByToken(token: string): { id: string; name: string } | undefined {
-  const d = token ? [...devices.values()].find((x) => x.allowed && x.token === token) : undefined;
-  return d && { id: d.id, name: d.name };
-}
-
 export function allowDevice(id: string): boolean {
   const d = devices.get(id);
   if (!d) return false;
@@ -116,6 +112,8 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       ws.data.id = d.id;
       send(d, { type: d.allowed ? "ready" : "pending", name: d.name, token: d.token });
       if (msg.version !== pageVersion()) send(d, { type: "update" });
+      const last = replies.get(d.id); // an answer that came while the page was away
+      if (d.allowed && last && Date.now() - last.at < REPLY_KEEP_MS) send(d, last.msg);
       return;
     }
     const d = ws.data.id ? devices.get(ws.data.id) : undefined;
@@ -125,7 +123,8 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       if (msg.perms) d.perms = bools(msg.perms);
       if (msg.enabled) d.enabled = bools(msg.enabled);
     }
-    if (msg.type === "warm" && d.allowed) core("/api/port/warm", { id: d.id, name: d.name }).catch(() => {});
+    if (msg.type === "warm" && d.allowed && on(d, "talk")) core("/api/bus/warm", { source: { id: d.id, name: d.name } }).catch(() => {});
+    if (msg.type === "input") receive(d, msg);
     if (typeof msg.id === "string") {
       if (msg.type === "result") waiting.get(msg.id)?.({ ok: !!msg.ok, data: msg.data, error: msg.error });
       if (msg.type === "done") waiting.get(msg.id)?.({ ok: true });
@@ -139,6 +138,50 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
     if (!d.allowed) devices.delete(d.id); // a pending request lasts as long as its page is open
   },
 };
+
+// ---- inputs the device starts (docs/bus.md): forwarded to core once, acked when core has them ----
+const MAX_AUDIO_CHARS = 4_000_000; // base64, about 3 MB: 30 s of 16 kHz WAV is under 1 MB
+const seen = new Map<string, { at: number; done: boolean }>(); // input id -> forwarded (done) or in flight
+async function receive(d: Device, msg: any) {
+  const id = typeof msg.id === "string" && /^[\w-]{8,64}$/.test(msg.id) ? msg.id : null;
+  if (!id) return;
+  const ack = (ok: boolean, error?: string) => send(d, { type: "ack", id, ok, ...(error && { error }) });
+  if (!d.allowed) return ack(false, "not allowed");
+  if (msg.kind !== "talk") return ack(false, "unknown kind");
+  if (!on(d, "talk")) return ack(false, "switched off");
+  if (typeof msg.audio !== "string" || msg.audio.length > MAX_AUDIO_CHARS) return ack(false, "bad audio");
+  for (const [k, v] of seen) if (Date.now() - v.at > 10 * 60_000) seen.delete(k);
+  const prior = seen.get(id);
+  if (prior) { if (prior.done) ack(true); return; } // a resend: already with core, or still on its way
+  seen.set(id, { at: Date.now(), done: false });
+  try {
+    const r = await core("/api/bus/input", { id, source: { id: d.id, name: d.name }, kind: msg.kind, age: Number(msg.age) || 0, audio: msg.audio, mime: String(msg.mime ?? "audio/wav") }, 15_000);
+    if (r.accepted) { seen.set(id, { at: Date.now(), done: true }); ack(true); }
+    else { seen.delete(id); ack(false, r.reason ?? "refused"); }
+  } catch (err) {
+    seen.delete(id); // core is away: no ack, and the device sends it again
+    console.error("input not forwarded", (err as Error).message);
+  }
+}
+
+// The answer core sends back to the device that heard it. Kept for two minutes, so a page that was
+// away (screen off, reconnecting) still gets it.
+const REPLY_KEEP_MS = 2 * 60_000;
+const replies = new Map<string, { msg: object; at: number }>();
+export async function replyOn(target: string, a: { inputId: string; heard: string; text?: string; elsewhere?: string }): Promise<string> {
+  const d = find(target);
+  if (!d) throw new Error(`No device named "${target}".`);
+  let speech: { audio: ArrayBuffer; type: string } | null = null;
+  if (a.text && d.armed && on(d, "speak")) {
+    const { voice, rate } = savedVoice();
+    speech = await synthesize(a.text.slice(0, 1000), voice, rate).catch(() => null); // the words still show
+  }
+  const msg = { type: "reply", ...a, ...(speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type }) };
+  replies.set(d.id, { msg, at: Date.now() });
+  send(d, msg);
+  log("device_reply", { name: d.name, heard: !!a.heard, spoken: !!speech, elsewhere: !!a.elsewhere, online: !!d.socket });
+  return d.socket ? "delivered" : "device offline; kept for two minutes";
+}
 
 // Find an allowed device by name ("거실", "거실 폰"), forgiving case and spaces, or by id.
 function find(target: string): Device | undefined {

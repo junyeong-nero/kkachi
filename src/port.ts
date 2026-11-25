@@ -1,56 +1,70 @@
-// A device as a port: someone in the room holds the button on /device, speaks, and Kkachi answers out
-// loud on that device. Anyone nearby can talk to it, so it gets far less than the phone app: its own
-// Pi process and session (no personal conversation carries over) with only the MCP tools that
-// kkachi.mcp.json gives the "port" agent (see PiOptions.port). Memory changes are commits made by
-// the memory service.
+// Device sessions of their own (docs/bus.md): what is said to spare devices when the settings keep
+// it apart from the phone app's conversation, one session for all devices ("home") or one per device.
+// Tools are the setting's: "full" gives the phone app's tools and waits in line with its turns (core
+// commits each turn), "limited" gives the notes, speaking and the lamp (each note change is its own
+// commit by the memory service) and does not wait.
 import { log } from "./log";
+import { cancelTidy } from "./librarian";
+import { memory } from "./memory";
 import { currentModel } from "./models";
 import { Pi } from "./pi";
-import { recordTurn as queueForReview } from "./review";
-import { now } from "./turn";
+import { cancelReview, recordTurn as queueForReview } from "./review";
+import { inTurnQueue, now } from "./turn";
 
-const IDLE_MS = 10 * 60_000; // a quiet port's Pi stops; the next question starts it again (same session)
+export type Tools = "full" | "limited";
+type Port = { pi: Pi; queue: Promise<unknown>; idle?: ReturnType<typeof setTimeout> };
+
+const STOP_AFTER_MS = 10 * 60_000; // a quiet session's Pi stops; the next question starts it again
 const TURN_TIMEOUT_MS = 3 * 60_000;
-const ports = new Map<string, { pi: Pi; queue: Promise<unknown>; idle?: ReturnType<typeof setTimeout> }>();
+const ports = new Map<string, Port>();          // `${session}:${tools}`: a tools change starts a new Pi
+const lastTurnAt = new Map<string, number>();   // per session, for starting over after a quiet spell
 
-function portFor(id: string) {
-  let port = ports.get(id);
+function portFor(session: string, tools: Tools) {
+  const key = `${session}:${tools}`;
+  let port = ports.get(key);
   if (!port) {
-    const pi = new Pi({ prompt: "device.md", mode: "replace", session: "continue", port: id, mcp: "port" });
+    const pi = new Pi({ prompt: "device.md", mode: "replace", session: "continue", port: session, portTools: tools, mcp: tools === "full" ? "chat" : "port" });
     port = { pi, queue: pi.start(currentModel()) };
-    ports.set(id, port);
-    pi.exited.then(() => { if (ports.get(id)?.pi === pi) ports.delete(id); });
-    stopWhenIdle(id, port);
+    ports.set(key, port);
+    pi.exited.then(() => { if (ports.get(key)?.pi === pi) ports.delete(key); });
+    stopWhenIdle(key, port);
   }
   return port;
 }
 
-function stopWhenIdle(id: string, port: NonNullable<ReturnType<typeof ports.get>>) {
+function stopWhenIdle(key: string, port: Port) {
   clearTimeout(port.idle);
-  port.idle = setTimeout(() => { if (ports.get(id) === port) { ports.delete(id); port.pi.stop(); } }, IDLE_MS);
+  port.idle = setTimeout(() => { if (ports.get(key) === port) { ports.delete(key); port.pi.stop(); } }, STOP_AFTER_MS);
 }
 
-/** Start a device's Pi while someone is still speaking (the button went down): it takes seconds. */
-export function warmPort(id: string) { portFor(id); }
+/** Start a session's Pi while someone is still speaking (the button went down): it takes seconds. */
+export function warmPort(session: string, tools: Tools) { portFor(session, tools); }
 
-/** One spoken question from a device. Returns the reply to read aloud there. */
-export async function talk(device: { id: string; name: string }, text: string): Promise<string> {
-  const port = portFor(device.id);
+/** One thing said to a device, answered in its session. Returns the answer. */
+export async function talk(session: string, device: { name: string }, text: string, opts: { tools: Tools; idleMin: number; header: string }): Promise<string> {
+  const port = portFor(session, opts.tools);
+  const key = `${session}:${opts.tools}`;
   clearTimeout(port.idle);
-  const turn = port.queue.catch(() => {}).then(async () => {
+  const run = async () => {
     const t0 = performance.now();
+    if (opts.tools === "full") await Promise.all([cancelReview(), cancelTidy()]); // it edits the notes in place
+    const last = lastTurnAt.get(session);
+    if (opts.idleMin > 0 && last && Date.now() - last > opts.idleMin * 60_000) await port.pi.newSession(); // a new conversation
+    lastTurnAt.set(session, Date.now());
     let error = "";
-    const run = port.pi.run(`[지금: ${now()}] [기기: ${device.name}]\n${text}`, (e) => {
+    const run = port.pi.run(`[지금: ${now()}] ${opts.header}\n${text}`, (e) => {
       if (e.type === "message_end" && e.message?.role === "assistant" && e.message.stopReason === "error") error = String(e.message.errorMessage ?? "error");
     });
     const finished = await Promise.race([run.then(() => true), Bun.sleep(TURN_TIMEOUT_MS).then(() => false)]);
     if (!finished) await port.pi.abort();
     const reply = finished && !error ? (await port.pi.lastText())?.trim() ?? "" : "";
-    log("port_turn", { device: device.name, text, totalMs: Math.round(performance.now() - t0), error: error ? error.slice(0, 200) : finished ? undefined : "timeout" });
-    // The idle review reads port conversations too ("[거실] …"), to catch what was worth keeping.
+    if (opts.tools === "full") await memory.checkpoint("change", `[${device.name}] ${text}`).catch((err) => console.error("device turn commit failed", err));
+    log("port_turn", { session, device: device.name, tools: opts.tools, text, totalMs: Math.round(performance.now() - t0), error: error ? error.slice(0, 200) : finished ? undefined : "timeout" });
+    // The idle review reads device conversations too ("[거실] …"), to catch what was worth keeping.
     queueForReview({ t: new Date().toISOString(), user: `[${device.name}] ${text}`, reply, saved: [] });
     return reply || "지금은 답하기 어려워요. 잠시 뒤에 다시 말해 주세요.";
-  });
+  };
+  const turn = port.queue.catch(() => {}).then(() => (opts.tools === "full" ? inTurnQueue(run) : run()));
   port.queue = turn;
-  try { return await turn; } finally { stopWhenIdle(device.id, port); }
+  try { return await turn; } finally { stopWhenIdle(key, port); }
 }

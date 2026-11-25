@@ -4,12 +4,13 @@ import { config } from "./config";
 import { log } from "./log";
 import { polish } from "./polish";
 import { modelOrder } from "./models";
-import { settings, THINKING, updateSettings, VOICES } from "./settings";
+import { DEVICE_OPTIONS, settings, THINKING, updateSettings, VOICES } from "./settings";
 import { synthesize, transcribe } from "./speech";
 import { applyThinking, modelChoices, newConversation, runTurn, startConversation } from "./turn";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
-import { talk, warmPort } from "./port";
+import { accept, parseInput, warm } from "./bus";
+import { feedStream, pushFeed } from "./feed";
 import { routeFor, startServices } from "./services";
 import { internal, trusted } from "../lib/trust";
 import type { ServerWebSocket } from "bun";
@@ -80,7 +81,7 @@ Bun.serve({
           return new Response(Bun.file(join(web, pathname.slice(1))), { headers: { "Content-Type": "image/png" } });
         }
         if (pathname === "/api/settings") {
-          return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
+          return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1), deviceOptions: DEVICE_OPTIONS });
         }
       }
 
@@ -91,28 +92,25 @@ Bun.serve({
         return Response.json({ settings: next });
       }
 
-      // Ports a service hosts (a device someone holds to talk to): it has checked who it is and calls
-      // with the internal token. Recording in, the reply (text and speech) out. See src/port.ts.
-      if (req.method === "POST" && pathname.startsWith("/api/port/")) {
+      // The input bus (docs/bus.md): what spare devices say, handed over by the devices service with
+      // the internal token. Accepting is quick; the answer goes out later, where the settings say.
+      if (req.method === "POST" && pathname.startsWith("/api/bus/")) {
         if (!internal(req)) return new Response("forbidden", { status: 403 });
-        const { id, name, audio, mime } = await req.json();
-        if (typeof id !== "string" || typeof name !== "string") return new Response("bad port", { status: 400 });
-        const device = { id, name };
-        if (pathname === "/api/port/warm") { warmPort(id); return Response.json({}); }
-        if (pathname !== "/api/port/talk" || typeof audio !== "string") return new Response("not found", { status: 404 });
-        const t0 = performance.now();
-        const raw = await transcribe(new Blob([Buffer.from(audio, "base64")], { type: typeof mime === "string" ? mime : "audio/wav" }));
-        const t1 = performance.now();
-        const heard = await polish(raw);
-        const t2 = performance.now();
-        if (!heard) return Response.json({ heard: "" });
-        const reply = await talk(device, heard);
-        const t3 = performance.now();
-        let speech: { audio: ArrayBuffer; type: string } | null = null;
-        try { speech = await synthesize(reply.slice(0, 1000)); } catch (err) { console.error("device reply tts failed", err); } // the device shows the words instead
-        const ms = (a: number, b: number) => Math.round(b - a);
-        log("device_talk", { device: device.name, sttMs: ms(t0, t1), polishMs: ms(t1, t2), turnMs: ms(t2, t3), ttsMs: ms(t3, performance.now()), tts: !!speech });
-        return Response.json({ heard, reply, ...(speech && { audio: Buffer.from(speech.audio).toString("base64"), mime: speech.type }) });
+        const body = await req.json();
+        if (pathname === "/api/bus/warm" && typeof body?.source?.id === "string") { warm(body.source); return Response.json({}); }
+        const input = pathname === "/api/bus/input" ? parseInput(body) : null;
+        if (!input) return new Response("bad input", { status: 400 });
+        return Response.json(accept(input), { status: 202 });
+      }
+
+      // What reaches the phone app outside its own turns: device conversations and send_to_phone.
+      if (req.method === "GET" && pathname === "/api/feed") return feedStream(req.headers.get("last-event-id") ?? new URL(req.url).searchParams.get("last"));
+      if (req.method === "POST" && pathname === "/api/feed") {
+        if (!internal(req)) return new Response("forbidden", { status: 403 });
+        const { text } = await req.json();
+        if (typeof text !== "string" || !text.trim()) return new Response("empty message", { status: 400 });
+        pushFeed({ kind: "message", from: "까치", text: text.slice(0, 4000), speak: true });
+        return new Response(null, { status: 204 });
       }
 
       if (req.method === "POST" && pathname === "/api/new-conversation") {

@@ -1,11 +1,17 @@
 // kkachi-devices as an MCP service: the tools and what they do. Which agent gets which is set in
 // core's kkachi.mcp.json.
 import type { McpService, McpTool } from "../../lib/mcp-server";
-import { describeDevices, lightOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
+import { describeDevices, lightOn, replyOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
 
 const device = { type: "string", description: "Device name, as in list_devices" };
 
-const DEFS = [
+const DEFS: (Omit<McpTool, "run">)[] = [
+  {
+    name: "device_reply",
+    description: "Kkachi core only: the answer to something said on a device, shown there (what was heard, the answer read aloud, or where the answer went instead).",
+    inputSchema: { type: "object", properties: { device, inputId: { type: "string" }, heard: { type: "string" }, text: { type: "string" }, elsewhere: { type: "string" } }, required: ["device", "inputId", "heard"] },
+    internal: true,
+  },
   {
     name: "list_devices",
     description: "List the user's Kkachi devices (spare phones or tablets around the home, named like 거실 or 부엌), whether each is online, and what it can do.",
@@ -50,6 +56,10 @@ const DEFS = [
 const name = (a: any) => String(a?.device ?? "");
 const looks = { readOnlyHint: true, openWorldHint: true }; // reads the room; changes nothing
 const RUN: Record<string, Pick<McpTool, "run" | "annotations">> = {
+  device_reply: {
+    annotations: { readOnlyHint: false, destructiveHint: false },
+    run: (a) => replyOn(name(a), { inputId: String(a?.inputId ?? ""), heard: String(a?.heard ?? ""), ...(a?.text && { text: String(a.text) }), ...(a?.elsewhere && { elsewhere: String(a.elsewhere) }) }),
+  },
   list_devices: { annotations: { readOnlyHint: true }, run: () => describeDevices() },
   device_speak: { annotations: { readOnlyHint: false, destructiveHint: false }, run: (a) => speakOn(name(a), String(a?.text ?? "")) },
   device_snapshot: { annotations: looks, run: (a) => snapshotOn(name(a), a?.camera) },

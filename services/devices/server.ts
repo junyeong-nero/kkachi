@@ -5,11 +5,10 @@
 //   /device                  the page a spare phone opens
 //   /api/device/ws           that page's connection
 //   /api/device/list         devices for the app's settings; /api/device/<id>/allow|forget
-//   /api/device/talk         hold to talk: checks the device's token, then core answers
+//   what someone says to a device comes in over its WebSocket and goes to core's bus (docs/bus.md)
 import { handleMcp } from "../../lib/mcp-server";
 import { trusted } from "../../lib/trust";
-import { core } from "./core";
-import { allowDevice, deviceByToken, deviceSocket, forgetDevice, listDevices, page, pageVersion } from "./devices";
+import { allowDevice, deviceSocket, forgetDevice, listDevices, page, pageVersion } from "./devices";
 import { service } from "./tools";
 
 const port = Number(process.env.KKACHI_DEVICES_PORT ?? 4301);
@@ -35,12 +34,6 @@ Bun.serve({
       if (action) {
         const ok = action[2] === "allow" ? allowDevice(action[1]) : forgetDevice(action[1]);
         return ok ? Response.json({ devices: listDevices() }) : new Response("no such device", { status: 404 });
-      }
-      if (req.method === "POST" && pathname === "/api/device/talk") {
-        const device = deviceByToken(req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "");
-        if (!device) return new Response("unknown device", { status: 401 });
-        const audio = Buffer.from(await req.arrayBuffer()).toString("base64");
-        return Response.json(await core("/api/port/talk", { ...device, audio, mime: req.headers.get("content-type") ?? "audio/wav" }, 240_000));
       }
     } catch (err) {
       console.error(pathname, err);
