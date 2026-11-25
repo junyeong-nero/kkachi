@@ -46,6 +46,5 @@
 2026-11-25 기준이다. 할 일은 [plan.md](plan.md) 의 M12.
 
 - 음성 인식(Groq Whisper)이 외부 API 다. 받아쓴 말 다듬기(Groq LLM)는 고를 때만 켜지도록 바꿨다. 로컬 Whisper(whisper.cpp)는 설정만으로 쓸 수 있지만, GPU 없는 노트북에서 정확한 모델(small)이 한 문장에 10초쯤 걸려 기본으로 두지 않았다([design.md](design.md) "로컬 받아쓰기").
-- `bun run init` 이 다른 harness 의 MCP 를 가져오지 않는다. pi-mcp-adapter 의 가져오기를 init 에 넣는다.
 - 공기계 대화가 "전체" 도구이면 사용자의 MCP 가 모두 따라간다. 가져온 MCP 는 공기계용으로 따로 고르게 한다.
 - 설치가 한 번에 끝나지 않는다. Git, Bun, Pi, Tailscale 을 먼저 깔아야 한다.

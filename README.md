@@ -34,7 +34,7 @@ Kkachi runs on a computer that stays on (macOS, Windows, or Linux), and you use 
    cd kkachi
    bun run init
    ```
-   `init` checks the tools, creates your memory repo (or uses an existing one), lets you pick a model your Pi can use, saves settings to `.env.local`, starts Kkachi now and at every login, and makes it reachable on your tailnet with Tailscale Serve. You can run it again later; it keeps what is already set up.
+   `init` checks the tools, creates your memory repo (or uses an existing one), lets you pick a model your Pi can use, offers to bring in the MCP servers you set up for Claude Code, Codex, Cursor or VS Code (through [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter)), saves settings to `.env.local`, starts Kkachi now and at every login, and makes it reachable on your tailnet with Tailscale Serve. You can run it again later; it keeps what is already set up.
 3. Open the printed `https://<computer>.<tailnet>.ts.net` address on your phone and add it to the home screen. Add `?debug` to the URL for an on-screen log.
 
 Manage the background server with `bun run service status | install | uninstall`. Its log is `data/service.log`. To run in the foreground instead, use `bun start`.

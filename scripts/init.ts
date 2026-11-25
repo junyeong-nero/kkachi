@@ -45,7 +45,6 @@ const missing = [
   ["pi", "https://pi.dev (then run `pi` once to sign in to a model provider)"],
 ].filter(([bin]) => !Bun.which(bin));
 if (missing.length) fail(`Install these first, then run \`bun run init\` again:\n${missing.map(([b, how]) => `  ${b}: ${how}`).join("\n")}`);
-if (!Bun.which("edge-tts")) console.log("Note: edge-tts is not installed, so replies cannot be read aloud. Install it with `uv tool install edge-tts` (https://docs.astral.sh/uv/).");
 const tailscale = Bun.which("tailscale");
 if (!tailscale) console.log("Note: Tailscale is not installed. Your phone reaches Kkachi through it: https://tailscale.com/download");
 
@@ -89,14 +88,32 @@ if (env.KKACHI_MODEL) {
   save("KKACHI_MODEL", model);
 }
 
-// 4. Speech-to-text key (Groq free tier)
+// 4. MCP servers you already set up for Claude Code, Codex, Cursor or VS Code: pi-mcp-adapter
+// imports those configs into Pi, so Kkachi's conversation can use them too (docs/philosophy.md, 3).
+const piDir = env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
+const findAdapter = () => {
+  const bin = join(piDir, "npm", "node_modules", ".bin", process.platform === "win32" ? "pi-mcp-adapter.cmd" : "pi-mcp-adapter");
+  return existsSync(bin) ? bin : Bun.which("pi-mcp-adapter");
+};
+let adapter = findAdapter();
+if (!adapter && yes("Install pi-mcp-adapter, so Kkachi can use the MCP servers you set up for Claude Code, Codex, Cursor or VS Code?")) {
+  must([env.KKACHI_PI_BIN ?? "pi", "install", "npm:pi-mcp-adapter"]);
+  adapter = findAdapter();
+}
+if (adapter) {
+  // --dry-run writes nothing; it names the hosts it would import from.
+  const hosts = /import into the MCP adapter: (.+)/.exec(run([adapter, "init", "--dry-run"]).out)?.[1]?.trim();
+  if (hosts && yes(`Use the MCP servers from ${hosts} in Kkachi too?`)) must([adapter, "init"]);
+}
+
+// 5. Speech-to-text key (Groq free tier)
 if (!env.GROQ_API_KEY && !env.KKACHI_STT_API_KEY) {
   const key = ask("Groq API key for dictation (free at https://console.groq.com/keys; Enter to skip):");
   if (key) save("GROQ_API_KEY", key);
   else console.log("Skipped: you can type, but not dictate. Add GROQ_API_KEY to .env.local later.");
 }
 
-// 5. Start at login
+// 6. Start at login
 if (yes("Start Kkachi now and whenever you log in?")) {
   const p = Bun.spawnSync([process.execPath, join(root, "scripts", "service.ts"), "install"], { stdout: "inherit", stderr: "inherit" });
   if (p.exitCode) fail("Could not set up auto-start. You can still run `bun start` yourself.");
@@ -104,7 +121,7 @@ if (yes("Start Kkachi now and whenever you log in?")) {
   console.log("Run `bun start` when you want to use Kkachi.");
 }
 
-// 6. Phone access: Tailscale Serve keeps Kkachi on your tailnet (never Funnel, which is public)
+// 7. Phone access: Tailscale Serve keeps Kkachi on your tailnet (never Funnel, which is public)
 if (tailscale) {
   const self = JSON.parse(run(["tailscale", "status", "--json"]).out || "{}").Self;
   const host = String(self?.DNSName ?? "").replace(/\.$/, "");

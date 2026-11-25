@@ -12,7 +12,7 @@
 
 Pi 에 붙이면 까치가 그대로 쓴다. 까치의 폰 앱 대화는 Pi 설정을 공유한다.
 
-1. Claude Code, Codex, Cursor, VS Code, Claude Desktop 에 이미 붙여 둔 서버는 `pi-mcp-adapter init` 으로 가져온다. 어댑터 설정(`~/.pi/agent/mcp-adapter.json`)의 `imports` 에 그 도구들이 들어간다.
+1. Claude Code, Codex, Cursor, VS Code, Claude Desktop 에 이미 붙여 둔 서버는 `pi-mcp-adapter init` 으로 가져온다. `bun run init` 이 찾아서 가져올지 물어본다. 어댑터 설정(`~/.pi/agent/mcp-adapter.json`)의 `imports` 에 그 도구들이 들어간다.
 2. 새 서버는 여러 도구가 같이 읽는 `~/.config/mcp/mcp.json`, 또는 `~/.pi/agent/mcp.json` 의 `mcpServers` 에 넣는다. 실행 명령(`command`, `args`, `env`)이나 `url` 은 각 프로젝트 README 에 있는 그대로 쓴다.
 3. 어댑터는 서버를 처음 쓸 때 연결하고, 도구들을 `mcp` 도구 하나로 묶는다. 서버가 늘어도 대화가 무거워지지 않는다.
 
