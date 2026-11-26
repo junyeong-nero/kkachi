@@ -1,12 +1,12 @@
-<img src="src/web/icon.png" width="72" alt="">
+![Kkachi: a lightweight home assistant that remembers](docs/banner.png)
 
 # Kkachi (까치)
 
 Kkachi is a lightweight home assistant that remembers. It runs on the computer you already have, and you talk to it from your phone. What you tell it goes into your own Markdown notes (a git repo). The old phones in your drawer become its speakers, microphones and cameras by opening a web page.
 
-The agent behind it is [Pi](https://github.com/earendil-works/pi), the coding agent, running with your subscription, your MCP servers and your skills. So it can also search the web, use your tools and work on code.
+The agent behind it is [Pi](https://github.com/earendil-works/pi), the coding agent, running with your subscription, your MCP servers and your skills, so it can also search the web, use your tools and work on code.
 
-On your phone you type or dictate (check the words, then send). Replies come back as text and can be read aloud.
+On your phone you type or dictate (check the transcript, then send). Replies come back as text and can be read aloud.
 
 > [!NOTE]
 > Early prototype. Runs on macOS, Windows, and Linux (the Linux auto-start is untested).
@@ -59,7 +59,7 @@ Add `?debug` to the URL for an on-screen log.
 
 ### Update
 
-Run the install command again. It installs nothing that is already there and updates Kkachi.
+Run the install command again. It skips anything already installed and updates Kkachi.
 
 ### Install by hand
 
@@ -75,11 +75,11 @@ bun run init
 
 ## Voice (optional)
 
-Typing works with nothing extra. Two things are optional.
+Typing needs nothing extra. Dictation and neural voices are optional.
 
-To dictate, get a free [Groq API key](https://console.groq.com/keys) for speech-to-text. The setup asks for it, or add `GROQ_API_KEY` to `.env.local` later. Groq is an outside service and the next thing to move local (see [Principles](#principles)). Cleaning up transcripts with an LLM (English terms, noise) is off unless you set `KKACHI_POLISH_MODEL`, for example `openai/gpt-oss-120b` on the same key. Speech-to-text can also run on your computer with whisper.cpp, at about ten seconds a sentence on a laptop CPU ([docs/design.md](docs/design.md), Korean).
+To dictate, get a free [Groq API key](https://console.groq.com/keys) for speech-to-text. The setup asks for it, or add `GROQ_API_KEY` to `.env.local` later. Groq is an outside service and the next piece to move local (see [Principles](#principles)). Cleaning up transcripts with an LLM (English terms, noise) is off unless you set `KKACHI_POLISH_MODEL`, for example `openai/gpt-oss-120b` on the same key. Speech-to-text can also run on your computer with whisper.cpp, at about ten seconds a sentence on a laptop CPU ([docs/design.md](docs/design.md), Korean).
 
-To hear replies you need nothing: each phone and spare device reads them in its own built-in voice. For Microsoft's neural voices instead (made online), install [uv](https://docs.astral.sh/uv/), run `uv tool install edge-tts`, and pick one of the voices in Settings.
+Hearing replies needs nothing extra: each phone and spare device reads them in its own built-in voice. For Microsoft's neural voices instead (generated online), install [uv](https://docs.astral.sh/uv/), run `uv tool install edge-tts`, and pick one of the voices in Settings.
 
 ## Run and configure
 
@@ -104,8 +104,8 @@ All settings are environment variables in `.env.local` (see `src/config.ts`), fo
 ### Talk and remember
 
 - Type, or tap the mic and dictate into the text box to check before sending. Read-aloud is off by default and set per device.
-- There are no commands to learn. "thanks, that's all" or "I'll take it from the computer" ends the conversation, and the librarian then tidies the notes.
-- Mention a plan or decision and it goes into the right note without "I've noted that". Each turn is one git commit, and "forget that" reverts it.
+- There are no commands to learn. Saying "thanks, that's all" or "I'll take it from the computer" ends the conversation, and the librarian then tidies the notes.
+- Mention a plan or decision and it goes into the right note, without Kkachi announcing "I've noted that". Each turn is one git commit, and "forget that" reverts it.
 - Ask about your own life and it answers from the notes, showing which notes it used.
 - Take or pick up to four photos and ask about them. They go to the model only; the memory repo records only that there were photos.
 - It can search the web, use MCP tools, and work on code in other repos: whatever your Pi setup can do.
@@ -138,9 +138,9 @@ Each memory change is one `kkachi: …` commit (pushed only if sync is on) and c
 
 ### Lights, speakers and Home Assistant
 
-When you get real lights, speakers or cameras, plug in Home Assistant with [ha-mcp](https://github.com/homeassistant-ai/ha-mcp). Kkachi then switches lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Put the ha-mcp address in `.env.local` as `KKACHI_HA_MCP_URL`; setup steps are in [docs/ha.md](docs/ha.md) (Korean). Until then nothing about Home Assistant runs.
+When you get real lights, speakers or cameras, plug in Home Assistant with [ha-mcp](https://github.com/homeassistant-ai/ha-mcp). Kkachi then switches lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Put the ha-mcp address in `.env.local` as `KKACHI_HA_MCP_URL`; setup steps are in [docs/ha.md](docs/ha.md) (Korean). Without that setting, nothing Home Assistant-related runs.
 
-Lights can also be reached without Home Assistant: [docs/extensions.md](docs/extensions.md) (Korean) lists MCP servers worth adding, local ones first.
+To control lights without Home Assistant, see [docs/extensions.md](docs/extensions.md) (Korean), which lists MCP servers worth adding, local ones first.
 
 ### In the background
 
@@ -168,7 +168,7 @@ If you already keep notes in a PARA-style folder (for example an Obsidian vault 
 ```sh
 bun scripts/import-notes.ts <your-notes-repo> <memory-repo> --dry-run   # preview the new paths
 bun scripts/import-notes.ts <your-notes-repo> <memory-repo>             # copy, strip NN_ numbers, convert [[wikilinks]]
-bun -e 'await (await import("./src/librarian")).tidyNow(); process.exit(0)'
+bun -e 'await (await import("./src/librarian")).tidyNow(); process.exit(0)'   # build the catalog
 ```
 
 ## How it works

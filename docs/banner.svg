@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" font-family="SUIT Variable, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif">
+  <!-- Source for docs/banner.png (README header). Render: see DESIGN.md, Docs images. -->
+  <defs>
+    <style>
+      @import url("https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css");
+      .text { fill: #161b20; }
+      .muted { fill: #5b6168; }
+      .msg { font-size: 18px; font-weight: 500; fill: #161b20; }
+      .chip { font-size: 14px; }
+    </style>
+    <clipPath id="icon"><rect x="80" y="84" width="80" height="80" rx="18"/></clipPath>
+  </defs>
+
+  <rect width="1280" height="400" fill="#f0f3f5"/>
+
+  <!-- logo, name, one line -->
+  <image href="../src/web/icon.png" x="80" y="84" width="80" height="80" clip-path="url(#icon)"/>
+  <text x="184" y="144" font-size="60" font-weight="800" class="text">Kkachi<tspan dx="16" font-size="30" font-weight="600" class="muted">까치</tspan></text>
+
+  <text x="80" y="238" font-size="31" font-weight="700" class="text">A lightweight home assistant that remembers.</text>
+  <text x="80" y="284" font-size="20" class="muted">Runs on the computer you have, talks through your phone,</text>
+  <text x="80" y="314" font-size="20" class="muted">and keeps what you tell it in your own Markdown notes.</text>
+
+  <!-- one turn, as the phone app shows it -->
+  <rect x="820" y="80" width="380" height="232" rx="14" fill="#fbfdfe" stroke="#dce0e4" stroke-width="1.4"/>
+
+  <rect x="884" y="104" width="292" height="46" rx="14" fill="#f0f3f5"/>
+  <text x="1156" y="133" text-anchor="end" class="msg">다음 주 화요일 3시에 치과 예약했어</text>
+
+  <rect x="844" y="166" width="270" height="76" rx="14" fill="#fbfdfe" stroke="#dce0e4" stroke-width="1.4"/>
+  <text x="864" y="196" class="msg">그날 오전엔 팀 회의가 있으니,</text>
+  <text x="864" y="224" class="msg">점심 먹고 바로 가면 되겠어요.</text>
+
+  <rect x="844" y="256" width="108" height="28" rx="8" fill="#d8f5f3"/>
+  <text x="898" y="275" text-anchor="middle" font-weight="600" fill="#00817e" class="chip">기억함: 건강</text>
+  <rect x="960" y="256" width="80" height="28" rx="8" fill="none" stroke="#dce0e4"/>
+  <text x="1000" y="275" text-anchor="middle" class="chip muted">회사 일정</text>
+</svg>
