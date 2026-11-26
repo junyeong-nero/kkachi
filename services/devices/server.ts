@@ -5,13 +5,14 @@
 //                            agents on other computers, through core's address
 //   /device                  the page a spare phone opens
 //   /api/device/ws           that page's connection
-//   /api/device/list         devices for the app's settings; /api/device/<id>/allow|forget
+//   /api/device/list         devices for the app; /api/device/<id>/allow|forget, and /agent to open or close
+//                            one of its inputs or outputs to Kkachi
 //   /api/device/icon.png     the page's icon
 //   what someone says to a device comes in over its WebSocket and goes to core's bus (docs/bus.md)
 import { join } from "node:path";
 import { handleMcp } from "./lib/mcp-server";
 import { trusted } from "./lib/trust";
-import { allowDevice, deviceSocket, forgetDevice, listDevices, page, pageVersion } from "./devices";
+import { allowDevice, deviceSocket, forgetDevice, listDevices, page, pageVersion, setAgent } from "./devices";
 import { service } from "./tools";
 
 const port = Number(process.env.KKACHI_DEVICES_PORT ?? 4301);
@@ -34,6 +35,11 @@ Bun.serve({
       }
       if (req.method === "GET" && pathname === "/api/device/icon.png") return new Response(Bun.file(join(import.meta.dir, "icon.png")), { headers: { "Content-Type": "image/png", "Cache-Control": "max-age=86400" } });
       if (req.method === "GET" && pathname === "/api/device/list") return Response.json({ devices: listDevices() });
+      const agent = req.method === "POST" && pathname.match(/^\/api\/device\/(\w+)\/agent$/); // open an input or output to Kkachi, or close it
+      if (agent) {
+        const body: any = await req.json();
+        return setAgent(agent[1], body?.cap, body?.open) ? Response.json({ devices: listDevices() }) : new Response("no such device or ability", { status: 400 });
+      }
       const action = req.method === "POST" && pathname.match(/^\/api\/device\/(\w+)\/(allow|forget)$/);
       if (action) {
         const ok = action[2] === "allow" ? allowDevice(action[1]) : forgetDevice(action[1]);

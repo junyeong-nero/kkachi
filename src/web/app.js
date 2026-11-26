@@ -294,7 +294,6 @@ function renderMarkdown(target, text) {
 const dataUrl = (img) => `data:${img.mimeType};base64,${img.data}`;
 // from: where it came from when not this app ("거실에서", a device conversation), shown above it.
 function addTurn(text, images = [], from = null, fromKkachi = false) {
-  $("intro")?.remove();
   const turn = el("article", "turn");
   if (from) { const label = el("div", fromKkachi ? "from left" : "from"); label.textContent = from; turn.append(label); }
   const you = el("div", "you");
@@ -337,10 +336,7 @@ function addTurn(text, images = [], from = null, fromKkachi = false) {
   };
 }
 
-// Empty transcript shows real things to say (first-run guidance), from the HTML template.
-function clearTranscript() {
-  $("log").replaceChildren($("intro-template").content.cloneNode(true));
-}
+function clearTranscript() { $("log").replaceChildren(); }
 
 // Notes used for the answer; remembered ones (changed this turn) are highlighted.
 function showChips(container, sources, changed, titles = {}) {
@@ -498,7 +494,7 @@ function encodeWav(frames, inRate, outRate) {
   return new Blob([buf], { type: "audio/wav" });
 }
 
-// ---- top bar: refresh (a home-screen web app has no reload button) and settings ----
+// ---- settings, and refresh beside its heading (a home-screen web app has no reload button) ----
 $("refresh").addEventListener("click", () => location.reload());
 
 function toast(text) {
@@ -546,7 +542,7 @@ function applySpeak() {
 
 // Spare phones and tablets joined at /device: allow new ones, forget old ones. Each shows what
 // Kkachi can use there now (allowed and switched on, on the device's own screen).
-const CAN = { speak: "말하기", lamp: "조명", talk: "말 걸기", photo: "사진", "sound level": "소리 크기", "motion sensors": "센서", location: "위치" };
+const CAN = { speak: "스피커", lamp: "조명", talk: "음성", photo: "카메라", "sound level": "소리 크기", "motion sensors": "가속도 센서", location: "위치", dial: "다이얼", click: "버튼" };
 function renderDevices(devices) {
   $("device-url").textContent = `${location.origin}/device`;
   if (!devices.length) { $("devices").replaceChildren(el("div", "loading", "아직 없어요")); return; }
@@ -596,10 +592,8 @@ function showDeviceTalk(s) {
 }
 
 async function openSettings() {
-  const dlg = $("settings");
   renderTextSize();
   renderDevicePrefs();
-  dlg.showModal();
   fetch("/api/device/list").then((r) => r.json()).then((j) => renderDevices(j.devices)).catch(() => {});
   const r = await fetch("/api/settings");
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
@@ -664,13 +658,387 @@ async function preview(voice) {
   } catch (e) { toast("목소리를 불러오지 못했어요"); }
 }
 
-$("open-settings").addEventListener("click", openSettings);
+// ---- screens, switched in the bar at the bottom: 입력, 출력, 연결 (opens first), 에이전트 (talk to it, what it
+// was used for, its MCP servers) and 설정 ----
+const chatting = () => document.body.dataset.tab === "agent" && document.body.dataset.pane === "chat";
+function show(tab, pane = document.body.dataset.pane) {
+  document.body.dataset.tab = tab; document.body.dataset.pane = pane;
+  for (const b of $("nav").children) { if (b.dataset.tab === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
+  for (const i of document.querySelectorAll("input[name=pane]")) i.checked = i.value === pane;
+  if (tab === "settings") openSettings();
+  else if (tab !== "agent") { renderHome(); loadHome(); }
+  else if (pane === "chat") scrollDown(true);
+  else if (pane === "history") loadHistory();
+  else if (pane === "resources") { loadResources(); openSettings(); } // the settings about answering devices live on this screen too
+  else loadMcp();
+}
+for (const b of $("nav").children) b.addEventListener("click", () => {
+  const tab = b.dataset.tab;
+  if (document.body.dataset.tab === tab && view[tab]) { view[tab] = null; $(tab).scrollTop = 0; } // the same tab again: back to its grid
+  show(tab);
+});
+for (const i of document.querySelectorAll("input[name=pane]")) i.addEventListener("change", () => show("agent", i.value));
+
+// A row in a list: a name, a line under it, and sometimes a button.
+function row(name, sub, button) {
+  const r = el("div", "device", '<span><span class="name"></span><span class="sub"></span></span>');
+  r.querySelector(".name").textContent = name;
+  r.querySelector(".sub").textContent = sub;
+  if (button) { const b = el("button", "play"); b.type = "button"; b.textContent = button.label; b.addEventListener("click", button.click); r.append(b); }
+  return r;
+}
+const clock = (t) => {
+  const d = new Date(t), today = d.toDateString() === new Date().toDateString();
+  return d.toLocaleString("ko-KR", today ? { hour: "numeric", minute: "2-digit" } : { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+};
+
+// ---- 입력, 출력, 연결: what is joined to Kkachi, read again every few seconds while one is on screen ----
+const INPUTS = ["talk", "dial", "click", "photo", "sound level", "motion sensors", "location"], OUTPUTS = ["speak", "lamp"];
+const KINDS = { inputs: INPUTS, outputs: OUTPUTS }, TAB_NAME = { inputs: "입력", outputs: "출력", links: "연결" };
+let devices = [], links = [], listed = true; // as last read; listed: the device list came
+// What can be joined straight to an output: what it does there, and which output that is (a lamp, or a
+// speaker that plays what was said as it was recorded, like a walkie-talkie).
+const JOINS = { talk: "스피커", dial: "조명 밝기", click: "조명 켜고 끄기" };
+const OUT = { talk: { output: "speak", can: "speak", pic: "speak" }, dial: { output: "light", can: "lamp", pic: "lamp" }, click: { output: "light", can: "lamp", pic: "lamp" } };
+// What is open on each screen. 입력 and 출력: a device's id (null: the grid). 연결: the link being made,
+// { from, kind } (null: the cards).
+const view = { inputs: null, outputs: null, links: null };
+function openView(tab, what) { view[tab] = what; renderHome(); $(tab).scrollTop = 0; }
+
+const text = (tag, cls, s) => { const n = el(tag, cls); n.textContent = s; return n; }; // names come from devices: never as HTML
+const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+const grid = (tiles) => { const g = el("div", "tiles"); g.append(...tiles); return g; };
+// The round picture of a thing: what kind of device it is (a phone, a tablet, and a lamp or a switch
+// once such devices are joined), what an input or output is, or the agent's mark ("kkachi").
+const PIC = {
+  phone: "M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2",
+  tablet: "M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2",
+  switch: "M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM10 8h4v8h-4zM10 12h4",
+  talk: "M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3",
+  dial: "M12 4a8 8 0 1 0 0 16a8 8 0 0 0 0-16zM12 12l3.5-3.5",
+  click: "M12 4a8 8 0 1 0 0 16a8 8 0 0 0 0-16zM12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6z",
+  lamp: "M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z",
+};
+Object.assign(PIC, {
+  light: PIC.lamp, // a device that is a lamp
+  speak: "M4 10v4h4l5 4V6L8 10H4zM16.5 8.5a5 5 0 0 1 0 7",
+  photo: "M4 8h3l2-3h6l2 3h3v11H4zM12 9.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7z",
+  "sound level": "M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2",
+  "motion sensors": "M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z",
+  location: "M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 7a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5z",
+});
+PIC.agent = "M4 5h16v11H9l-5 4z"; // the agent: the same mark as its tab in the bar at the bottom
+const picture = (pic) => el("span", "pic", icon(PIC[pic] ?? PIC.phone));
+function tile(pic, name, sub, click, off) {
+  const b = el("button", off ? "tile off" : "tile");
+  b.type = "button"; b.append(picture(pic), text("span", "name", name), text("span", "sub", sub));
+  b.addEventListener("click", click);
+  return b;
+}
+function back(tab) {
+  const b = el("button", "back", icon("M15 6l-6 6 6 6"));
+  b.type = "button"; b.append(TAB_NAME[tab]);
+  b.addEventListener("click", () => openView(tab, null));
+  return b;
+}
+
+// A spare device: a tile on 입력 and on 출력, opening what it can send or take right now. This app is not
+// one of them: it is where they are looked after.
+// One light for whether something can be used, the same everywhere: green (ok) it can, red (no) it
+// cannot, grey (off) it is not switched on. The words are for screen readers and a long press.
+function light(level, words) {
+  const s = el("span", `dot ${level}`);
+  s.setAttribute("role", "img"); s.setAttribute("aria-label", words); s.title = words;
+  return s;
+}
+function capState(d, c) { // [ok | no | off, words]
+  if (!d.online) return ["off", "기기가 꺼져 있어요"];
+  if (d.can.includes(c)) return ["ok", "쓸 수 있어요"];
+  if (!d.armed && ["speak", "talk", "sound level"].includes(c)) return ["no", "쓸 수 없어요. 기기 화면을 한 번 눌러야 해요"];
+  return ["no", "쓸 수 없어요. 권한이 없거나 이 기기가 지원하지 않아요"];
+}
+// What a device has, of these. A phone is not a lamp: a lit lamp is the whole screen, and on a phone it
+// lay over the pads and took their touches. A tablet can be one.
+const has = (d, caps) => caps.filter((c) => c !== "lamp" || d.kind !== "phone");
+function capRow(pic, name, level, words) { // a title and its light: no description
+  const r = row(name, "");
+  r.classList.add("cap"); if (level !== "ok") r.classList.add("off");
+  r.prepend(picture(pic));
+  r.append(light(level, words));
+  return r;
+}
+function renderGrid(tab) {
+  const body = $(`${tab}-body`), kinds = KINDS[tab], d = devices.find((x) => x.id === view[tab]);
+  if (!d) {
+    view[tab] = null;
+    const count = (x) => x.can.filter((c) => kinds.includes(c)).length;
+    const sub = (x) => (!x.allowed ? "허용을 기다려요" : !x.online ? "꺼져 있어요" : count(x) ? `${count(x)}개 쓸 수 있어요` : "지금 쓸 수 있는 게 없어요");
+    body.replaceChildren(
+      text("h1", "", TAB_NAME[tab]),
+      grid(devices.map((x) => {
+        const t = tile(x.kind, x.name, sub(x), () => openView(tab, x.id), !x.online || !x.allowed);
+        t.append(light(!x.allowed ? "no" : x.online && count(x) ? "ok" : "off", sub(x)));
+        return t;
+      })),
+      ...(!listed ? [text("p", "note", "기기 목록을 불러오지 못했어요.")]
+        : devices.length ? [] : [text("p", "note", `아직 기기가 없어요. 안 쓰는 폰이나 태블릿에서 ${location.origin}/device 를 열면 여기에 나타나요.`)]));
+    return;
+  }
+  const group = el("div", "group");
+  group.append(...has(d, kinds).map((c) => capRow(c, CAN[c] ?? c, ...capState(d, c))));
+  const parts = [back(tab), text("h1", "", d.name), text("p", "lede", !d.allowed ? "아직 허용하지 않은 기기예요. 허용해야 쓸 수 있어요."
+    : d.online ? "켜져 있어요." : "꺼져 있어요. 그 기기에서 기기 페이지를 열어 두면 다시 켜져요.")];
+  if (!d.allowed) {
+    const allow = text("button", "play allow", "이 기기 허용");
+    allow.type = "button";
+    allow.addEventListener("click", async () => { const r = await fetch(`/api/device/${d.id}/allow`, { method: "POST" }); if (r.ok) loadHome(); else toast("바꾸지 못했어요"); });
+    parts.push(allow);
+  }
+  const legend = el("p", "legend");
+  for (const [level, words] of [["ok", "쓸 수 있어요"], ["no", "쓸 수 없어요"], ["off", "꺼져 있어요"]]) { const item = el("span"); item.append(el("span", `dot ${level}`), words); legend.append(item); }
+  parts.push(group, legend, text("p", "note", "기기를 지우려면 설정으로 가세요."));
+  body.replaceChildren(...parts);
+}
+
+// Open one of a device's inputs or outputs to the agent, or close it. Its voice to the agent shows as a
+// connection; the outputs the agent may use are on the agent screen (자원).
+async function setAgent(d, cap, open) {
+  const r = await fetch(`/api/device/${d.id}/agent`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cap, open }) });
+  if (!r.ok) { toast("바꾸지 못했어요"); return false; }
+  devices = (await r.json()).devices;
+  renderHome();
+  return true;
+}
+async function setLink(l, action) { // on | off | remove
+  const r = await fetch(`/api/routes/${l.id}/${action}`, { method: "POST" });
+  if (!r.ok) { toast("바꾸지 못했어요"); return; }
+  links = (await r.json()).routes; renderHome();
+}
+// How a connection is doing, as words: [words, class].
+function linkWords(it, last) {
+  if (!it.on) return ["꺼 두었어요", ""];
+  if (it.gone) return ["받는 기기가 꺼져 있어요", ""];
+  if (last?.error) return ["전달하지 못했어요", "down"];
+  if (!last) return [{ dial: "값을 기다려요", click: "누르기를 기다려요", talk: "말하기를 기다려요" }[it.kind], ""];
+  return [it.kind === "dial" ? `마지막 값 ${last.value}` : `${clock(last.at)}에 ${it.kind === "click" ? "눌렀어요" : it.agent ? "들었어요" : "전했어요"}`, ""];
+}
+// What goes through the connections, as it happens (GET /api/flow, server-sent events; core's
+// src/flow.ts): the row's words change and a dot runs along its arrow. Listened to while the app is on
+// screen; on opening, the latest of each comes first, marked old (nothing moves for those).
+const keptOff = new Set(JSON.parse(localStorage.getItem("kkachi.agentOff") || "[]")); // devices whose voice-to-agent row stays listed while off
+const saveKept = () => localStorage.setItem("kkachi.agentOff", JSON.stringify([...keptOff]));
+const flowLast = new Map(), flowRows = new Map(); // by key (a link's id, or agent:<device id>): the latest flow; the row drawn now
+let flow = null, editing = false; // editing: the rows show remove in place of their switches
+function openFlow() {
+  if (flow || demo || document.visibilityState !== "visible") return;
+  flow = new EventSource("/api/flow");
+  flow.onmessage = (e) => {
+    const f = JSON.parse(e.data), row = flowRows.get(f.key);
+    flowLast.set(f.key, f);
+    if (!row) return;
+    const [words, cls] = linkWords(row.it, f);
+    row.state.textContent = words; row.state.className = `sub ${cls}`;
+    if (f.old || !row.it.on) return;
+    row.wire.classList.remove("flow", "failed");
+    void row.wire.offsetWidth; // start the run again, also when the last one has not finished
+    row.wire.classList.add(f.error ? "failed" : "flow");
+  };
+}
+function closeFlow() { flow?.close(); flow = null; }
+function renderLinks() {
+  const body = $("links-body");
+  if (view.links) { renderNewLink(body); return; }
+
+  // A routing table, grouped by input, because one input can go to several places. Each input is
+  // written once; under it, every place it goes to, joined to it by a wire that branches: the agent (a
+  // voice only: it is so on a new device, and it is what makes the agent answer) or an output of another
+  // device (a voice to a speaker, a dial or a button to a lamp). Each place has how it is doing under its
+  // name and a switch; 편집 turns the switches into remove.
+  const byId = new Map(devices.map((d) => [d.id, d]));
+  const newer = (a, b) => (!a ? b : !b ? a : a.at > b.at ? a : b); // the latest of what the list and the live stream said
+  const groups = new Map(); // by "<device id>:<kind>"
+  const group = (id, kind) => {
+    const k = `${id}:${kind}`;
+    if (!groups.has(k)) groups.set(k, { d: byId.get(id), kind, dests: [] });
+    return groups.get(k);
+  };
+  for (const d of devices.filter((x) => x.allowed && (x.agent?.talk || keptOff.has(x.id)))) group(d.id, "talk").dests.push({
+    key: `agent:${d.id}`, kind: "talk", agent: true, on: !!d.agent?.talk, last: flowLast.get(`agent:${d.id}`),
+    pic: "agent", name: "에이전트", what: `${d.name} 음성에서 에이전트로 가는 연결`,
+    // Switched off, the row stays (remembered by this app) so it can be switched back on; removed, it goes.
+    toggle: (on) => { if (on) keptOff.delete(d.id); else keptOff.add(d.id); saveKept(); setAgent(d, "talk", on); },
+    remove: () => { keptOff.delete(d.id); saveKept(); if (d.agent?.talk) setAgent(d, "talk", false); else { drawn = ""; renderHome(); } },
+  });
+  for (const l of links) {
+    const kind = l.from.kind, to = byId.get(l.to.device), name = `${to?.name ?? "없는 기기"} ${JOINS[kind]}`;
+    group(l.from.device, kind).dests.push({
+      key: l.id, kind, on: l.on !== false, last: newer(flowLast.get(l.id), l.last), gone: !to?.online,
+      pic: OUT[kind].pic, name, what: `${byId.get(l.from.device)?.name ?? "없는 기기"} ${CAN[kind]}에서 ${name}(으)로 가는 연결`,
+      toggle: (on) => setLink(l, on ? "on" : "off"), remove: () => setLink(l, "remove"),
+    });
+  }
+  const ORDER = ["talk", "dial", "click"];
+  const sorted = [...groups.values()].sort((a, b) => (a.d?.name ?? "").localeCompare(b.d?.name ?? "", "ko") || ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
+
+  flowRows.clear();
+  const list = el("div", "routes");
+  list.append(...sorted.map((g) => {
+    const route = el("section", "route"), src = el("div", g.d?.online && g.d.can.includes(g.kind) ? "src" : "src off"), dests = el("ul", "dests");
+    src.append(el("span", "ico", icon(PIC[g.kind])), text("span", "name", g.d?.name ?? "없는 기기"), text("span", "kind", g.d && !g.d.online ? `${CAN[g.kind]}, 꺼져 있어요` : CAN[g.kind]));
+    dests.append(...g.dests.map((it) => {
+      const li = el("li", it.on ? "dest" : "dest off"), [w, cls] = linkWords(it, it.last), words = el("span", "words"), state = text("span", `sub ${cls}`, w);
+      words.append(text("span", "name", it.name), state);
+      const control = editing ? el("button", "icon-btn", icon("M6 6l12 12M18 6L6 18")) : el("button", "switch", "<i></i>");
+      control.type = "button";
+      if (editing) {
+        control.setAttribute("aria-label", `${it.what} 지우기`);
+        control.addEventListener("click", () => { if (confirm("이 연결을 지울까요?")) it.remove(); });
+      } else {
+        control.setAttribute("role", "switch"); control.setAttribute("aria-checked", String(it.on)); control.setAttribute("aria-label", it.what);
+        control.addEventListener("click", () => it.toggle(!it.on));
+      }
+      li.append(el("span", "branch", "<i></i>"), el("span", "ico", icon(PIC[it.pic])), words, control); // <i>: the dot that runs along the wire
+      flowRows.set(it.key, { it, state, wire: li.querySelector(".branch") });
+      return li;
+    }));
+    route.append(src, dests);
+    return route;
+  }));
+
+  const head = el("div", "title-row"), tools = el("div", "tools"), add = el("button", "icon-btn", icon("M12 5v14M5 12h14"));
+  if (!sorted.length) editing = false;
+  else {
+    const edit = text("button", "text-btn", editing ? "완료" : "편집");
+    edit.type = "button"; edit.setAttribute("aria-pressed", String(editing));
+    edit.addEventListener("click", () => { editing = !editing; renderHome(); });
+    tools.append(edit);
+  }
+  add.type = "button"; add.setAttribute("aria-label", "새 연결");
+  add.addEventListener("click", () => { editing = false; openView("links", { from: null, kind: null }); });
+  tools.append(add);
+  head.append(text("h1", "", "연결"), tools);
+  body.replaceChildren(head, sorted.length ? list : text("p", "lede", "아직 없어요. 위의 + 로 입력을 에이전트나 다른 기기의 출력에 이어요."));
+}
+// Making a link, one choice at a time: the input it starts from, then the output it goes to.
+function renderNewLink(body) {
+  const inputs = devices.filter((d) => d.allowed).flatMap((d) => Object.keys(JOINS).map((kind) => ({ d, kind })));
+  const from = inputs.find((i) => i.d.id === view.links.from && i.kind === view.links.kind);
+  const parts = [back("links"), text("h1", "", "새 연결"), text("h2", "", "어떤 입력에서 시작할까요?")];
+  if (!inputs.length) parts.push(text("p", "note", "아직 기기가 없어요."));
+  else parts.push(grid(inputs.map((i) => {
+    const t = tile(i.kind, i.d.name, CAN[i.kind], () => { view.links = { from: i.d.id, kind: i.kind }; renderHome(); }, !i.d.can.includes(i.kind));
+    t.setAttribute("aria-pressed", String(i === from));
+    return t;
+  })));
+  const join = async (to) => {
+    const r = await fetch("/api/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from: { device: from.d.id, kind: from.kind }, to }) });
+    if (!r.ok) { toast("잇지 못했어요"); return; }
+    links = (await r.json()).routes; toast("이었어요"); openView("links", null);
+  };
+  if (from) {
+    // A voice goes to the agent or to another device's speaker; a dial or a button to a lamp.
+    const talk = from.kind === "talk", out = OUT[from.kind];
+    const ends = devices.filter((d) => d.allowed && !(talk && d.id === from.d.id) && has(d, [out.can]).length).map((d) =>
+      tile(out.pic, d.name, d.online ? JOINS[from.kind] : "꺼져 있어요", () => join({ device: d.id, output: out.output }), !d.online));
+    if (talk && !from.d.agent?.talk) ends.unshift(tile("agent", "에이전트", "대화", async () => { if (await setAgent(from.d, "talk", true)) { toast("이었어요"); openView("links", null); } }));
+    parts.push(text("h2", "", "어디로 보낼까요?"), ends.length ? grid(ends) : text("p", "note", talk ? "보낼 다른 기기가 아직 없어요." : "조명으로 쓸 수 있는 기기가 아직 없어요. 태블릿만 조명이 될 수 있어요."));
+  }
+  body.replaceChildren(...parts);
+}
+
+// Draw the screen that is showing, unless nothing it shows has changed: redrawing under a finger loses the tap.
+let drawn = "";
+function renderHome() {
+  const tab = document.body.dataset.tab;
+  if (!(tab in view)) return;
+  const key = JSON.stringify([tab, view[tab], devices, links, listed, editing]);
+  if (key === drawn) return;
+  drawn = key;
+  if (tab === "links") renderLinks(); else renderGrid(tab);
+}
+async function loadHome() {
+  const json = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const [list, routes] = await Promise.all([json("/api/device/list"), json("/api/routes")]);
+  listed = !!list;
+  if (list) devices = list.devices;
+  if (routes) links = routes.routes;
+  renderHome();
+}
+setInterval(() => { if (document.body.dataset.tab in view && document.visibilityState === "visible") loadHome(); }, 5000);
+show("links");
+
+// 에이전트 › 자원: the outputs the agent may use, device by device (its speaker, its lamp), each with a
+// switch. Chosen here and nowhere else (POST /api/device/<id>/agent); a new device starts with them open.
+// What reaches the agent (a voice) is a connection, on the 연결 screen.
+async function loadResources() {
+  const r = await fetch("/api/device/list").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  if (r) devices = r.devices;
+  renderResources(!!r);
+}
+function renderResources(got = true) {
+  const mine = devices.filter((d) => d.allowed);
+  if (!mine.length) { $("resource-list").replaceChildren(text("p", "note", got ? "아직 기기가 없어요." : "기기 목록을 불러오지 못했어요.")); return; }
+  const group = (d, caps) => {
+    const g = el("div", "group");
+    g.append(...caps.map((c) => {
+      const open = !!d.agent?.[c], r = row(CAN[c] ?? c, ""), sw = el("button", "switch", "<i></i>");
+      r.classList.add("cap"); if (!open) r.classList.add("off");
+      r.prepend(picture(c));
+      sw.type = "button"; sw.setAttribute("role", "switch"); sw.setAttribute("aria-checked", String(open)); sw.setAttribute("aria-label", `에이전트가 ${d.name} ${CAN[c] ?? c}을(를) 쓰기`);
+      sw.addEventListener("click", async () => { if (await setAgent(d, c, !open)) renderResources(); });
+      r.append(sw);
+      return r;
+    }));
+    return g;
+  };
+  $("resource-list").replaceChildren(text("h2", "", "에이전트가 쓰는 출력"), ...mine.flatMap((d) => [text("h3", "", d.name), group(d, has(d, OUTPUTS))]));
+}
+
+// What the agent was used for (GET /api/agent): the latest turns, from this app and the spare devices.
+async function loadHistory() {
+  try {
+    const r = await fetch("/api/agent");
+    if (!r.ok) throw new Error("agent " + r.status);
+    const { uses, model } = await r.json();
+    $("model-note").textContent = `모델 ${model}`;
+    $("uses").replaceChildren(...(uses.length ? uses.map((u) => {
+      const how = u.error ? "답하지 못했어요" : u.aborted ? "중간에 멈췄어요" : `${(u.ms / 1000).toFixed(1)}초 걸렸어요${u.tools ? `. 도구를 ${u.tools}번 썼어요` : ""}`;
+      const r = row(u.text || "(말 없이 사진만)", `${clock(u.t)}, ${u.from ?? "폰 앱"}. ${how}`);
+      r.classList.add("use");
+      if (u.error) r.querySelector(".sub").classList.add("down");
+      return r;
+    }) : [el("div", "loading", "아직 없어요")]));
+  } catch {
+    $("uses").replaceChildren(el("div", "loading", "불러오지 못했어요"));
+  }
+}
+
+// The MCP servers Kkachi can use (GET /api/mcp): its own, with whether each answers now, and the ones
+// registered in the user's Pi.
+const MCP_NAME = { devices: "기기", memory: "노트", ha: "Home Assistant" };
+async function loadMcp() {
+  const rows = (list, sub) => (list.length ? list.map((s) => {
+    const r = row(MCP_NAME[s.name] ?? s.name, sub(s));
+    if (s.ok === false) r.querySelector(".sub").classList.add("down");
+    return r;
+  }) : [el("div", "loading", "없어요")]);
+  try {
+    const r = await fetch("/api/mcp");
+    if (!r.ok) throw new Error("mcp " + r.status);
+    const { servers } = await r.json();
+    $("mcp-kkachi").replaceChildren(...rows(servers.filter((s) => s.source === "kkachi"), (s) => (s.ok ? `연결됨. 도구 ${s.tools}개` : "응답이 없어요")));
+    $("mcp-pi").replaceChildren(...rows(servers.filter((s) => s.source === "pi"), () => "등록됨"));
+  } catch {
+    for (const id of ["mcp-kkachi", "mcp-pi"]) $(id).replaceChildren(el("div", "loading", "불러오지 못했어요"));
+  }
+}
+
 $("new-conversation").addEventListener("click", async () => {
   const r = await fetch("/api/new-conversation", { method: "POST" });
   if (!r.ok) { toast("새 대화를 시작하지 못했어요"); return; }
   turnId++; stopPlayback();
   clearTranscript();
-  $("settings").close();
+  show("agent", "chat");
   ready();
   toast("새 대화를 시작했어요");
 });
@@ -692,11 +1060,11 @@ mic.addEventListener("contextmenu", (e) => e.preventDefault()); // no iOS long-p
 // On a computer: hold Space to talk (when not typing).
 const typing = (el) => el?.closest?.("dialog[open], input, select, textarea");
 document.addEventListener("keydown", (e) => {
-  if (e.code !== "Space" || e.repeat || typing(e.target)) return;
+  if (e.code !== "Space" || e.repeat || typing(e.target) || !chatting()) return;
   e.preventDefault(); startRecording();
 });
 document.addEventListener("keyup", (e) => {
-  if (e.code !== "Space" || typing(e.target)) return;
+  if (e.code !== "Space" || typing(e.target) || !recording) return;
   e.preventDefault(); stopRecording();
 });
 
@@ -765,13 +1133,22 @@ if (vv) {
   const root = document.documentElement.style;
   const fit = () => {
     root.setProperty("--vv-height", `${vv.height}px`);
-    // Follow the pan only while the keyboard is up. Pulling past the end of the conversation makes iOS
-    // bounce the page, which also moves offsetTop (below zero at the top): following that slid the app
-    // the opposite way to the finger.
-    const keyboard = vv.height < window.innerHeight - 80;
-    root.setProperty("--vv-top", `${keyboard ? Math.max(0, vv.offsetTop) : 0}px`);
+    // Follow the pan only as far as something covers the screen. Pulling past the end of the conversation
+    // makes iOS bounce the page, which also moves offsetTop (below zero at the top): following that slid
+    // the app the opposite way to the finger. The covered height is the limit, not a "keyboard is up"
+    // guess: with an external keyboard only a short bar covers the screen, and the page can stay panned
+    // from the on-screen keyboard that was there before. Not following that left the text box off screen.
+    const covered = Math.max(0, window.innerHeight - vv.height);
+    root.setProperty("--vv-top", `${Math.min(Math.max(0, vv.offsetTop), covered)}px`);
+    // The on-screen keyboard is up: the bar at the bottom goes, so the text box sits on the keyboard.
+    // With an external keyboard iOS only floats a short bar over the bottom of the screen, without
+    // shrinking the visible area: the bar at the bottom stays, and it is what ends up under that bar.
+    document.body.classList.toggle("kb", covered > 80);
   };
-  vv.addEventListener("resize", () => { fit(); scrollDown(); }); // keyboard in or out: keep the latest message in view
+  vv.addEventListener("resize", () => { // keyboard in or out: keep the latest message in view
+    fit(); scrollDown();
+    if (DEBUG) diag("viewport", { h: vv.height, top: vv.offsetTop, inner: window.innerHeight });
+  });
   vv.addEventListener("scroll", fit);
   fit();
 }
@@ -790,7 +1167,7 @@ clearTranscript();
 // ?demo=<state> renders a sample screen for design review (no audio, no requests).
 const demo = new URLSearchParams(location.search).get("demo");
 if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.dataset.theme = "light";
-if (demo === "settings") openSettings();
+if (demo === "settings") show("settings");
 else if (demo) {
   const hints = { recording: "듣고 있어요. 다시 누르면 받아적어요", transcribing: "받아적는 중…" };
   if (hints[demo]) setState(demo, hints[demo]);
@@ -834,6 +1211,7 @@ let feed = null;
 function openFeed() {
   if (feed || demo || document.visibilityState !== "visible") return;
   const last = localStorage.getItem("kkachi.feed");
+  openFlow();
   feed = new EventSource(`/api/feed${last ? `?last=${encodeURIComponent(last)}` : ""}`);
   feed.onmessage = (e) => {
     if (e.lastEventId) localStorage.setItem("kkachi.feed", e.lastEventId);
@@ -841,7 +1219,7 @@ function openFeed() {
     if (item.kind !== "hello") showFeedItem(item);
   };
 }
-function closeFeed() { feed?.close(); feed = null; }
+function closeFeed() { feed?.close(); feed = null; closeFlow(); }
 function showFeedItem(item) {
   const v = item.kind === "turn" ? addTurn(item.heard, [], `${item.from}에서`) : addTurn("", [], "까치가 보냈어요", true);
   v.stream(item.text || "");
@@ -851,7 +1229,7 @@ function showFeedItem(item) {
 }
 openFeed();
 // The voice setting decides how replies are read aloud, so it is needed before the first one.
-fetch("/api/settings").then((r) => r.json()).then((j) => { saved ??= j.settings; }).catch(() => {});
+fetch("/api/settings").then((r) => r.json()).then((j) => { saved ??= j.settings; renderHome(); }).catch(() => {});
 
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);

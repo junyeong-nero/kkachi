@@ -47,6 +47,9 @@ async function conversation(): Promise<Pi> {
   return agent;
 }
 
+/** For the phone app's status screen: whether a turn is running now, and on which model. */
+export const agentState = () => ({ busy: !!currentTurn, model: agentModel || currentModel() });
+
 // ---- settings sheet hooks ----
 export async function applyThinking() { await agent?.setThinking(); }
 

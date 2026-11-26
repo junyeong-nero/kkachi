@@ -11,6 +11,7 @@
 // Before a Pi starts, its tools are listed from the servers and written to a file that
 // pi/kkachi.ts registers as Pi tools; calls then go straight to the server.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { mcpPost } from "../lib/mcp-client";
 import { INTERNAL_HEADER } from "../lib/trust";
@@ -63,6 +64,31 @@ export async function rpc(url: string, method: string, params: object = {}) {
   return body.result;
 }
 
+const INITIALIZE = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "kkachi-core", version: "0.1.0" } };
+
+export type Connection = { name: string; source: "kkachi" | "pi"; ok?: boolean; tools?: number };
+/** For the phone app's list of MCP servers: each one in kkachi.mcp.json with whether it answers now and
+ * how many of its tools the chat may use, then the ones in the user's own Pi setup (global config
+ * files only). Pi connects to those itself when a tool is needed, so core knows only their names. */
+export async function connections(): Promise<Connection[]> {
+  const { servers, agents } = load();
+  const patterns = agents.chat?.tools ?? [];
+  const own = await Promise.all(Object.entries(servers).map(async ([name, { url }]): Promise<Connection> => {
+    try {
+      await rpc(url, "initialize", INITIALIZE);
+      const tools = ((await rpc(url, "tools/list")).tools ?? []).filter((t: any) => patterns.some((p) => matches(p, name, t.name)));
+      return { name, source: "kkachi", ok: true, tools: tools.length };
+    } catch {
+      return { name, source: "kkachi", ok: false };
+    }
+  }));
+  const names = new Set<string>();
+  for (const f of [join(process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"), "mcp.json"), join(homedir(), ".config", "mcp", "mcp.json")]) {
+    try { for (const name of Object.keys(JSON.parse(readFileSync(f, "utf8")).mcpServers ?? {})) names.add(name); } catch {} // no such file, or not plain JSON
+  }
+  return [...own, ...[...names].map((name): Connection => ({ name, source: "pi" }))];
+}
+
 /** The tools this agent may use, from every server that answers. Written for pi/kkachi.ts. */
 export async function toolsFor(agent: Agent): Promise<{ file: string; names: string[] }> {
   const { servers, agents } = load();
@@ -71,7 +97,7 @@ export async function toolsFor(agent: Agent): Promise<{ file: string; names: str
   for (const [server, { url }] of Object.entries(servers)) {
     if (!patterns.some((p) => matches(p, server))) continue; // nothing wanted from this server
     try {
-      await rpc(url, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "kkachi-core", version: "0.1.0" } });
+      await rpc(url, "initialize", INITIALIZE);
       for (const t of (await rpc(url, "tools/list")).tools ?? []) {
         if (!patterns.some((p) => matches(p, server, t.name))) continue;
         if (tools.some((x) => x.name === t.name)) { console.error(`mcp: ${server} also has a tool named ${t.name}; skipped`); continue; }
