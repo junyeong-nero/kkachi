@@ -1,6 +1,6 @@
 // Device sessions of their own (docs/bus.md): what is said to spare devices when the settings keep
-// it apart from the phone app's conversation, one session for all devices ("home") or one per device.
-// Tools are the setting's: "full" gives the phone app's tools and waits in line with its turns (core
+// it apart from Kkachi Home's conversation, one session for all devices ("home") or one per device.
+// Tools are the setting's: "full" gives Kkachi Home's tools and waits in line with its turns (core
 // commits each turn), "limited" gives the notes, speaking and the lamp (each note change is its own
 // commit by the memory service) and does not wait.
 import { log } from "./log";

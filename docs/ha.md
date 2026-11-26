@@ -5,7 +5,7 @@
 HA 는 선택이다. VM 을 하나 더 띄우는 일이라, 까치와 공기계만으로 충분한 동안에는 필요 없다. 실제 전구, 스피커, 카메라가 생겨 모자랄 때 붙인다([philosophy.md](philosophy.md) 1번).
 
 ```
-까치 폰 앱, 공기계 ─▶ 까치 core (Pi) ─┬─ kkachi-memory
+까치 홈, 공기계 ──▶ 까치 core (Pi) ─┬─ kkachi-memory
                                     ├─ kkachi-devices (공기계)
                                     └─ ha-mcp ─▶ HA ─┬─ 스마트 전구
                                                      ├─ Music Assistant ─▶ Apple Music, 스피커
@@ -56,11 +56,11 @@ HA OS 에서는 앱(예전 이름은 애드온)으로 까는 게 가장 간단�
 KKACHI_HA_MCP_URL=http://192.168.0.50:9583/private_…
 ```
 
-비어 있으면 까치는 HA 없이 돈다. 연결되면 폰 앱 대화에 HA 도구 7개가 붙는다. `ha_get_overview`, `ha_search`, `ha_get_state`, `ha_call_service`, 그리고 자동화를 읽고 쓰고 지우는 `ha_config_get_automation`, `ha_config_set_automation`, `ha_config_remove_automation` 이다. ha-mcp 도구는 77개인데 전부 붙이면 정의만 매 턴 7만 토큰쯤 되어 일상에 쓰는 것만 골랐다. 더 필요하면 `kkachi.mcp.json` 의 `chat` 목록에 넣는다.
+비어 있으면 까치는 HA 없이 돈다. 연결되면 까치 홈 대화에 HA 도구 7개가 붙는다. `ha_get_overview`, `ha_search`, `ha_get_state`, `ha_call_service`, 그리고 자동화를 읽고 쓰고 지우는 `ha_config_get_automation`, `ha_config_set_automation`, `ha_config_remove_automation` 이다. ha-mcp 도구는 77개인데 전부 붙이면 정의만 매 턴 7만 토큰쯤 되어 일상에 쓰는 것만 골랐다. 더 필요하면 `kkachi.mcp.json` 의 `chat` 목록에 넣는다.
 
-공기계 대화는 설정의 "도구" 를 따른다. 전체면 폰 앱과 같은 도구라 공기계에 "거실 불 켜줘" 라고 해도 된다. 제한이면 HA 도구가 없다. 방에 있는 누구나 공기계에 말할 수 있다는 점을 생각해서 고른다.
+공기계 대화는 설정의 "도구" 를 따른다. 전체면 까치 홈과 같은 도구라 공기계에 "거실 불 켜줘" 라고 해도 된다. 제한이면 HA 도구가 없다. 방에 있는 누구나 공기계에 말할 수 있다는 점을 생각해서 고른다.
 
-`data/service.log` 에 `mcp: ha (…) did not answer` 가 없으면 연결된 것이다. 폰 앱에서 "집에 뭐가 연결돼 있어?" 라고 물어 확인한다.
+`data/service.log` 에 `mcp: ha (…) did not answer` 가 없으면 연결된 것이다. 까치 홈에서 "집에 뭐가 연결돼 있어?" 라고 물어 확인한다.
 
 ## 5. 스마트 전구
 

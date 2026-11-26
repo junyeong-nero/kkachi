@@ -67,7 +67,7 @@ export async function rpc(url: string, method: string, params: object = {}) {
 const INITIALIZE = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "kkachi-core", version: "0.1.0" } };
 
 export type Connection = { name: string; source: "kkachi" | "pi"; ok?: boolean; tools?: number };
-/** For the phone app's list of MCP servers: each one in kkachi.mcp.json with whether it answers now and
+/** For Kkachi Home's list of MCP servers: each one in kkachi.mcp.json with whether it answers now and
  * how many of its tools the chat may use, then the ones in the user's own Pi setup (global config
  * files only). Pi connects to those itself when a tool is needed, so core knows only their names. */
 export async function connections(): Promise<Connection[]> {

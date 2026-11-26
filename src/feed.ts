@@ -1,4 +1,4 @@
-// What reaches the phone app outside its own turns (docs/bus.md): conversations on spare devices
+// What reaches Kkachi Home outside its own turns (docs/bus.md): conversations on spare devices
 // that the phone should see, and messages an agent sends with send_to_phone. The app listens while
 // it is open (GET /api/feed, server-sent events) and picks up where it left off through the event
 // id (Last-Event-ID), which carries this server run's epoch. Kept in memory, the last 100.

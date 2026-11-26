@@ -1,4 +1,4 @@
-// What is going through the connections right now, for the phone app's 연결 screen (GET /api/flow,
+// What is going through the connections right now, for Kkachi Home's 연결 screen (GET /api/flow,
 // server-sent events): one event each time something leaves an input for where it is joined to. The key
 // is the link's id, or "agent:<device id>" for a voice that went to the agent. A screen that opens later
 // first gets the latest of each key (marked old: it happened before, nothing is moving), so every row

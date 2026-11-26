@@ -36,11 +36,11 @@ export default function (pi: ExtensionAPI) {
     async execute() { return text("The librarian will tidy the notes in the background after this turn."); },
   });
 
-  // The phone app as an output (docs/bus.md): it shows the message, and reads it aloud if set to.
+  // Kkachi Home as an output (docs/bus.md): it shows the message, and reads it aloud if set to.
   pi.registerTool({
     name: "send_to_phone",
     label: "Send to phone",
-    description: "Show a message in the user's Kkachi phone app: details you should not say aloud on a device, or anything the user asks to send to their phone. Markdown is fine.",
+    description: "Show a message in Kkachi Home, the app on the user's phone: details you should not say aloud on a device, or anything the user asks to send to their phone. Markdown is fine.",
     parameters: Type.Object({ text: Type.String() }),
     async execute(_id, params) {
       try {
@@ -49,7 +49,7 @@ export default function (pi: ExtensionAPI) {
           headers: { "Content-Type": "application/json", "x-kkachi-internal": process.env.KKACHI_INTERNAL_TOKEN ?? "" },
           body: JSON.stringify({ text: params.text }),
         });
-        return text(r.ok ? "Sent to the phone app." : `Error: the phone app did not take it (HTTP ${r.status})`);
+        return text(r.ok ? "Sent to Kkachi Home." : `Error: Kkachi Home did not take it (HTTP ${r.status})`);
       } catch (err) {
         return text(`Error: Kkachi is unreachable (${(err as Error).message})`);
       }
@@ -71,7 +71,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   // The user's own MCP servers (pi-mcp-adapter, which also brings in Claude Code's, Codex's, ...;
-  // or Pi's built-in MCP) are for the phone app. Anyone in the room can talk to a spare device, so a
+  // or Pi's built-in MCP) are for Kkachi Home. Anyone in the room can talk to a spare device, so a
   // turn from one (a "[기기: …]" header) runs without them unless Settings → 공기계 대화 → 내 MCP
   // says 공기계도 (docs/philosophy.md, 3). Kkachi's own tools, registered above, stay.
   const userMcp = (t: any) => /pi-mcp-adapter/.test(`${t.sourceInfo?.source} ${t.sourceInfo?.path}`) || t.sourceInfo?.path === "builtin:mcp";

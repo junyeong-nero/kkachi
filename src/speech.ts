@@ -23,13 +23,14 @@ const NO_SPEECH = 0.4;
 // No Whisper `prompt`: a vocabulary hint gets transcribed back verbatim on silence ("K-EXAONE 2.5
 // 무료 API" from note titles) and garbles real speech. Terms are fixed in the polish step instead.
 export async function transcribe(audio: Blob): Promise<string> {
-  const { baseUrl, apiKey, model, language } = config.stt;
+  const { baseUrl, apiKey, model, language, chunking } = config.stt;
   const verbose = /whisper/i.test(model); // segment scores; gpt-4o-transcribe models do not support verbose_json
   const form = new FormData();
   form.append("file", new File([audio], "speech.wav", { type: audio.type || "audio/wav" }));
   form.append("model", model);
   if (language) form.append("language", language);
   if (verbose) form.append("response_format", "verbose_json");
+  if (chunking) form.append("chunking_strategy", chunking);
   const r = await fetch(`${baseUrl}/audio/transcriptions`, { method: "POST", headers: auth(apiKey), body: form });
   const body: any = await r.json();
   if (!r.ok) throw new Error(`stt ${r.status}: ${body.error?.message ?? JSON.stringify(body)}`);

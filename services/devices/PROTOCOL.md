@@ -23,7 +23,8 @@ Every request must come from this computer or a `*.ts.net` name, and a browser's
 | `type` | Fields | When |
 |---|---|---|
 | `hello` | `name`, `token?`, `armed`, `features`, `form`, `version` | on connect. `token` once allowed; `features` are the web APIs it has; `form` is `phone` or `tablet` (a screen 600 px or wider on its short side), a phone when missing; an old `version` gets `update` |
-| `state` | `armed`, `perms` | sound unlocked, permissions given. The page has no switches: what is used is chosen in the phone app (`use`, below) |
+| `ping` | | every 25 s. With nothing heard from the service for 60 s the page takes the connection for dead and connects again |
+| `state` | `armed`, `perms` | sound unlocked, permissions given. The page has no switches: what is used is chosen in Kkachi Home (`use`, below) |
 | `result` | `id`, `ok`, `data?` or `error?` | the answer to a request |
 | `warm` | | the talk button went down: core gets an agent ready |
 | `input` | `id`, `kind: "talk"`, `age`, `audio`, `mime` | something said (16 kHz WAV, base64). Kept and sent again until acked; dropped after 60 s |
@@ -37,8 +38,10 @@ Every request must come from this computer or a `*.ts.net` name, and a browser's
 | `forgotten` | | removed |
 | `update` | | the page is older than the service: reload |
 | `ack` | `id`, `ok`, `error?` | an `input` reached core. Errors: `not allowed`, `unknown kind`, `switched off`, `bad audio`, `no agent` (no core), `expired` |
-| `use` | `pads`, `agent` | on connect and whenever the phone app changes it. `pads`: which of `talk`, `click`, `dial` show as pads, one for each that goes somewhere (open to the agent, or joined to an output). `agent`: which inputs and outputs are open to the agent, by `cap` |
-| `reply` | `inputId`, `heard`, `text?`, `elsewhere?`, `rate`, `quiet?`, `audio?`, `mime?` | the answer to an input, possibly much later; kept two minutes for a page that is away. No `audio`: say `text` with the device's own voice at `rate` (percent). `elsewhere`: the answer went to the phone |
+| `use` | `pads`, `agent` | on connect and whenever Kkachi Home changes it. `pads`: which of `talk`, `click`, `dial` show as pads, one for each that goes somewhere (open to the agent, or joined to an output). `agent`: which inputs and outputs are open to the agent, by `cap` |
+| `reply` | `inputId`, `heard`, `text?`, `elsewhere?`, `rate`, `quiet?`, `audio?`, `mime?`, `part?`, `last?`, `show?` | the answer to an input, possibly much later; kept two minutes for a page that is away. No `audio`: say `text` with the device's own voice at `rate` (percent). `elsewhere`: the answer went to the phone. An answer comes a sentence at a time while it is being written: `part` counts them from 0 and they may arrive out of order (each one's voice is made on its own, and one the server takes over 6 s to make comes without `audio`), so the page says them by number; `last` ends the answer and `show` is the whole of it, to leave on screen. Without `part` it is a whole answer |
+| `replaced` | | the same device connected from another page, which has it now. The service closes this one; the page does not come back |
+| `pong` | | the answer to a `ping` |
 | `dim` | `brightness` or `toggle: true` | an input joined to this device's lamp. A dial moved: the brightness alone (0 turns it off), in the colour the lamp last had. A button was pressed: on as it last was, or off. Nothing to answer |
 
 ### Requests: service to page, with an `id`, answered with `result`

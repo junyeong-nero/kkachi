@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="까치" />
+<meta name="apple-mobile-web-app-title" content="까치 홈" />
 <meta name="theme-color" content="#fcfcfd" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#16181c" media="(prefers-color-scheme: dark)" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/favicon.png" type="image/png" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css" />
-<title>까치</title>
+<title>까치 홈</title>
 <style>
   /* Hallmark · checked: 2026-11-25 · genre: modern-minimal (inferred) · shape: app screen
    * floor: 0 FAIL · fixed: 7 (15, 34, 39a, 40, 48, 50, 63) · structural: 0 printed
@@ -94,6 +94,7 @@
 
   @media (display-mode: standalone) { body { padding-top: calc(16px + env(safe-area-inset-top)); } }
   body.kb { --nav-space: 0px; }
+  body.hw { --nav-space: var(--pill, 58px); } /* typing on a keyboard joined to an iPhone or iPad: clear of the pill iOS floats at the bottom (app.js) */
   .icon-btn {
     width: 44px; height: 44px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--muted);
     display: grid; place-items: center; cursor: pointer;
@@ -116,16 +117,34 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme=light]) #nav { box-shadow: none; outline: 1px solid color-mix(in oklch, var(--line) 80%, transparent); outline-offset: -1px; }
   }
+  /* the pill under the current tab is one thing that slides from tab to tab (--tab: which, set in app.js) */
+  #nav::before {
+    content: ""; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 16px) / 5); border-radius: var(--r-pill);
+    background: color-mix(in oklch, var(--text) 9%, transparent);
+    transform: translateX(calc(var(--tab, 2) * (100% + 2px))); transition: transform 260ms var(--ease-out);
+  }
   #nav button {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 50px; padding: 0;
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 50px; padding: 0;
     border: 0; border-radius: var(--r-pill); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer;
     transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
   }
   #nav svg { width: 22px; height: 22px; }
-  #nav button[aria-current=page] { color: var(--text); font-weight: 700; background: color-mix(in oklch, var(--text) 9%, transparent); }
+  #nav button[aria-current=page] { color: var(--text); font-weight: 700; }
   @media (hover: hover) { #nav button:hover { color: var(--text); } }
   #nav button:active { background: color-mix(in oklch, var(--text) 14%, transparent); }
-  body.kb #nav { display: none; } /* the on-screen keyboard is up: the text box sits right on it */
+  body:is(.kb, .hw) #nav { display: none; } /* typing: the text box sits right on the keyboard, or just over iOS's pill */
+  /* arriving at a screen: a tab fades in; what is opened from a screen also comes 12px from the right,
+     and going back from the left. Nothing plays when the app opens. Reduced motion: the fade only */
+  @keyframes in-fade { from { opacity: 0; } }
+  @keyframes in-forward { from { opacity: 0; transform: translateX(12px); } }
+  @keyframes in-back { from { opacity: 0; transform: translateX(-12px); } }
+  .in-tab { animation: in-fade var(--dur) var(--ease-out); }
+  .in-forward { animation: in-forward 260ms var(--ease-out); }
+  .in-back { animation: in-back 260ms var(--ease-out); }
+  @media (prefers-reduced-motion: reduce) {
+    #nav::before { transition: none; }
+    .in-forward, .in-back { animation: in-fade var(--dur) var(--ease-out); }
+  }
   #agent-nav .segment label { padding: 7px 0; }
   #agent-nav { width: 100%; max-width: 640px; margin: 0 auto; padding: 4px 16px 0; }
   .pane { word-break: keep-all; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px calc(24px + var(--nav-space)); scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
@@ -193,8 +212,9 @@
      can send or take; a connection is a row that reads left to right: an input, an arrow, where it goes */
   .pane h1 { font-size: var(--t-lg); font-weight: 700; letter-spacing: -0.015em; margin: 20px 0 6px; line-height: 1.3; text-wrap: balance; }
   .pane h1 + .tiles { margin-top: 14px; }
-  /* a heading with one icon button at its right end (settings: refresh) */
-  .title-row { display: flex; align-items: center; justify-content: space-between; margin: 14px -10px 0 0; }
+  /* a heading with one icon button at its right end (settings: refresh). The button runs 14px past the
+     edge, so what is drawn in it ends on the edge, as the heading starts on the other */
+  .title-row { display: flex; align-items: center; justify-content: space-between; margin: 14px -14px 0 0; }
   .title-row h1 { margin: 0; }
   .lede { font-size: var(--t-base); color: var(--muted); margin: 0 0 20px; line-height: 1.55; text-wrap: pretty; }
   .pane h2 { font-size: var(--t-md); font-weight: 700; letter-spacing: -0.01em; margin: 28px 0 10px; line-height: 1.35; }
@@ -213,9 +233,11 @@
   /* 연결: a routing table grouped by input, because one input can go to several places. One surface
      per input: the input on its first line (icon, device, what it is), and under it every place it goes
      to, hung on a wire that comes down from the input's icon and branches to each. No round badges, no
-     rules inside: the wire is the structure. A place is an icon, a name, how it is doing, and a switch */
+     rules inside: the wire is the structure. A place is an icon, a name, how it is doing, and a switch
+     (while editing, a pill with a bin in its place, as wide as the switch's track). What ends a row ends on one line, 14px inside the surface
+     like what starts it */
   .routes { display: grid; gap: 10px; margin-top: 14px; }
-  .route { padding: 4px 4px 4px 14px; border-radius: var(--r-md); background: var(--surface); }
+  .route { padding: 4px 14px 8px; border-radius: var(--r-md); background: var(--surface); }
   .ico { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--text); }
   .ico svg { width: 20px; height: 20px; }
   .src { display: flex; align-items: center; gap: 10px; min-height: 44px; }
@@ -226,11 +248,13 @@
   .dest .words .name { display: block; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
   .dest .words .sub { display: block; font-size: var(--t-sm); color: var(--muted); line-height: 1.35; font-variant-numeric: tabular-nums; }
   .dest .words .sub.down { color: var(--danger); }
-  .dest .switch, .dest .icon-btn { justify-self: end; }
-  .dest .icon-btn { color: var(--danger); }
-  @media (hover: hover) { .dest .icon-btn:hover { background: var(--line); color: var(--danger); } }
+  .dest .words { padding: 7px 8px 7px 0; } /* 16px clear of what ends the row; a name on two lines keeps the room above and below it */
+  .dest .switch, .dest .play { justify-self: end; }
+  .dest .play { position: relative; display: grid; place-items: center; width: 38px; height: 32px; padding: 0; color: var(--danger); }
+  .dest .play svg { width: 18px; height: 18px; }
+  .dest .play::after { content: ""; position: absolute; inset: -7px -4px; } /* 44px to tap */
   .src.off :is(.name, .ico), .dest.off :is(.name, .ico) { color: var(--muted); } /* off, or switched off: still listed, nothing goes through */
-  .src.off .name, .dest.off .name { font-weight: 400; }
+  .src.off .name { font-weight: 400; } /* a place keeps its weight: its name must not wrap anew when its switch is flipped */
   /* the wire: down from the input's icon (its centre is 10.25px in) and across to each place, with an
      arrowhead. The trunk stops at the last place */
   .dest::before, .dest:not(:last-child)::after { content: ""; position: absolute; left: 10px; border-left: 1.5px solid var(--muted); }
@@ -241,6 +265,27 @@
   .branch::after { content: ""; position: absolute; right: 3px; top: 50%; width: 6px; height: 6px; border-top: 1.5px solid var(--muted); border-right: 1.5px solid var(--muted); transform: translateY(-50%) rotate(45deg); }
   .dest:first-child::before { top: -10px; height: calc(50% + 10px); } /* up to the input's icon */
   .dest.off .branch { opacity: .45; }
+  .dest :is(.name, .ico), .device.cap .pic { transition: color var(--dur) var(--ease-out); } /* a switch flipped: the row follows it */
+  .branch { transition: opacity var(--dur) var(--ease-out); }
+  /* a connection just made: its wire is drawn from the trunk to the arrowhead, then the place appears */
+  @keyframes draw { from { transform: scaleX(0); } }
+  @keyframes draw-down { from { transform: scaleY(0); } }
+  .dest:has(+ .fresh)::after { transform-origin: top; animation: draw-down 90ms linear backwards; } /* the trunk comes down to it first */
+  .dest.fresh::before { transform-origin: top; animation: draw-down 90ms linear 90ms backwards; }
+  .dest.fresh .branch::before { transform-origin: left; animation: draw 380ms var(--ease-out) 160ms backwards; }
+  .dest.fresh .branch::after { animation: in-fade 140ms linear 480ms backwards; }
+  .dest.fresh > :not(.branch) { animation: in-fade 300ms var(--ease-out) 380ms backwards; }
+  /* 편집: the switches and the bins change places, one row after another (the delay is set per row) */
+  @keyframes pop { from { opacity: 0; transform: scale(.8); } }
+  .dest .pop { animation: pop var(--dur) var(--ease-out) backwards; }
+  /* removed: it fades where it is, and what is left slides up into its place (app.js) */
+  .leaving { opacity: 0; pointer-events: none; transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out); }
+  .route.leaving { transform: scale(.98); }
+  @media (prefers-reduced-motion: reduce) {
+    .dest.fresh .branch::before, .dest.fresh::before, .dest:has(+ .fresh)::after { animation: none; }
+    .dest .pop { animation-name: in-fade; }
+    .route.leaving { transform: none; }
+  }
   /* something went through just now: a dot runs along the branch, once for each (red when it could not
      be delivered). Reduced motion: the dot shows in the middle and fades, without running */
   .branch i { position: absolute; top: 50%; left: 7px; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--text); opacity: 0; }
@@ -258,9 +303,14 @@
   .tile.off .pic { color: var(--muted); }
   .tile .pic { margin-bottom: auto; } /* the picture at the top of a tile, its name at the bottom */
   .tile .name { margin-top: 12px; }
-  .switch { flex: none; padding: 11px 3px; border: 0; border-radius: var(--r-pill); background: transparent; cursor: pointer; } /* 44px to tap */
+  /* 44px to tap, but it takes the room of its track only: the track ends where the row's padding does */
+  .switch { flex: none; margin: 0 -3px; padding: 11px 3px; border: 0; border-radius: var(--r-pill); background: transparent; cursor: pointer; }
   .switch i { display: block; position: relative; width: 38px; height: 22px; border-radius: var(--r-pill); background: var(--line); transition: background-color var(--dur-fast) var(--ease-out); }
   .switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
+  .switch i::after { transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
+  .switch:active i::after { scale: 1.2 1; } /* held: the knob widens under the finger */
+  .switch:focus-visible { box-shadow: none; } /* the ring goes round the track, as it goes round a pill, not round the area to tap */
+  .switch:focus-visible i { box-shadow: 0 0 0 3px var(--accent-ring); }
   .switch[aria-checked=true] i { background: var(--text); }
   .switch[aria-checked=true] i::after { transform: translateX(16px); background: var(--bg); }
   @media (prefers-reduced-motion: reduce) { .switch i::after, .tile { transition: none; } }
@@ -416,7 +466,9 @@
     background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: var(--r-sm); font-size: var(--t-sm);
     opacity: 0; transition: opacity var(--dur) var(--ease-out); pointer-events: none; z-index: 10;
   }
-  #toast.show { opacity: 1; }
+  #toast { translate: 0 -8px; transition: opacity var(--dur) var(--ease-out), translate var(--dur) var(--ease-out); } /* it comes down from the top edge */
+  #toast.show { opacity: 1; translate: 0 0; }
+  @media (prefers-reduced-motion: reduce) { #toast { translate: none; } }
   #diag { display: none; font: 11px/1.35 ui-monospace, monospace; color: var(--muted); padding: 8px 12px; max-height: 22vh; overflow: auto; white-space: pre-wrap; }
   body.debug #diag { display: block; }
 </style>
@@ -444,7 +496,7 @@
   <div class="pane-in">
     <h3>에이전트를 쓴 기록</h3>
     <div class="group" id="uses"><div class="loading">불러오는 중…</div></div>
-    <p class="note">폰 앱과 공기계에서 말한 최근 30번이에요.</p>
+    <p class="note">까치 홈과 공기계에서 말한 최근 30번이에요.</p>
     <p class="note" id="model-note"></p>
   </div>
 </section>

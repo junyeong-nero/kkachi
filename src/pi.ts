@@ -19,7 +19,7 @@ export interface PiOptions {
   mcp?: Agent; // which MCP tools it gets from kkachi.mcp.json (src/mcp-bridge.ts), as which agent
   // A device session (src/port.ts): its own session directory. With portTools "limited", only its MCP
   // tools (the memory tools cannot leave the memory repo) and send_to_phone: no shell, file tools,
-  // web, subagents or the user's MCP. With "full", the phone app's tools.
+  // web, subagents or the user's MCP. With "full", Kkachi Home's tools.
   port?: string; // session key: "home" or a device id
   portTools?: "full" | "limited";
 }

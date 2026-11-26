@@ -35,7 +35,9 @@ const relay = {
   message(ws: ServerWebSocket<Relay>, m: string | Buffer) {
     if (ws.data.up?.readyState === WebSocket.OPEN) ws.data.up.send(m); else ws.data.queue.push(m);
   },
-  close(ws: ServerWebSocket<Relay>) { ws.data.up?.close(); },
+  // Why the page's side closed goes on to the service, for its log: 1000 as it is, anything else (1001 the
+  // page left, 1006 the connection was lost) as 4000 and its last three digits, which a client may send.
+  close(ws: ServerWebSocket<Relay>, code: number) { ws.data.up?.close(code === 1000 ? 1000 : 4000 + (code % 1000)); },
 };
 
 // Photos attached to a message (the app sends JPEGs it has already scaled down).
@@ -134,7 +136,7 @@ Bun.serve({
         return ok ? Response.json({ routes: router.list() }) : new Response("no such link", { status: 404 });
       }
 
-      // What reaches the phone app outside its own turns: device conversations and send_to_phone.
+      // What reaches Kkachi Home outside its own turns: device conversations and send_to_phone.
       if (req.method === "GET" && pathname === "/api/feed") return feedStream(req.headers.get("last-event-id") ?? new URL(req.url).searchParams.get("last"));
       if (req.method === "POST" && pathname === "/api/feed") {
         if (!internal(req)) return new Response("forbidden", { status: 403 });

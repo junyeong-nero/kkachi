@@ -53,7 +53,7 @@ At the end it prints an address like `https://<computer>.<tailnet>.ts.net`.
 
 1. Install Tailscale and sign in to the same account as the computer.
 2. Open the address the setup printed.
-3. Add the page to your home screen.
+3. Add the page to your home screen. This is Kkachi Home (까치 홈): where you talk to Kkachi and look after your devices.
 
 Add `?debug` to the URL for an on-screen log.
 
@@ -113,17 +113,26 @@ All settings are environment variables in `.env.local` (see `src/config.ts`), fo
 ### Spare phones and tablets
 
 1. Open `/device` on a spare phone or tablet, name it ("living room") and tap once.
-2. Allow it in the phone app's Settings, under Devices.
+2. Allow it in Kkachi Home's Settings, under Devices.
 3. Keep its screen on.
 
 After that:
 
 - "Tell the living room dinner is ready" plays on it.
-- From the phone app Kkachi can take a photo there ("How does the living room look?"), measure how loud it is, read its motion and orientation sensors, and turn its screen into a lamp. Nothing is stored ([docs/sensors.md](docs/sensors.md)).
-- Each input and output has an on/off switch on the device's own screen.
+- From Kkachi Home, Kkachi can take a photo there ("How does the living room look?"), measure how loud it is, read its motion and orientation sensors, and turn a tablet's screen into a lamp. Nothing is stored ([docs/sensors.md](docs/sensors.md)).
+- The device's own screen shows what is in use right now and keeps a log, so anyone in the room can see when its camera or microphone was used.
 - Hold the device's button to ask Kkachi something. The device sends what you said and moves on; Kkachi answers there, on your phone, or both.
 
-By default a device joins your phone's conversation with the same tools, which assumes only you use these devices. The spare-device conversation settings can give devices a conversation of their own, limit them to the notes, speaking and the lamp, and keep private details from being said aloud ([docs/bus.md](docs/bus.md)). Your own MCP servers stay with the phone app unless you let devices use them too.
+By default a device joins your phone's conversation with the same tools, which assumes only you use these devices. The spare-device conversation settings can give devices a conversation of their own, limit them to the notes, speaking and the lamp, and keep private details from being said aloud ([docs/bus.md](docs/bus.md)). Your own MCP servers stay with Kkachi Home unless you let devices use them too.
+
+### Kkachi Home
+
+The page on your phone is where you talk to Kkachi and look after the devices. Its interface is in Korean. It has five tabs:
+
+- Inputs (입력) and Outputs (출력): each spare device, and what it can send (voice, dial, button, camera, sound level, motion sensors, location) or take (speaker, lamp) right now.
+- Connections (연결): where each input goes. A device's voice goes to the agent, or straight to another device's speaker like a walkie-talkie. A dial or a button on one device's screen sets the brightness of a tablet's lamp or switches it on and off, with no agent in between. Each connection has a switch, and you see when something goes through it.
+- Agent (에이전트): the conversation, what the agent was used for lately, which speakers and lamps it may use, and its MCP servers.
+- Settings (설정): read-aloud, text size, model, and the list of devices.
 
 ### Other agents
 
@@ -174,7 +183,7 @@ bun -e 'await (await import("./src/librarian")).tidyNow(); process.exit(0)'   # 
 ## How it works
 
 ```
-Phone app, spare phones, other agents
+Kkachi Home, spare phones, other agents
   → Tailscale Serve (HTTPS, tailnet only)
   → kkachi-core (src/, :4300): the agent loop and MCP orchestration
        ├─ speech-to-text → (optional) transcript cleanup → Pi (RPC) → replies read on each device
@@ -202,7 +211,7 @@ The docs are in Korean.
 | Doc | What is in it |
 |---|---|
 | [docs/philosophy.md](docs/philosophy.md) | The three principles and where Kkachi does not meet them yet |
-| [docs/design.md](docs/design.md) | How the phone app and the device page behave, the voice pipeline, local dictation |
+| [docs/design.md](docs/design.md) | How Kkachi Home and the device page behave, the voice pipeline, local dictation |
 | [docs/bus.md](docs/bus.md) | How spare devices talk to Kkachi, and the spare-device conversation settings |
 | [docs/sensors.md](docs/sensors.md) | What a spare phone can do, feature by feature |
 | [docs/ha.md](docs/ha.md) | Setting up Home Assistant with ha-mcp |

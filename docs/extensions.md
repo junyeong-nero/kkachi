@@ -10,7 +10,7 @@
 
 ## 붙이는 법
 
-Pi 에 붙이면 까치가 그대로 쓴다. 까치의 폰 앱 대화는 Pi 설정을 공유한다.
+Pi 에 붙이면 까치가 그대로 쓴다. 까치 홈의 대화는 Pi 설정을 공유한다.
 
 1. Claude Code, Codex, Cursor, VS Code, Claude Desktop 에 이미 붙여 둔 서버는 `pi-mcp-adapter init` 으로 가져온다. `bun run init` 이 찾아서 가져올지 물어본다. 어댑터 설정(`~/.pi/agent/mcp-adapter.json`)의 `imports` 에 그 도구들이 들어간다.
 2. 새 서버는 여러 도구가 같이 읽는 `~/.config/mcp/mcp.json`, 또는 `~/.pi/agent/mcp.json` 의 `mcpServers` 에 넣는다. 실행 명령(`command`, `args`, `env`)이나 `url` 은 각 프로젝트 README 에 있는 그대로 쓴다.
@@ -18,7 +18,7 @@ Pi 에 붙이면 까치가 그대로 쓴다. 까치의 폰 앱 대화는 Pi 설�
 
 `kkachi.mcp.json` 은 까치 core 가 직접 붙는 자리다. 상태를 따로 갖지 않는(stateless) Streamable HTTP 서버만 되고, 대신 에이전트마다 도구를 하나씩 골라 줄 수 있다. 공기계를 "제한" 모드로 두면서 불 켜는 도구 하나만 열어 주고 싶을 때 여기에 넣는다. Home Assistant 의 ha-mcp 가 이렇게 붙어 있다([ha.md](ha.md)).
 
-Pi 에 붙인 서버는 기본으로 폰 앱 대화에서만 쓴다. 공기계에는 방에 있는 누구나 말할 수 있어서다. 공기계에서도 쓰려면 설정 → 공기계 대화 → 내 MCP 를 "공기계도" 로 바꾼다. 하나만 열어 주려면 위처럼 `kkachi.mcp.json` 에 넣는다.
+Pi 에 붙인 서버는 기본으로 까치 홈 대화에서만 쓴다. 공기계에는 방에 있는 누구나 말할 수 있어서다. 공기계에서도 쓰려면 설정 → 공기계 대화 → 내 MCP 를 "공기계도" 로 바꾼다. 하나만 열어 주려면 위처럼 `kkachi.mcp.json` 에 넣는다.
 
 ## 조명
 

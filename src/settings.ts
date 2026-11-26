@@ -11,11 +11,11 @@ export interface Settings {
   rate: number;     // speech speed in percent, -50..+100 (0 = normal)
   model: string;    // primary Pi model; config.models stay as fallbacks
   thinking: string; // Pi thinking level
-  deviceSession: "all" | "home" | "device"; // one session with the phone app, one for all devices, or one per device
+  deviceSession: "all" | "home" | "device"; // one session with Kkachi Home, one for all devices, or one per device
   deviceReply: "source" | "phone" | "both";  // where the answer to a device goes
   devicePrivacy: "open" | "guarded" | "phone"; // private details: say them, keep them unsaid, or send them to the phone
-  deviceTools: "full" | "limited";            // device sessions: the phone app's tools, or notes, speaking and the lamp
-  deviceMcp: "phone" | "all";                 // the user's own MCP servers (pi-mcp-adapter): phone app only, or devices too
+  deviceTools: "full" | "limited";            // device sessions: Kkachi Home's tools, or notes, speaking and the lamp
+  deviceMcp: "phone" | "all";                 // the user's own MCP servers (pi-mcp-adapter): Kkachi Home only, or devices too
   deviceIdleMin: number;                       // device sessions start over after this many quiet minutes (0: never)
 }
 
@@ -26,7 +26,7 @@ const defaults: Settings = {
   rate: 0,
   model: config.models[0],
   thinking: config.thinking,
-  // A personal setup: privacy is assumed, so devices share the phone app's conversation and tools.
+  // A personal setup: privacy is assumed, so devices share Kkachi Home's conversation and tools.
   deviceSession: "all",
   deviceReply: "source",
   devicePrivacy: "open",
@@ -78,7 +78,7 @@ export const DEVICE_OPTIONS: Record<string, { id: string | number; name: string 
   deviceReply: [{ id: "source", name: "들은 기기" }, { id: "phone", name: "폰" }, { id: "both", name: "둘 다" }],
   devicePrivacy: [{ id: "open", name: "그대로" }, { id: "guarded", name: "말하지 않기" }, { id: "phone", name: "폰으로" }],
   deviceTools: [{ id: "full", name: "전체" }, { id: "limited", name: "제한" }],
-  deviceMcp: [{ id: "phone", name: "폰 앱만" }, { id: "all", name: "공기계도" }],
+  deviceMcp: [{ id: "phone", name: "까치 홈만" }, { id: "all", name: "공기계도" }],
   deviceIdleMin: [{ id: 5, name: "5분" }, { id: 10, name: "10분" }, { id: 30, name: "30분" }, { id: 0, name: "끄기" }],
 };
 

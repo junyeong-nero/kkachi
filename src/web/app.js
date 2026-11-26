@@ -1,5 +1,6 @@
-// Kkachi UI. One composer: type, or tap the mic and speak. Spoken words land in the text box to check
-// and fix before sending. Replies render as Markdown and can be read aloud. See DESIGN.md.
+// Kkachi Home (까치 홈), the app on the user's phone. One composer: type, or tap the mic and speak.
+// Spoken words land in the text box to check and fix before sending. Replies render as Markdown and
+// can be read aloud. See DESIGN.md.
 "use strict";
 
 // ---- tuning ----
@@ -586,7 +587,7 @@ function renderDeviceTalk(options, s) {
   showDeviceTalk(s);
 }
 function showDeviceTalk(s) {
-  const shared = s.deviceSession === "all"; // the phone app's session: its tools, and it never starts over
+  const shared = s.deviceSession === "all"; // Kkachi Home's session: its tools, and it never starts over
   $("device-own-session").hidden = shared;
   $("device-talk-note").textContent = shared ? DEVICE_TALK_NOTE.all : DEVICE_TALK_NOTE.own;
 }
@@ -661,8 +662,18 @@ async function preview(voice) {
 // ---- screens, switched in the bar at the bottom: 입력, 출력, 연결 (opens first), 에이전트 (talk to it, what it
 // was used for, its MCP servers) and 설정 ----
 const chatting = () => document.body.dataset.tab === "agent" && document.body.dataset.pane === "chat";
+// Motion (DESIGN.md, Motion): what a screen does when it is arrived at. tab: it fades in; forward and
+// back: it also comes 12px from the side it was opened from. Reduced motion keeps the fade only (CSS).
+function enter(node, how) {
+  node.classList.remove("in-tab", "in-forward", "in-back");
+  void node.offsetWidth; // start again, also when the last one has not finished
+  node.classList.add(`in-${how}`);
+}
+const SETTLE = 160; // a switch finishes moving before its list is drawn again
 function show(tab, pane = document.body.dataset.pane) {
+  const moved = document.body.dataset.tab !== tab || document.body.dataset.pane !== pane;
   document.body.dataset.tab = tab; document.body.dataset.pane = pane;
+  $("nav").style.setProperty("--tab", [...$("nav").children].findIndex((b) => b.dataset.tab === tab)); // where the bar's pill slides to
   for (const b of $("nav").children) { if (b.dataset.tab === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
   for (const i of document.querySelectorAll("input[name=pane]")) i.checked = i.value === pane;
   if (tab === "settings") openSettings();
@@ -671,10 +682,11 @@ function show(tab, pane = document.body.dataset.pane) {
   else if (pane === "history") loadHistory();
   else if (pane === "resources") { loadResources(); openSettings(); } // the settings about answering devices live on this screen too
   else loadMcp();
+  if (moved) enter(tab in view ? $(`${tab}-body`) : tab === "settings" ? $("settings").firstElementChild : pane === "chat" ? $("log") : $(pane === "mcp" ? "mcp-pane" : pane).firstElementChild, "tab");
 }
 for (const b of $("nav").children) b.addEventListener("click", () => {
   const tab = b.dataset.tab;
-  if (document.body.dataset.tab === tab && view[tab]) { view[tab] = null; $(tab).scrollTop = 0; } // the same tab again: back to its grid
+  if (document.body.dataset.tab === tab && view[tab]) openView(tab, null); // the same tab again: back to its grid
   show(tab);
 });
 for (const i of document.querySelectorAll("input[name=pane]")) i.addEventListener("change", () => show("agent", i.value));
@@ -703,7 +715,7 @@ const OUT = { talk: { output: "speak", can: "speak", pic: "speak" }, dial: { out
 // What is open on each screen. 입력 and 출력: a device's id (null: the grid). 연결: the link being made,
 // { from, kind } (null: the cards).
 const view = { inputs: null, outputs: null, links: null };
-function openView(tab, what) { view[tab] = what; renderHome(); $(tab).scrollTop = 0; }
+function openView(tab, what) { view[tab] = what; renderHome(); $(tab).scrollTop = 0; enter($(`${tab}-body`), what ? "forward" : "back"); }
 
 const text = (tag, cls, s) => { const n = el(tag, cls); n.textContent = s; return n; }; // names come from devices: never as HTML
 const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
@@ -802,16 +814,19 @@ function renderGrid(tab) {
 
 // Open one of a device's inputs or outputs to the agent, or close it. Its voice to the agent shows as a
 // connection; the outputs the agent may use are on the agent screen (자원).
-async function setAgent(d, cap, open) {
+// after: what is moving on screen meanwhile (a switch, a row leaving); the list is drawn again once it has.
+async function setAgent(d, cap, open, after) {
   const r = await fetch(`/api/device/${d.id}/agent`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cap, open }) });
-  if (!r.ok) { toast("바꾸지 못했어요"); return false; }
+  await after;
+  if (!r.ok) { toast("바꾸지 못했어요"); drawn = ""; renderHome(); return false; } // drawn again: the switch goes back
   devices = (await r.json()).devices;
   renderHome();
   return true;
 }
-async function setLink(l, action) { // on | off | remove
+async function setLink(l, action, after) { // on | off | remove
   const r = await fetch(`/api/routes/${l.id}/${action}`, { method: "POST" });
-  if (!r.ok) { toast("바꾸지 못했어요"); return; }
+  await after;
+  if (!r.ok) { toast("바꾸지 못했어요"); drawn = ""; renderHome(); return; }
   links = (await r.json()).routes; renderHome();
 }
 // How a connection is doing, as words: [words, class].
@@ -829,6 +844,8 @@ const keptOff = new Set(JSON.parse(localStorage.getItem("kkachi.agentOff") || "[
 const saveKept = () => localStorage.setItem("kkachi.agentOff", JSON.stringify([...keptOff]));
 const flowLast = new Map(), flowRows = new Map(); // by key (a link's id, or agent:<device id>): the latest flow; the row drawn now
 let flow = null, editing = false; // editing: the rows show remove in place of their switches
+let swapped = false, shownLinks = null, homeLoaded = false; // 편집 was just pressed; the connections listed last time (null: not yet); the lists have come once
+const calm = matchMedia("(prefers-reduced-motion: reduce)");
 function openFlow() {
   if (flow || demo || document.visibilityState !== "visible") return;
   flow = new EventSource("/api/flow");
@@ -859,26 +876,34 @@ function renderLinks() {
   const groups = new Map(); // by "<device id>:<kind>"
   const group = (id, kind) => {
     const k = `${id}:${kind}`;
-    if (!groups.has(k)) groups.set(k, { d: byId.get(id), kind, dests: [] });
+    if (!groups.has(k)) groups.set(k, { key: k, d: byId.get(id), kind, dests: [] });
     return groups.get(k);
   };
   for (const d of devices.filter((x) => x.allowed && (x.agent?.talk || keptOff.has(x.id)))) group(d.id, "talk").dests.push({
     key: `agent:${d.id}`, kind: "talk", agent: true, on: !!d.agent?.talk, last: flowLast.get(`agent:${d.id}`),
     pic: "agent", name: "에이전트", what: `${d.name} 음성에서 에이전트로 가는 연결`,
     // Switched off, the row stays (remembered by this app) so it can be switched back on; removed, it goes.
-    toggle: (on) => { if (on) keptOff.delete(d.id); else keptOff.add(d.id); saveKept(); setAgent(d, "talk", on); },
-    remove: () => { keptOff.delete(d.id); saveKept(); if (d.agent?.talk) setAgent(d, "talk", false); else { drawn = ""; renderHome(); } },
+    toggle: (on, after) => { if (on) keptOff.delete(d.id); else keptOff.add(d.id); saveKept(); setAgent(d, "talk", on, after); },
+    remove: (after) => { keptOff.delete(d.id); saveKept(); if (d.agent?.talk) setAgent(d, "talk", false, after); else after.then(() => { drawn = ""; renderHome(); }); },
   });
   for (const l of links) {
     const kind = l.from.kind, to = byId.get(l.to.device), name = `${to?.name ?? "없는 기기"} ${JOINS[kind]}`;
     group(l.from.device, kind).dests.push({
       key: l.id, kind, on: l.on !== false, last: newer(flowLast.get(l.id), l.last), gone: !to?.online,
-      pic: OUT[kind].pic, name, what: `${byId.get(l.from.device)?.name ?? "없는 기기"} ${CAN[kind]}에서 ${name}(으)로 가는 연결`,
-      toggle: (on) => setLink(l, on ? "on" : "off"), remove: () => setLink(l, "remove"),
+      pic: OUT[kind].pic, name, what: `${byId.get(l.from.device)?.name ?? "없는 기기"} ${CAN[kind]}에서 ${name}로 가는 연결`, // every JOINS name ends in a vowel
+      toggle: (on, after) => setLink(l, on ? "on" : "off", after), remove: (after) => setLink(l, "remove", after),
     });
   }
   const ORDER = ["talk", "dial", "click"];
   const sorted = [...groups.values()].sort((a, b) => (a.d?.name ?? "").localeCompare(b.d?.name ?? "", "ko") || ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
+
+  // What moves here (DESIGN.md, Motion). A connection that was not listed last time has its wire drawn;
+  // with 편집 the controls come in one after another; and what was already on screen slides to where it
+  // is now (after one is removed, or one is added above it) instead of jumping.
+  const listed = homeLoaded ? shownLinks : null, was = new Map(); // where each group and row was, by key
+  if (!calm.matches) for (const n of body.querySelectorAll("[data-key]")) { const r = n.getBoundingClientRect(); if (r.height) was.set(n.dataset.key, r.top); }
+  if (homeLoaded) shownLinks = new Set(sorted.flatMap((g) => g.dests.map((it) => it.key)));
+  let nth = 0;
 
   flowRows.clear();
   const list = el("div", "routes");
@@ -888,29 +913,44 @@ function renderLinks() {
     dests.append(...g.dests.map((it) => {
       const li = el("li", it.on ? "dest" : "dest off"), [w, cls] = linkWords(it, it.last), words = el("span", "words"), state = text("span", `sub ${cls}`, w);
       words.append(text("span", "name", it.name), state);
-      const control = editing ? el("button", "icon-btn", icon("M6 6l12 12M18 6L6 18")) : el("button", "switch", "<i></i>");
+      const control = editing ? el("button", "play", icon("M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5")) : el("button", "switch", "<i></i>"); // a bin
       control.type = "button";
+      li.dataset.key = it.key;
+      if (listed && !listed.has(it.key)) li.classList.add("fresh");
+      if (swapped) { control.classList.add("pop"); control.style.animationDelay = `${Math.min(nth++, 6) * 20}ms`; }
       if (editing) {
-        control.setAttribute("aria-label", `${it.what} 지우기`);
-        control.addEventListener("click", () => { if (confirm("이 연결을 지울까요?")) it.remove(); });
+        control.setAttribute("aria-label", `${it.what} 삭제`);
+        control.addEventListener("click", () => {
+          if (!confirm(`${it.what}을 삭제할까요?`)) return;
+          (g.dests.length === 1 ? route : li).classList.add("leaving"); // the last one takes its group with it
+          it.remove(sleep(SETTLE));
+        });
       } else {
         control.setAttribute("role", "switch"); control.setAttribute("aria-checked", String(it.on)); control.setAttribute("aria-label", it.what);
-        control.addEventListener("click", () => it.toggle(!it.on));
+        control.addEventListener("click", () => { // shown at once, here, so the switch is seen to move; the list is drawn again after
+          it.on = !it.on;
+          control.setAttribute("aria-checked", String(it.on)); li.classList.toggle("off", !it.on);
+          const [w2, cls2] = linkWords(it, newer(flowLast.get(it.key), it.last));
+          state.textContent = w2; state.className = `sub ${cls2}`;
+          it.toggle(it.on, sleep(SETTLE));
+        });
       }
       li.append(el("span", "branch", "<i></i>"), el("span", "ico", icon(PIC[it.pic])), words, control); // <i>: the dot that runs along the wire
       flowRows.set(it.key, { it, state, wire: li.querySelector(".branch") });
       return li;
     }));
+    route.dataset.key = g.key;
     route.append(src, dests);
     return route;
   }));
+  swapped = false;
 
   const head = el("div", "title-row"), tools = el("div", "tools"), add = el("button", "icon-btn", icon("M12 5v14M5 12h14"));
   if (!sorted.length) editing = false;
   else {
     const edit = text("button", "text-btn", editing ? "완료" : "편집");
     edit.type = "button"; edit.setAttribute("aria-pressed", String(editing));
-    edit.addEventListener("click", () => { editing = !editing; renderHome(); });
+    edit.addEventListener("click", () => { editing = !editing; swapped = true; renderHome(); });
     tools.append(edit);
   }
   add.type = "button"; add.setAttribute("aria-label", "새 연결");
@@ -918,6 +958,13 @@ function renderLinks() {
   tools.append(add);
   head.append(text("h1", "", "연결"), tools);
   body.replaceChildren(head, sorted.length ? list : text("p", "lede", "아직 없어요. 위의 + 로 입력을 에이전트나 다른 기기의 출력에 이어요."));
+  const slide = (n, dy) => { if (Math.abs(dy) > 1) n.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 260, easing: "cubic-bezier(.22, 1, .36, 1)" }); };
+  if (was.size) for (const route of list.children) {
+    const dy = was.has(route.dataset.key) ? was.get(route.dataset.key) - route.getBoundingClientRect().top : 0;
+    const rows = [...route.querySelectorAll(".dest")].filter((li) => was.has(li.dataset.key)).map((li) => [li, was.get(li.dataset.key) - li.getBoundingClientRect().top - dy]); // within its group
+    slide(route, dy);
+    for (const [li, d] of rows) slide(li, d);
+  }
 }
 // Making a link, one choice at a time: the input it starts from, then the output it goes to.
 function renderNewLink(body) {
@@ -962,6 +1009,7 @@ async function loadHome() {
   listed = !!list;
   if (list) devices = list.devices;
   if (routes) links = routes.routes;
+  if (list && routes && !homeLoaded) { homeLoaded = true; drawn = ""; } // drawn once more, to note what is listed: nothing is new yet
   renderHome();
 }
 setInterval(() => { if (document.body.dataset.tab in view && document.visibilityState === "visible") loadHome(); }, 5000);
@@ -985,7 +1033,11 @@ function renderResources(got = true) {
       r.classList.add("cap"); if (!open) r.classList.add("off");
       r.prepend(picture(c));
       sw.type = "button"; sw.setAttribute("role", "switch"); sw.setAttribute("aria-checked", String(open)); sw.setAttribute("aria-label", `에이전트가 ${d.name} ${CAN[c] ?? c}을(를) 쓰기`);
-      sw.addEventListener("click", async () => { if (await setAgent(d, c, !open)) renderResources(); });
+      sw.addEventListener("click", async () => { // shown at once, so the switch is seen to move
+        sw.setAttribute("aria-checked", String(!open)); r.classList.toggle("off", open);
+        await setAgent(d, c, !open, sleep(SETTLE));
+        renderResources();
+      });
       r.append(sw);
       return r;
     }));
@@ -1003,7 +1055,7 @@ async function loadHistory() {
     $("model-note").textContent = `모델 ${model}`;
     $("uses").replaceChildren(...(uses.length ? uses.map((u) => {
       const how = u.error ? "답하지 못했어요" : u.aborted ? "중간에 멈췄어요" : `${(u.ms / 1000).toFixed(1)}초 걸렸어요${u.tools ? `. 도구를 ${u.tools}번 썼어요` : ""}`;
-      const r = row(u.text || "(말 없이 사진만)", `${clock(u.t)}, ${u.from ?? "폰 앱"}. ${how}`);
+      const r = row(u.text || "(말 없이 사진만)", `${clock(u.t)}, ${u.from ?? "까치 홈"}. ${how}`);
       r.classList.add("use");
       if (u.error) r.querySelector(".sub").classList.add("down");
       return r;
@@ -1128,23 +1180,67 @@ say.addEventListener("keydown", (e) => {
 // The on-screen keyboard: iOS keeps the page full height and pans it up to the text box, pushing the
 // header and the conversation out of sight. Keep the app exactly on the visible area instead, so the
 // conversation shrinks above the text box (CSS: body height and offset).
+//
+// Typing has three cases, and the text box sits at the bottom of what can be seen in each:
+// - the on-screen keyboard (it covers more than 80px): the bar at the bottom goes and the text box sits
+//   on the keyboard. iOS reports the keyboard only once it has come up, so the height it had last time is
+//   remembered and the text box goes up with it, not after it;
+// - a keyboard joined to an iPhone or iPad: no keyboard comes up, but iOS floats a pill (previous, next,
+//   done) over the bottom 58px of the screen, right where the bar is. The bar goes here too, and the
+//   text box keeps clear of the pill;
+// - a computer: nothing covers anything, and nothing changes.
 const vv = window.visualViewport;
 if (vv) {
   const root = document.documentElement.style;
+  const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const PILL = 58;       // what iOS's pill takes at the bottom with a joined keyboard (10px under it, 48px tall)
+  const SETTLE_MS = 500; // by then the on-screen keyboard has come up, if it is going to
+  const typingNow = () => document.activeElement === say;
+  let tallest = 0, settled = true, guess = null; // the most ever seen (nothing covering); the keyboard has had time to show; what is assumed until it has
+  const remembered = () => localStorage.getItem("kkachi.keyboard"); // "hard", or the on-screen keyboard's height in px
   const fit = () => {
-    root.setProperty("--vv-height", `${vv.height}px`);
+    // How tall the screen is with nothing over it. Some Android browsers shrink innerHeight with the
+    // keyboard, so while typing on a touch screen it is the tallest seen; otherwise what it is now (a
+    // computer's window can be made smaller, and that is no keyboard).
+    const now = Math.max(vv.height, window.innerHeight);
+    tallest = typingNow() && matchMedia("(pointer: coarse)").matches ? Math.max(tallest, now) : now;
+    const real = Math.max(0, tallest - vv.height);
+    if (real > 80) guess = null; // it is up: no more guessing
+    const cover = guess ?? real;
+    root.setProperty("--vv-height", `${tallest - cover}px`);
     // Follow the pan only as far as something covers the screen. Pulling past the end of the conversation
     // makes iOS bounce the page, which also moves offsetTop (below zero at the top): following that slid
     // the app the opposite way to the finger. The covered height is the limit, not a "keyboard is up"
     // guess: with an external keyboard only a short bar covers the screen, and the page can stay panned
     // from the on-screen keyboard that was there before. Not following that left the text box off screen.
-    const covered = Math.max(0, window.innerHeight - vv.height);
+    const covered = cover;
     root.setProperty("--vv-top", `${Math.min(Math.max(0, vv.offsetTop), covered)}px`);
     // The on-screen keyboard is up: the bar at the bottom goes, so the text box sits on the keyboard.
     // With an external keyboard iOS only floats a short bar over the bottom of the screen, without
     // shrinking the visible area: the bar at the bottom stays, and it is what ends up under that bar.
     document.body.classList.toggle("kb", covered > 80);
+    // A joined keyboard: known once the on-screen one has had time to come and did not, or at once when
+    // that is how it went last time.
+    const hard = IOS && typingNow() && real <= 80 && guess === null && (settled || remembered() === "hard");
+    document.body.classList.toggle("hw", hard);
+    root.setProperty("--pill", `${Math.max(0, PILL - real)}px`);
   };
+  let settle;
+  say.addEventListener("focus", () => {
+    if (!matchMedia("(pointer: coarse)").matches) return; // a computer
+    const last = Number(remembered());
+    settled = false; guess = last > 80 ? last : null; // go up with the keyboard, to where it stopped last time
+    fit();
+    clearTimeout(settle);
+    settle = setTimeout(() => { // what really happened, for next time
+      settled = true; guess = null;
+      const real = Math.max(0, tallest - vv.height);
+      if (typingNow()) { localStorage.setItem("kkachi.keyboard", real > 80 ? String(Math.round(real)) : "hard"); diag("keyboard", { real: Math.round(real), h: Math.round(vv.height), inner: window.innerHeight, top: Math.round(vv.offsetTop) }); }
+      fit(); scrollDown();
+    }, SETTLE_MS);
+  });
+  say.addEventListener("blur", () => { clearTimeout(settle); settled = true; guess = null; fit(); });
+  window.addEventListener("orientationchange", () => { tallest = 0; guess = null; setTimeout(fit, 300); });
   vv.addEventListener("resize", () => { // keyboard in or out: keep the latest message in view
     fit(); scrollDown();
     if (DEBUG) diag("viewport", { h: vv.height, top: vv.offsetTop, inner: window.innerHeight });

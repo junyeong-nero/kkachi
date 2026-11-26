@@ -11,7 +11,7 @@
 //   {type:"value", kind:"dial"|"click", value} (its dial moved, 0 to 100, or its button was pressed; never acked or sent again),
 //   {type:"done"|"failed", id, error?} (pages from before "result")
 // Server → device: {type:"pending"|"ready", name, token}, {type:"forgotten"}, {type:"update"},
-//   {type:"use", pads, agent} (which pads to show, and what is open to the agent: set in the phone app),
+//   {type:"use", pads, agent} (which pads to show, and what is open to the agent: set in Kkachi Home),
 //   {type:"ack", id, ok, error?}, {type:"reply", inputId, heard, text?, elsewhere?, audio?, mime?},
 //   requests with an id: {type:"speak", text, audio, mime, from?} (from: a recording from that device, not Kkachi's words), {type:"snapshot", camera},
 //   {type:"sound", seconds}, {type:"sensors"}, {type:"light", on, color, brightness},
@@ -32,7 +32,8 @@ interface Device {
   form?: "phone" | "tablet"; // what kind of thing it is, for its picture in the app; kept, so an offline one still has it
   features: Features; // web APIs the browser has
   perms: Features;    // mic, camera, motion, location: allowed on the device
-  agent?: Features;   // which of its inputs and outputs are open to Kkachi (the agent), chosen in the phone app; kept
+  agent?: Features;   // which of its inputs and outputs are open to Kkachi (the agent), chosen in Kkachi Home; kept
+  since?: number;     // when its socket opened, for the log
 }
 const bools = (o: unknown): Features => o && typeof o === "object" ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, !!v])) : {};
 
@@ -55,7 +56,7 @@ export const pageVersion = () => createHash("sha1").update(readFileSync(page)).d
 // What a device has to give, as inputs and outputs. Two questions are kept apart:
 // - can(): what works there right now (online, sound unlocked, permission given). Anything that works
 //   can be joined straight to another device (core's router), whatever the agent may use.
-// - opened(): what is open to the agent. Chosen in the phone app and nowhere else, and everything is
+// - opened(): what is open to the agent. Chosen in Kkachi Home and nowhere else, and everything is
 //   open on a new device: its voice reaches the agent (in the app, the link "음성 → 에이전트"), and the
 //   agent may use its speaker, lamp and sensors. A button and a dial never go to the agent: they are
 //   joined to outputs.
@@ -88,7 +89,7 @@ export function setJoined(links: unknown) {
   for (const d of devices.values()) if (d.allowed) tellUse(d);
   return "ok";
 }
-/** Open one of a device's inputs or outputs to Kkachi, or close it (the phone app's agent screen). */
+/** Open one of a device's inputs or outputs to Kkachi, or close it (Kkachi Home's agent screen). */
 export function setAgent(id: string, cap: unknown, open: unknown): boolean {
   const d = devices.get(id);
   if (!d?.allowed || !CAPS.includes(cap as (typeof CAPS)[number]) || cap === "dial" || cap === "click") return false;
@@ -134,12 +135,16 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
     if (msg.type === "hello") {
       const token = typeof msg.token === "string" && /^[0-9a-f]{48}$/.test(msg.token) ? msg.token : randomId();
       let d = [...devices.values()].find((x) => x.token === token);
-      if (d?.socket && d.socket !== ws) d.socket.close(); // the same device reconnected; drop the stale socket
+      // The same device again, from another page (a second tab, the same address opened twice): the new
+      // one wins, and the old one is told, so that it stops. Untold, it took the close for a lost
+      // connection and came back, which closed the new one, and the two knocked each other off for good.
+      if (d?.socket && d.socket !== ws) { const old = d.socket; d.socket = undefined; try { old.send(JSON.stringify({ type: "replaced" })); } catch {} old.close(); if (d.allowed) log("device_replaced", { name: d.name }); }
       if (!d) { // new, or pending before a server restart: waits for approval again
         d = { id: randomId().slice(0, 12), name: cleanName(msg.name), token, allowed: false, armed: false, features: {}, perms: {} };
         devices.set(d.id, d);
       }
-      d.socket = ws;
+      d.socket = ws; d.since = Date.now();
+      if (d.allowed) log("device_online", { name: d.name });
       const form = msg.form === "tablet" ? "tablet" : "phone"; // pages from before this say nothing: a phone
       if (d.form !== form) { d.form = form; if (d.allowed) save(); }
       d.armed = !!msg.armed;
@@ -150,9 +155,12 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       if (d.allowed) tellUse(d);
       if (msg.version !== pageVersion()) send(d, { type: "update" });
       const last = replies.get(d.id); // an answer that came while the page was away
-      if (d.allowed && last && Date.now() - last.at < REPLY_KEEP_MS) send(d, last.msg);
+      if (d.allowed && last && Date.now() - last.at < REPLY_KEEP_MS) for (const m of last.msgs) send(d, m);
       return;
     }
+    // The page says it is there every 25 s, and takes silence for a dead connection (a phone's network
+    // can drop one without either end hearing of it).
+    if (msg.type === "ping") { ws.send('{"type":"pong"}'); return; }
     const d = ws.data.id ? devices.get(ws.data.id) : undefined;
     if (!d) return;
     if (msg.type === "state") {
@@ -170,10 +178,11 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       if (msg.type === "failed") waiting.get(msg.id)?.({ ok: false, error: msg.error });
     }
   },
-  close(ws) {
+  close(ws, code, reason) {
     const d = ws.data.id ? devices.get(ws.data.id) : undefined;
     if (!d || d.socket !== ws) return;
     d.socket = undefined;
+    if (d.allowed) log("device_offline", { name: d.name, afterSec: Math.round((Date.now() - (d.since ?? Date.now())) / 1000), code, reason: String(reason ?? "").slice(0, 80) }); // how long it held, to tell a flaky link from a page that was closed
     if (!d.allowed) devices.delete(d.id); // a pending request lasts as long as its page is open
   },
 };
@@ -207,15 +216,22 @@ async function receive(d: Device, msg: any) {
 // The answer core sends back to the device that heard it. Kept for two minutes, so a page that was
 // away (screen off, reconnecting) still gets it.
 const REPLY_KEEP_MS = 2 * 60_000;
-const replies = new Map<string, { msg: object; at: number }>();
-export async function replyOn(target: string, a: { inputId: string; heard: string; text?: string; elsewhere?: string }): Promise<string> {
+const replies = new Map<string, { inputId: string; msgs: object[]; at: number }>(); // per device: the parts of its latest answer
+// An answer comes in parts, a sentence each, while the agent is still writing (part: 0, 1, …; last ends
+// it). Each part's voice is made as soon as it comes and sent when it is ready, so parts can arrive out
+// of order: the page plays them by number. A voice the server is slow to make (Edge TTS sometimes takes
+// 20 s) is not waited for past SPEECH_WAIT_MS: the device says that part with its own voice.
+const SPEECH_WAIT_MS = 6000;
+export async function replyOn(target: string, a: { inputId: string; heard: string; text?: string; elsewhere?: string; part?: number; last?: boolean; show?: string }): Promise<string> {
   const d = find(target);
   if (!d) throw new Error(`No device named "${target}".`);
   // Without audio the device says the text with its own voice, at this rate.
   const aloud = !!a.text && d.armed && opened(d, "speak"); // its speaker is Kkachi's to use: otherwise the words only show
-  const said = aloud ? await speech(a.text!).catch(() => ({ rate: 0 })) : { rate: 0, quiet: true };
+  const said = aloud ? await speech(a.text!, SPEECH_WAIT_MS).catch(() => ({ rate: 0 })) : { rate: 0, quiet: true };
   const msg = { type: "reply", ...a, ...said };
-  replies.set(d.id, { msg, at: Date.now() });
+  const kept = replies.get(d.id);
+  if (kept?.inputId === a.inputId) { kept.msgs.push(msg); kept.at = Date.now(); }
+  else replies.set(d.id, { inputId: a.inputId, msgs: [msg], at: Date.now() });
   send(d, msg);
   log("device_reply", { name: d.name, heard: !!a.heard, audio: "audio" in said, elsewhere: !!a.elsewhere, online: !!d.socket });
   return d.socket ? "delivered" : "device offline; kept for two minutes";
@@ -237,7 +253,7 @@ export function describeDevices(): string {
   if (!allowed.length) return "No devices yet. The user can add one by opening /device on a spare phone or tablet and allowing it in Kkachi's settings.";
   return allowed.map((d) => {
     const yours = d.can.filter((c) => d.agent[c]), closed = d.can.filter((c) => !d.agent[c] && c !== "dial" && c !== "click");
-    return `- ${d.name}: ${!d.online ? "offline" : `online; can: ${yours.join(", ") || "nothing right now"}${closed.length ? `; not open to you (the user closed them in the phone app): ${closed.join(", ")}` : ""}${d.armed ? "" : " (needs a tap on its screen to make sound)"}`}`;
+    return `- ${d.name}: ${!d.online ? "offline" : `online; can: ${yours.join(", ") || "nothing right now"}${closed.length ? `; not open to you (the user closed them in Kkachi Home): ${closed.join(", ")}` : ""}${d.armed ? "" : " (needs a tap on its screen to make sound)"}`}`;
   }).join("\n");
 }
 
@@ -248,7 +264,7 @@ function ready(target: string, type: string, opts: { armed?: boolean; agent?: bo
   if (!d) throw new Error(`No device named "${target}".\n${describeDevices()}`);
   if (!d.socket) throw new Error(`${d.name} is offline: its /device page is closed or the screen is off.`);
   const needs = NEEDS[type] ?? [];
-  if (opts.agent && needs.length && !needs.some((n) => opened(d, n))) throw new Error(`${d.name} cannot do this: the user has not opened it to Kkachi (phone app, the agent screen).`);
+  if (opts.agent && needs.length && !needs.some((n) => opened(d, n))) throw new Error(`${d.name} cannot do this: the user has not opened it to Kkachi (Kkachi Home, the agent screen).`);
   if (needs.length && !needs.some((n) => can(d).includes(n))) {
     if (opts.armed && !d.armed) throw new Error(`${d.name} needs a tap on its screen first.`);
     throw new Error(`${d.name} cannot do this (${needs.join(" or ")}): not allowed or not supported there (or its page needs a reload).`);

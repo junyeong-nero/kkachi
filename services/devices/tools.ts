@@ -8,8 +8,8 @@ const device = { type: "string", description: "Device name, as in list_devices" 
 const DEFS: (Omit<McpTool, "run">)[] = [
   {
     name: "device_reply",
-    description: "Kkachi core only: the answer to something said on a device, shown there (what was heard, the answer read aloud, or where the answer went instead).",
-    inputSchema: { type: "object", properties: { device, inputId: { type: "string" }, heard: { type: "string" }, text: { type: "string" }, elsewhere: { type: "string" } }, required: ["device", "inputId", "heard"] },
+    description: "Kkachi core only: the answer to something said on a device, shown there (what was heard, the answer read aloud, or where the answer went instead). A long answer comes a sentence at a time, as it is written: part counts them from 0, and last ends the answer (show: the whole answer, to leave on screen).",
+    inputSchema: { type: "object", properties: { device, inputId: { type: "string" }, heard: { type: "string" }, text: { type: "string" }, elsewhere: { type: "string" }, part: { type: "number" }, last: { type: "boolean" }, show: { type: "string" } }, required: ["device", "inputId", "heard"] },
     internal: true,
   },
   {
@@ -76,7 +76,7 @@ const looks = { readOnlyHint: true, openWorldHint: true }; // reads the room; ch
 const RUN: Record<string, Pick<McpTool, "run" | "annotations">> = {
   device_reply: {
     annotations: { readOnlyHint: false, destructiveHint: false },
-    run: (a) => replyOn(name(a), { inputId: String(a?.inputId ?? ""), heard: String(a?.heard ?? ""), ...(a?.text && { text: String(a.text) }), ...(a?.elsewhere && { elsewhere: String(a.elsewhere) }) }),
+    run: (a) => replyOn(name(a), { inputId: String(a?.inputId ?? ""), heard: String(a?.heard ?? ""), ...(a?.text && { text: String(a.text) }), ...(a?.elsewhere && { elsewhere: String(a.elsewhere) }), ...(Number.isInteger(a?.part) && { part: a.part }), ...(a?.last === true && { last: true }), ...(typeof a?.show === "string" && { show: a.show }) }),
   },
   device_links: { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true }, run: async (a) => setJoined(a?.links) },
   device_play: { annotations: { readOnlyHint: false, destructiveHint: false }, run: (a) => playOn(name(a), a) },

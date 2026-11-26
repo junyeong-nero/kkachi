@@ -16,11 +16,11 @@ export async function core(path: string, body: object, timeoutMs = 10_000): Prom
 
 /** How to say text on a device: the rate, and audio unless the device says it with its own voice
  * (the "device" voice in core's settings, or no core at all). */
-export async function speech(text: string): Promise<{ rate: number; audio?: string; mime?: string }> {
+export async function speech(text: string, waitMs = 60_000): Promise<{ rate: number; audio?: string; mime?: string }> {
   if (!url()) return { rate: 0 };
   const { voice, rate } = await core("/api/bus/voice", {}, 3000).catch(() => ({ voice: "device", rate: 0 }));
   if (voice === "device") return { rate };
-  const r = await fetch(url() + "/api/tts", { method: "POST", headers: headers(), body: JSON.stringify({ text: text.slice(0, 1000) }), signal: AbortSignal.timeout(60_000) });
+  const r = await fetch(url() + "/api/tts", { method: "POST", headers: headers(), body: JSON.stringify({ text: text.slice(0, 1000) }), signal: AbortSignal.timeout(waitMs) });
   if (!r.ok) throw new Error(`core /api/tts: ${r.status} ${await r.text()}`);
   return { rate, audio: Buffer.from(await r.arrayBuffer()).toString("base64"), mime: r.headers.get("Content-Type") ?? "audio/mpeg" };
 }

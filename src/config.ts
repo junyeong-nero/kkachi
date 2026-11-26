@@ -39,6 +39,10 @@ export const config = {
     apiKey: env.KKACHI_STT_API_KEY ?? env.GROQ_API_KEY ?? "",
     model: env.KKACHI_STT_MODEL ?? "whisper-large-v3", // not turbo: it reports no_speech_prob, which filters noise
     language: env.KKACHI_STT_LANGUAGE ?? "ko",
+    // OpenAI's chunking_strategy, sent when set ("auto"): a server with a voice detector then writes only
+    // where someone speaks. For models that report no no_speech_prob and make words up for silence
+    // (Qwen3-ASR on speech.cpp wrote "이미." for three silent seconds).
+    chunking: env.KKACHI_STT_CHUNKING ?? "",
   },
   // Transcript cleanup before the agent (OpenAI-compatible chat API). Off unless KKACHI_POLISH_MODEL
   // is set (e.g. openai/gpt-oss-120b on Groq): it is one more outside call per dictation
