@@ -112,18 +112,18 @@ All settings are environment variables in `.env.local` (see `src/config.ts`), fo
 
 ### Spare phones and tablets
 
-1. Open `/device` on a spare phone or tablet, name it ("거실") and tap once.
-2. Allow it in Settings → 기기 in the phone app.
+1. Open `/device` on a spare phone or tablet, name it ("living room") and tap once.
+2. Allow it in the phone app's Settings, under Devices.
 3. Keep its screen on.
 
 After that:
 
-- "거실에서 밥 먹으라고 말해줘" plays on it.
-- From the phone app Kkachi can take a photo there ("거실 지금 어때?"), measure how loud it is, read its motion and orientation sensors, and turn its screen into a lamp. Nothing is stored ([docs/sensors.md](docs/sensors.md)).
+- "Tell the living room dinner is ready" plays on it.
+- From the phone app Kkachi can take a photo there ("How does the living room look?"), measure how loud it is, read its motion and orientation sensors, and turn its screen into a lamp. Nothing is stored ([docs/sensors.md](docs/sensors.md)).
 - Each input and output has an on/off switch on the device's own screen.
 - Hold the device's button to ask Kkachi something. The device sends what you said and moves on; Kkachi answers there, on your phone, or both.
 
-By default a device joins your phone's conversation with the same tools, which assumes only you use these devices. Settings → 공기계 대화 can give devices a conversation of their own, limit them to the notes, speaking and the lamp, and keep private details from being said aloud ([docs/bus.md](docs/bus.md)). Your own MCP servers stay with the phone app unless you let devices use them too.
+By default a device joins your phone's conversation with the same tools, which assumes only you use these devices. The spare-device conversation settings can give devices a conversation of their own, limit them to the notes, speaking and the lamp, and keep private details from being said aloud ([docs/bus.md](docs/bus.md)). Your own MCP servers stay with the phone app unless you let devices use them too.
 
 ### Other agents
 
@@ -144,7 +144,7 @@ To control lights without Home Assistant, see [docs/extensions.md](docs/extensio
 
 ### In the background
 
-After 30 quiet minutes, Kkachi checks the conversation against the notes for anything it missed, such as a decision or an appointment. New information is committed as `kkachi: 대화 정리 — …` (and pushed if sync is on, see [Memory repo](#memory-repo)); if there is nothing to add, there is no commit. Turns waiting for this review stay in the server's private `data/conversation.jsonl` (not the memory repo) until it succeeds, across restarts too. Your chat session is not reset.
+After 30 quiet minutes, Kkachi checks the conversation against the notes for anything it missed, such as a decision or an appointment. New information is committed as a conversation-review `kkachi: …` commit (and pushed if sync is on, see [Memory repo](#memory-repo)); if there is nothing to add, there is no commit. Turns waiting for this review stay in the server's private `data/conversation.jsonl` (not the memory repo) until it succeeds, across restarts too. Your chat session is not reset.
 
 A librarian then sorts the changed notes and rewrites the catalog in the memory repo's `README.md`. A new message always goes ahead of this background work.
 
@@ -203,7 +203,7 @@ The docs are in Korean.
 |---|---|
 | [docs/philosophy.md](docs/philosophy.md) | The three principles and where Kkachi does not meet them yet |
 | [docs/design.md](docs/design.md) | How the phone app and the device page behave, the voice pipeline, local dictation |
-| [docs/bus.md](docs/bus.md) | How spare devices talk to Kkachi, and the 공기계 대화 settings |
+| [docs/bus.md](docs/bus.md) | How spare devices talk to Kkachi, and the spare-device conversation settings |
 | [docs/sensors.md](docs/sensors.md) | What a spare phone can do, feature by feature |
 | [docs/ha.md](docs/ha.md) | Setting up Home Assistant with ha-mcp |
 | [docs/extensions.md](docs/extensions.md) | MCP servers worth adding |
