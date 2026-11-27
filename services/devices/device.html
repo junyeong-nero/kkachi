@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko"><!-- set to the page's language by its script -->
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
@@ -273,6 +273,30 @@
 <div id="lamp" hidden><div id="lamp-dim"></div></div>
 <video id="cam" playsinline muted></video>
 <script>
+// In English or Korean, as Kkachi Home's Settings say (GET /api/lang): the page is written in Korean and
+// each phrase shown is looked up here as it appears; t() fills phrases with values in them. What was said
+// and answered is not translated. (Kkachi Home does the same in src/web/i18n.js.)
+const LANG = localStorage.getItem("kkachi.lang") || (/^ko\b/i.test(navigator.language || "") ? "ko" : "en");
+document.documentElement.lang = LANG;
+const EN = {"연결됨":"Connected", "연결됨. 화면을 한 번 눌러 주세요":"Connected. Tap the screen once", "스피커":"Speaker", "조명":"Lamp", "비추는 중":"Lit", "켜짐":"On", "음성":"Voice", "카메라":"Camera", "소리 크기":"Sound level", "움직임 센서":"Motion sensors", "위치":"Location", "탭 필요":"Needs a tap", "권한 없음":"Not allowed", "지원 안 함":"Not supported", "듣는 중":"Listening", "에이전트에게 닫힘":"Closed to Kkachi", "닫힘":"Closed", "입력 상태: {list}. 눌러서 설정 열기":"Inputs: {list}. Tap for settings", "아직 없어요":"Nothing yet", "다시 연결하는 중":"Reconnecting", "까치에 다시 연결하는 중…":"Reconnecting to Kkachi…", "휴대폰 까치 앱의 설정 → 기기에서 이 기기를 허용해 주세요.":"Allow this device in Kkachi Home on your phone: the menu, Devices.", "이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.":"This device was removed. Reload to use it again.", "이 기기를 다른 창에서 열었어요. 여기서 쓰려면 새로고침하세요.":"This device was opened in another window. Reload to use it here.", "말하는 중":"Speaking", "까치가 말했어요":"Kkachi spoke", "찍는 중":"Taking a photo", "까치 홈에서 사진을 찍었어요 (저장 안 함)":"Kkachi Home took a photo (not kept)", "까치가 사진을 찍었어요 (저장 안 함)":"Kkachi took a photo (not kept)", "재는 중":"Measuring", "까치 홈에서 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi Home measured the sound level (not recorded)", "까치가 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi measured the sound level (not recorded)", "읽는 중":"Reading", "까치 홈에서 센서를 읽었어요":"Kkachi Home read the sensors", "까치가 센서를 읽었어요":"Kkachi read the sensors", "까치 홈에서 밝기를 쟀어요 (사진 안 남김)":"Kkachi Home measured the light (no photo kept)", "까치가 밝기를 쟀어요 (사진 안 남김)":"Kkachi measured the light (no photo kept)", "켜는 중":"Turning on", "끄는 중":"Turning off", "까치가 조명을 켰어요":"Kkachi turned the lamp on", "까치가 조명을 껐어요":"Kkachi turned the lamp off", "전했어요":"Sent", "잘 못 들었어요":"Didn't catch that", "누른 채로 말하고, 떼면 보내요":"Hold to talk, let go to send", "듣고 있어요. 떼면 보내요":"Listening. Let go to send", "보내는 중…":"Sending…", "마이크를 쓸 수 없어요. 브라우저 설정에서 허용해 주세요.":"The microphone is not allowed. Allow it in the browser's settings.", "마이크 준비됐어요. 다시 누른 채로 말하세요":"The microphone is ready. Hold again to talk", "까치에 전하지 못했어요. 다시 말해 주세요":"Could not reach Kkachi. Please say it again", "음성이 꺼져 있어요":"Voice is closed", "너무 늦게 도착해서 버렸어요. 다시 말해 주세요":"It arrived too late and was dropped. Please say it again", "들을 까치가 연결돼 있지 않아요":"No Kkachi is connected to hear it", "까치가 받지 못했어요":"Kkachi did not get it", "잘 못 들었어요. 다시 말해 주세요":"Didn't catch that. Please say it again", "연결하는 중…":"Connecting…", "이 기기를 어디에 둘지 이름을 붙여 주세요.":"Name this device after where it will be.", "까치 기기":"Kkachi Device", "새 기기":"New device", "이 기기의 음성이 까치에게 닫혀 있어요. 까치 홈의 기기에서 열 수 있어요.":"This device's voice is closed to Kkachi. Open it in Kkachi Home, Devices.", "새 버전이 있어요. 눌러서 새로고침":"A new version is here. Tap to reload", "이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.":"This device cannot keep its screen on. Turn off auto-lock in its settings.", "시작":"Start", "탭해서 시작":"Tap to start", "소리와 마이크를 쓰려면 화면을 한 번 눌러야 해요.":"Tap the screen once for sound and the microphone.", "기록":"Log", "완료":"Done", "이 기기에서 있었던 일 최근 50개예요. 페이지를 새로 열면 비워져요.":"The last 50 things that happened on this device. Opening the page again clears it.", "이 기기":"This device", "출력":"Outputs", "입력":"Inputs", "까치가 무엇을 쓸지는 까치 홈에서 정해요. 여기는 지금 상태만 보여 줘요. 음성이 까치에게 열려 있으면 화면 가운데에 누르고 말하는 버튼이 나와요.":"What Kkachi may use is chosen in Kkachi Home; this shows how things are. With Voice open to Kkachi, a hold-to-talk button sits in the middle of the screen.", "까치":"Kkachi", "설정":"Settings", "이 기기의 입력":"This device's inputs", "음성: 누르고 있는 동안 말하고, 떼면 보내요":"Voice: talk while you hold, let go to send", "이 기기 이름 (예: 거실)":"This device's name (e.g. Living room)", "이 기기 이름":"This device's name", "이 기기로 할 수 있는 것":"What this device can do", "불 꺼줘":"Turn off the light"};
+const t = (ko, vars) => { let s = LANG === "en" ? EN[ko] ?? ko : ko; if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v)); return s; };
+fetch("/api/lang").then((r) => r.json()).then(({ lang }) => { if (lang && lang !== LANG) { localStorage.setItem("kkachi.lang", lang); location.reload(); } }).catch(() => {});
+if (LANG === "en") {
+  const SKIP = "#heard, #said, #answer, [translate=no]", ATTRS = ["aria-label", "placeholder", "title", "alt"];
+  const swap = (v) => { const k = v.trim(); return k && EN[k] !== undefined ? v.replace(k, EN[k]) : null; };
+  const doText = (n) => { const p = n.parentElement; if (p && !p.closest(SKIP)) { const v = swap(n.data); if (v !== null) n.data = v; } };
+  const doAttrs = (el) => { if (!el.closest(SKIP)) for (const a of ATTRS) { const v = el.getAttribute(a); if (v) { const r = swap(v); if (r !== null) el.setAttribute(a, r); } } };
+  const doEl = (el) => { doAttrs(el); for (const c of el.querySelectorAll("*")) doAttrs(c); const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); for (let n; (n = w.nextNode()); ) doText(n); };
+  const start = () => {
+    doEl(document.body);
+    new MutationObserver((list) => { for (const m of list) {
+      if (m.type === "characterData") doText(m.target);
+      else if (m.type === "attributes") doAttrs(m.target);
+      else for (const n of m.addedNodes) n.nodeType === 1 ? doEl(n) : n.nodeType === 3 && doText(n);
+    } }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS });
+  };
+  if (document.body) start(); else addEventListener("DOMContentLoaded", start);
+}
 const $ = (id) => document.getElementById(id);
 const store = { get: (k) => localStorage.getItem("kkachi.device." + k), set: (k, v) => localStorage.setItem("kkachi.device." + k, v), del: (k) => localStorage.removeItem("kkachi.device." + k) };
 const VERSION = "__PAGE_VERSION__"; // filled in by the server; it says "update" when this page is old
@@ -372,9 +396,9 @@ function renderSenses() {
     const usable = st !== "none" && st !== "denied", on = usable && isOn(c.key);
     const listening = !!doing && (c.key === "sound" || doing === "듣는 중");
     s.className = "sense" + (on ? "" : " off") + (doing ? (listening ? " listening" : " busy") : "");
-    words.push(`${c.name} ${doing ?? (on ? "켜짐" : usable ? "닫힘" : STATE[st])}`);
+    words.push(`${t(c.name)} ${t(doing ?? (on ? "켜짐" : usable ? "닫힘" : STATE[st]))}`);
   }
-  strip.setAttribute("aria-label", `입력 상태: ${words.join(", ")}. 눌러서 설정 열기`);
+  strip.setAttribute("aria-label", t("입력 상태: {list}. 눌러서 설정 열기", { list: words.join(", ") }));
 }
 
 // ---- the lamp: Kkachi's device_light picks the colour and brightness; the whole screen becomes that
@@ -438,8 +462,8 @@ function say(text, rate = 0) {
   if (!("speechSynthesis" in window)) return Promise.reject(new Error("this browser has no built-in voice"));
   return new Promise((resolve, reject) => {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "ko-KR";
-    const ko = speechSynthesis.getVoices().filter((v) => /^ko([-_]|$)/i.test(v.lang));
+    u.lang = LANG === "en" ? "en-US" : "ko-KR";
+    const ko = speechSynthesis.getVoices().filter((v) => new RegExp(`^${LANG}([-_]|$)`, "i").test(v.lang)); // in the page's language
     u.voice = ko.find((v) => v.localService) ?? ko[0] ?? null; // made on the device first (desktop browsers also offer online ones)
     u.rate = Math.max(0.5, Math.min(2, 1 + (Number(rate) || 0) / 100));
     u.onend = () => resolve();

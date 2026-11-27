@@ -32,7 +32,7 @@ export function localStt() {
   return { baseUrl: process.env.KKACHI_STT_LOCAL_URL ?? (here ? baseUrl : "http://127.0.0.1:8091/v1"), model: process.env.KKACHI_STT_LOCAL_MODEL ?? (here ? model : "qwen3-asr-0.6b") };
 }
 export function sttConfig() {
-  const { baseUrl, model, language } = config.stt, here = local(baseUrl);
+  const { baseUrl, model } = config.stt, here = local(baseUrl), language = config.stt.language || settings().lang;
   if (settings().stt === "local") return { ...localStt(), apiKey: "", language, chunking: "auto" };
   return { baseUrl: here ? GROQ : baseUrl, apiKey: groqKey() || (here ? "" : config.stt.apiKey), model: here ? "whisper-large-v3" : model, language, chunking: "" };
 }
@@ -60,7 +60,7 @@ export async function transcribe(audio: Blob): Promise<string> {
 
 /** voice/rate/engine override the saved settings (used for previews in the settings sheet). */
 export const synthesize = (text: string, voice = settings().voice, rate = settings().rate, engine = settings().tts) =>
-  tts(text, voice, rate, engine === "device" ? undefined : engine);
+  tts(text, voice, rate, engine === "device" ? undefined : engine, settings().lang);
 
 /** Whether each way is ready: the servers on this computer answer, Groq has a key, edge-tts is installed. */
 export async function speechReady() {

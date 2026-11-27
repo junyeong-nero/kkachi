@@ -354,7 +354,7 @@ function addTurn(text, images = [], from = null, fromKkachi = false) {
       think = null; // thinking after a tool is a block of its own
       line.dataset.state = e.state;
       line.querySelector(".tool-state").textContent = e.state === "start" ? "…" : e.state === "ok" ? "✓" : "✕";
-      if (e.ms != null) line.querySelector(".tool-state").title = `${(e.ms / 1000).toFixed(1)}초`;
+      if (e.ms != null) line.querySelector(".tool-state").title = t("{s}초", { s: (e.ms / 1000).toFixed(1) });
     },
     working(label) { work.hidden = false; work.querySelector(".label").textContent = label; scrollDown(); },
     stream(delta) { if (!raw) fold(); work.hidden = true; raw += delta; if (!frame) frame = requestAnimationFrame(render); }, // one render per frame
@@ -397,7 +397,7 @@ function showChips(container, sources, changed, titles = {}) {
     const remembered = changed.includes(p);
     el.className = "chip" + (remembered ? " changed" : "");
     const name = titles[p] ?? p.replace(/\/index\.md$|\.md$/, "").split("/").pop();
-    el.textContent = remembered ? `기억함: ${name}` : name;
+    el.textContent = remembered ? t("기억함: {name}", { name }) : name;
     return el;
   });
   container.replaceChildren(...chips);
@@ -414,8 +414,8 @@ const spoken = (text) => (builtInVoice() ? Promise.resolve({ say: text }) : ttsB
 function sayBuiltIn(text, rate = saved?.rate ?? 0) {
   return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "ko-KR";
-    const ko = speechSynthesis.getVoices().filter((v) => /^ko([-_]|$)/i.test(v.lang));
+    u.lang = LANG === "en" ? "en-US" : "ko-KR";
+    const ko = speechSynthesis.getVoices().filter((v) => new RegExp(`^${LANG}([-_]|$)`, "i").test(v.lang)); // in the app's language
     u.voice = ko.find((v) => v.localService) ?? ko[0] ?? null; // made on the phone first (desktop browsers also offer online ones)
     u.rate = Math.max(0.5, Math.min(2, 1 + rate / 100));
     u.onend = u.onerror = () => resolve();
@@ -602,6 +602,10 @@ function renderDevicePrefs() {
     return r;
   }));
   // 외형's 화면: the phone's setting, or always light or dark
+  for (const input of document.querySelectorAll("input[name=lang]")) {
+    input.checked = input.value === LANG;
+    input.onchange = async () => { await saveSettings({ lang: input.value }); useLang(input.value); };
+  }
   for (const input of document.querySelectorAll("input[name=theme]")) {
     input.checked = input.value === theme();
     input.onchange = () => { localStorage.setItem("kkachi.theme", input.value); applyTheme(); };
@@ -614,12 +618,12 @@ function applySpeak() {
 
 let catalog = null; // what /api/settings offers, for the summaries
 function renderSums() {
-  $("sum-look").textContent = [{ auto: "폰 설정대로", light: "밝게", dark: "어둡게" }[theme()], `글자 ${textSize()}px`, ...(showThinking() || showTools() ? [[showThinking() && "생각", showTools() && "도구"].filter(Boolean).join("과 ") + " 보기"] : [])].join(", ");
-  if (mcp) $("sum-mcp").textContent = `기본 ${mcp.builtin.length}개, 추가 ${mcp.added.length}개`;
+  $("sum-look").textContent = [t({ auto: "폰 설정대로", light: "밝게", dark: "어둡게" }[theme()]), t("글자 {n}px", { n: textSize() }), ...(showThinking() && showTools() ? [t("생각과 도구 보기")] : showThinking() ? [t("생각 보기")] : showTools() ? [t("도구 보기")] : [])].join(", ");
+  if (mcp) $("sum-mcp").textContent = t("기본 {a}개, 추가 {b}개", { a: mcp.builtin.length, b: mcp.added.length });
   if (accountList.length) $("sum-account").textContent = accountList.filter((a) => a.connected).map((a) => a.name).join(", ") || "연결된 계정 없음";
   if (!catalog || !saved) return;
   const name = (list, id) => list.find((x) => x.id === id)?.name ?? "";
-  $("sum-voice").textContent = `목소리 ${{ device: "기기", local: "이 컴퓨터", edge: "온라인" }[saved.tts]}, 받아쓰기 ${saved.stt === "local" ? "이 컴퓨터" : "Groq"}`;
+  $("sum-voice").textContent = t("목소리 {voice}, 받아쓰기 {stt}", { voice: t({ device: "기기", local: "이 컴퓨터", edge: "온라인" }[saved.tts]), stt: saved.stt === "local" ? t("이 컴퓨터") : "Groq" });
   $("sum-model").textContent = [name(catalog.models, saved.model) || saved.model?.split("/").pop(), name(catalog.thinking, saved.thinking)].filter(Boolean).join(", ");
 }
 async function openSettings() {
@@ -662,7 +666,7 @@ async function openSettings() {
   select.onchange = () => saveSettings({ model: select.value });
   const others = fallbacks.filter((m) => m !== s.model);
   renderSums();
-  $("fallbacks").textContent = others.length ? `이 모델이 막히면 ${others.map((m) => m.split("/").pop()).join(", ")} 순서로 넘어가요.` : "";
+  $("fallbacks").textContent = others.length ? t("이 모델이 막히면 {list} 순서로 넘어가요.", { list: others.map((m) => m.split("/").pop()).join(", ") }) : "";
 }
 
 // Settings, 음성: where the voice is made, the voices of that engine, where dictation is heard, and
@@ -689,7 +693,7 @@ function renderSpeech() {
   }[saved.tts];
   $("tts-note").classList.toggle("down", ttsDown);
   const voiceName = saved.tts === "device" ? "기기 목소리" : (catalog.voices[saved.tts] ?? []).find((v) => v.id === saved.voice)?.name ?? saved.voice;
-  $("voice-now").textContent = ttsDown ? `${ENGINE[saved.tts]}. 지금 말하지 못해요` : saved.tts === "device" ? voiceName : `${ENGINE[saved.tts]}, ${voiceName}`;
+  $("voice-now").textContent = ttsDown ? t("{engine}. 지금 말하지 못해요", { engine: t(ENGINE[saved.tts]) }) : saved.tts === "device" ? t(voiceName) : `${t(ENGINE[saved.tts])}, ${t(voiceName)}`;
   $("voice-now").classList.toggle("down", ttsDown);
   const voices = catalog.voices[saved.tts] ?? [];
   $("voices").hidden = saved.tts === "device"; // the device voice is the only one
@@ -825,7 +829,7 @@ function row(name, sub, button) {
 }
 const clock = (t) => {
   const d = new Date(t), today = d.toDateString() === new Date().toDateString();
-  return d.toLocaleString("ko-KR", today ? { hour: "numeric", minute: "2-digit" } : { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return d.toLocaleString(LANG === "en" ? "en-US" : "ko-KR", today ? { hour: "numeric", minute: "2-digit" } : { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
 };
 
 const text = (tag, cls, s) => { const n = el(tag, cls); n.textContent = s; return n; }; // names come from devices: never as HTML
@@ -900,10 +904,10 @@ async function loadDevices() {
 function renderHome() {
   const b = $("home"), on = devices.filter((d) => d.allowed && d.online).length;
   const [cls, words] = reach === "down" ? ["no", "집에 연결할 수 없어요"] : reach === "devices" ? ["off", "집, 기기 목록을 못 읽었어요"]
-    : ["ok", devices.length ? `집, 기기 ${on}대 켜짐` : "집"];
+    : ["ok", devices.length ? t("집, 기기 {n}대 켜짐", { n: on }) : "집"];
   b.classList.toggle("down", reach === "down");
   b.replaceChildren(el("span", `dot ${cls}`), words);
-  b.setAttribute("aria-label", `${words}. 기기 보기`);
+  b.setAttribute("aria-label", t("{words}. 기기 보기", { words: t(words) }));
 }
 $("home").addEventListener("click", () => { pickMenuTab("devices"); setMenu(true); });
 const stateOf = (d) => (!d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있어요" : !d.armed ? "켜져 있어요. 화면을 한 번 눌러야 소리를 써요" : "켜져 있어요");
@@ -928,7 +932,7 @@ function renderMenuDevices() {
       r.addEventListener("click", () => openPage("device", d.id));
     } else {
       const allow = text("button", "play allow", "허용");
-      allow.type = "button"; allow.setAttribute("aria-label", `${d.name} 허용`);
+      allow.type = "button"; allow.setAttribute("aria-label", t("{name} 허용", { name: d.name }));
       allow.addEventListener("click", async () => { const res = await fetch(`/api/device/${d.id}/allow`, { method: "POST" }); if (res.ok) { devices = (await res.json()).devices; renderMenuDevices(); } else toast("허용하지 못했어요"); });
       r.append(allow);
     }
@@ -998,15 +1002,15 @@ function roomRows(r = {}, name = "") {
   const add = (pic, name, words, down = false) => { const x = row(name, words); x.classList.add("cap"); x.prepend(picture(pic)); if (down) x.querySelector(".sub").classList.add("down"); rows.push(x); };
   const light = r.brightness;
   const LIGHT = { dark: "어두워요. 불이 꺼진 것 같아요", dim: "어둑해요", lit: "불이 켜진 방 정도로 밝아요", bright: "밝아요", daylight: "햇빛처럼 아주 밝아요" };
-  add("brightness", "밝기", light === null ? "재는 중…" : light?.error ? why(light.error) : light ? `${LIGHT[light.level] ?? ""}${light.lux != null ? `. 약 ${light.lux} lx` : ""}` : "", !!light?.error);
-  add("sound level", "소리", sound === null ? "재는 중…" : sound?.error ? why(sound.error) : sound ? `${sound.avg < -55 ? "조용해요" : sound.avg < -35 ? "보통이에요" : "시끄러워요"}${sound.peak > -25 && sound.avg < -35 ? ". 가끔 큰 소리가 나요" : ""}` : "", !!sound?.error);
-  const motionWords = s === null ? "읽는 중…" : s?.error ? why(s.error) : s?.lastMovedAgoSec != null ? (s.lastMovedAgoSec < 5 ? "지금 움직이고 있어요" : `${s.lastMovedAgoSec < 90 ? `${s.lastMovedAgoSec}초` : `${Math.round(s.lastMovedAgoSec / 60)}분`} 전에 움직였어요`) : s?.motion ? "페이지를 연 뒤로 움직이지 않았어요" : why(s?.unavailable?.motion);
+  add("brightness", "밝기", light === null ? "재는 중…" : light?.error ? why(light.error) : light ? (light.lux != null ? t("{words}. 약 {lux} lx", { words: t(LIGHT[light.level] ?? ""), lux: light.lux }) : LIGHT[light.level] ?? "") : "", !!light?.error);
+  add("sound level", "소리", sound === null ? "재는 중…" : sound?.error ? why(sound.error) : sound ? (sound.peak > -25 && sound.avg < -35 ? t("{words}. 가끔 큰 소리가 나요", { words: t(sound.avg < -55 ? "조용해요" : "보통이에요") }) : sound.avg < -55 ? "조용해요" : sound.avg < -35 ? "보통이에요" : "시끄러워요") : "", !!sound?.error);
+  const motionWords = s === null ? "읽는 중…" : s?.error ? why(s.error) : s?.lastMovedAgoSec != null ? (s.lastMovedAgoSec < 5 ? "지금 움직이고 있어요" : (s.lastMovedAgoSec < 90 ? t("{n}초 전에 움직였어요", { n: s.lastMovedAgoSec }) : t("{n}분 전에 움직였어요", { n: Math.round(s.lastMovedAgoSec / 60) }))) : s?.motion ? "페이지를 연 뒤로 움직이지 않았어요" : why(s?.unavailable?.motion);
   add("motion", "움직임", motionWords, !!s?.error);
   if (s && !s.error) {
-    add("pose", "놓인 자세", s.pose ? `${POSE[s.pose] ?? s.pose}${s.heading != null ? `. ${compass(s.heading)}쪽을 봐요` : ""}` : why(s.unavailable?.orientation));
+    add("pose", "놓인 자세", s.pose ? (s.heading != null ? t("{pose}. {dir}쪽을 봐요", { pose: t(POSE[s.pose] ?? s.pose), dir: t(compass(s.heading)) }) : POSE[s.pose] ?? s.pose) : why(s.unavailable?.orientation));
     if (s.location) { // a place on a map says more than numbers
       const { lat, lon, accuracy } = s.location;
-      const x = row("위치", `알아요. 오차 ${Math.round(accuracy)} m`, { label: "지도", click: () => open(`https://maps.apple.com/?ll=${lat},${lon}&q=${encodeURIComponent(name)}`, "_blank", "noopener") });
+      const x = row("위치", t("알아요. 오차 {m} m", { m: Math.round(accuracy) }), { label: "지도", click: () => open(`https://maps.apple.com/?ll=${lat},${lon}&q=${encodeURIComponent(name)}`, "_blank", "noopener") });
       x.classList.add("cap"); x.prepend(picture("location")); rows.push(x);
     } else add("location", "위치", why(s.unavailable?.location));
   }
@@ -1014,7 +1018,7 @@ function roomRows(r = {}, name = "") {
 }
 function renderDevice(d) {
   const r = reading.get(d.id) ?? {};
-  const parts = [backToMenu(), text("h1", "", d.name), text("p", "lede", d.online ? `${stateOf(d)}.` : "꺼져 있어요. 그 기기에서 기기 페이지를 열어 두면 다시 켜져요.")];
+  const parts = [backToMenu(), text("h1", "", d.name), text("p", "lede", d.online ? `${t(stateOf(d))}${LANG === "en" ? "" : "."}` : "꺼져 있어요. 그 기기에서 기기 페이지를 열어 두면 다시 켜져요.")];
   if (d.online) {
     const head = el("div", "title-row sub-head");
     head.append(text("h2", "", "지금 이 방"), iconButton("M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7", "다시 읽기", () => readRoom(d.id, ["sensors", "sound", "brightness", ...(r.photo ? ["photo"] : [])])));
@@ -1025,7 +1029,7 @@ function renderDevice(d) {
     if (r.photo?.error) shot.querySelector(".sub").classList.add("down");
     room.append(shot);
     parts.push(head, room);
-    if (r.photo?.data) { const im = new Image(); im.className = "room-photo"; im.src = `data:image/jpeg;base64,${r.photo.data}`; im.alt = `${d.name}에서 방금 찍은 사진`; parts.push(im); }
+    if (r.photo?.data) { const im = new Image(); im.className = "room-photo"; im.src = `data:image/jpeg;base64,${r.photo.data}`; im.alt = t("{name}에서 방금 찍은 사진", { name: d.name }); parts.push(im); }
     parts.push(text("p", "note", "기기 화면의 기록에 까치 홈에서 읽었다고 남아요."));
   }
   // What Kkachi may use there: chosen here and nowhere else (POST /api/device/<id>/agent).
@@ -1036,7 +1040,7 @@ function renderDevice(d) {
     x.classList.add("cap"); x.prepend(picture(c));
     if (!d.agent?.[c]) x.classList.add("off");
     else if (d.online && !works) x.classList.add("idle");
-    x.append(switchFor(!!d.agent?.[c], `까치가 ${d.name} ${CAN[c] ?? c}을(를) 쓰기`, async (on) => {
+    x.append(switchFor(!!d.agent?.[c], t("까치가 {name} {cap}을(를) 쓰기", { name: d.name, cap: t(CAN[c] ?? c).toLowerCase() }), async (on) => {
       x.classList.toggle("off", !on);
       const res = await fetch(`/api/device/${d.id}/agent`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cap: c, open: on }) });
       await sleep(SETTLE);
@@ -1049,7 +1053,7 @@ function renderDevice(d) {
   const forget = text("button", "plain-btn danger", "이 기기 삭제");
   forget.type = "button";
   forget.addEventListener("click", async () => {
-    if (!confirm(`'${d.name}' 기기를 삭제할까요? 다시 쓰려면 그 기기에서 처음부터 다시 붙여야 해요.`)) return;
+    if (!confirm(t("'{name}' 기기를 삭제할까요? 다시 쓰려면 그 기기에서 처음부터 다시 붙여야 해요.", { name: d.name }))) return;
     const res = await fetch(`/api/device/${d.id}/forget`, { method: "POST" });
     if (!res.ok) { toast("삭제하지 못했어요"); return; }
     devices = (await res.json()).devices; reading.delete(d.id); closePage();
@@ -1087,7 +1091,7 @@ function renderAccounts() {
   }));
 }
 async function signOut(a) {
-  if (!confirm(`${a.name} 연결을 해제할까요?`)) return;
+  if (!confirm(t("{name} 연결을 해제할까요?", { name: a.name }))) return;
   const r = await post("/api/accounts/signout", { id: a.id });
   if (!r.ok) { toast("해제하지 못했어요"); return; }
   accountList = r.accounts; renderAccounts(); renderSums(); toast("연결을 해제했어요");
@@ -1103,7 +1107,7 @@ function closeFlow() { flowFor = null; flowBox().replaceChildren(); }
 const cancelFlow = () => button("취소", () => { post("/api/accounts/cancel", {}); closeFlow(); });
 function connect(a) {
   flowFor = a.id;
-  if (a.ways.length > 1) flowPanel(`${a.name} 연결`, actions(button("구독으로 로그인", () => signIn(a), "play primary"), button("API 키 넣기", () => keyForm(a)), cancelFlow()));
+  if (a.ways.length > 1) flowPanel(t("{name} 연결", { name: a.name }), actions(button("구독으로 로그인", () => signIn(a), "play primary"), button("API 키 넣기", () => keyForm(a)), cancelFlow()));
   else if (a.ways[0] === "subscription") signIn(a);
   else keyForm(a);
 }
@@ -1114,15 +1118,15 @@ function keyForm(a) {
     if (!key.value.trim()) return;
     const r = await post("/api/accounts/key", { id: a.id, key: key.value });
     if (!r.ok) { err.textContent = "저장하지 못했어요"; err.hidden = false; return; }
-    accountList = r.accounts; closeFlow(); renderAccounts(); renderSums(); toast(`${a.name} 연결했어요`);
+    accountList = r.accounts; closeFlow(); renderAccounts(); renderSums(); toast(t("{name} 연결했어요", { name: a.name }));
   };
   key.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
-  flowPanel(`${a.name.replace(/ API$/, "")} API 키`, field("API 키", key), err, actions(button("저장", save, "play primary"), cancelFlow()));
+  flowPanel(t("{name} API 키", { name: a.name.replace(/ API$/, "") }), field("API 키", key), err, actions(button("저장", save, "play primary"), cancelFlow()));
   key.focus();
 }
 async function signIn(a) {
   flowFor = a.id;
-  flowPanel(`${a.name} 로그인`, text("p", "note", "로그인 준비 중…"));
+  flowPanel(t("{name} 로그인", { name: a.name }), text("p", "note", "로그인 준비 중…"));
   const r = await post("/api/accounts/login", { id: a.id });
   if (flowFor !== a.id) return;
   showLogin(r.login ?? { id: a.id, step: "error", error: r.error });
@@ -1130,9 +1134,9 @@ async function signIn(a) {
 // Where the sign-in is: Claude gives a code to paste back here, ChatGPT a code to type on its page.
 function showLogin(l) {
   const a = accountList.find((x) => x.id === l.id) ?? { name: l.id };
-  if (l.step === "done") { closeFlow(); toast(`${a.name} 연결했어요`); loadAccounts(); openSettings(); return; }
+  if (l.step === "done") { closeFlow(); toast(t("{name} 연결했어요", { name: a.name })); loadAccounts(); openSettings(); return; }
   if (l.step === "error") {
-    flowPanel(`${a.name} 로그인`, text("p", "err", `연결하지 못했어요. ${l.error ?? ""}`.trim()), actions(button("다시 시도", () => signIn(a), "play primary"), cancelFlow()));
+    flowPanel(t("{name} 로그인", { name: a.name }), text("p", "err", t("연결하지 못했어요. {error}", { error: t(l.error ?? "") }).trim()), actions(button("다시 시도", () => signIn(a), "play primary"), cancelFlow()));
     return;
   }
   const open = el("a", "play primary"); open.href = l.url ?? "#"; open.target = "_blank"; open.rel = "noopener noreferrer";
@@ -1143,11 +1147,11 @@ function showLogin(l) {
     const send = async () => {
       if (!code.value.trim()) return;
       const r = await post("/api/accounts/code", { code: code.value });
-      if (!r.ok || r.login?.step === "error") { err.textContent = `코드가 맞지 않아요. ${r.login?.error ?? ""}`.trim(); err.hidden = false; if (r.login?.step === "error") showLogin(r.login); return; }
+      if (!r.ok || r.login?.step === "error") { err.textContent = t("코드가 맞지 않아요. {error}", { error: r.login?.error ?? "" }).trim(); err.hidden = false; if (r.login?.step === "error") showLogin(r.login); return; }
       showLogin(r.login);
     };
     code.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
-    flowPanel(`${a.name} 로그인`,
+    flowPanel(t("{name} 로그인", { name: a.name }),
       text("p", "note", "1. 로그인 페이지에서 로그인하세요. 끝나면 코드가 나와요."), actions(open),
       text("p", "note", "2. 그 코드를 복사해서 여기에 붙여 넣으세요."), field("코드", code), err,
       actions(button("확인", send, "play primary"), cancelFlow()));
@@ -1155,11 +1159,11 @@ function showLogin(l) {
   }
   if (l.step === "device") {
     open.textContent = "OpenAI 페이지 열기";
-    flowPanel(`${a.name} 로그인`,
+    flowPanel(t("{name} 로그인", { name: a.name }),
       text("p", "note", "1. OpenAI 페이지를 열고 로그인하세요."), actions(open),
       text("p", "note", "2. 이 코드를 넣고 승인하세요. 승인하면 저절로 연결돼요."), text("div", "user-code", l.userCode ?? ""),
       actions(cancelFlow()));
-  } else flowPanel(`${a.name} 로그인`, text("p", "note", "확인하는 중…"), actions(cancelFlow()));
+  } else flowPanel(t("{name} 로그인", { name: a.name }), text("p", "note", "확인하는 중…"), actions(cancelFlow()));
   waitForLogin(l.id); // until it is done, or given up
 }
 let waiting = null;
@@ -1183,11 +1187,11 @@ async function loadMcp(fresh = false) {
   if (!r) { for (const id of ["mcp-builtin", "mcp-added"]) $(id).replaceChildren(el("div", "loading", "불러오지 못했어요")); return; }
   mcp = r; renderMcp(); renderSums();
 }
-const toolState = (s) => (!s.enabled ? ["꺼 둠"] : s.state === "connected" ? [`연결됨. 도구 ${s.tools}개`] : s.state === "needs-auth" ? ["로그인이 필요해요", true]
-  : s.state === "failed" ? [`연결하지 못했어요${s.error ? `. ${s.error.split("\n")[0].slice(0, 80)}` : ""}`, true] : ["확인하는 중…"]);
+const toolState = (s) => (!s.enabled ? ["꺼 둠"] : s.state === "connected" ? [t("연결됨. 도구 {n}개", { n: s.tools })] : s.state === "needs-auth" ? ["로그인이 필요해요", true]
+  : s.state === "failed" ? [s.error ? t("연결하지 못했어요. {why}", { why: s.error.split("\n")[0].slice(0, 80) }) : "연결하지 못했어요", true] : ["확인하는 중…"]);
 function renderMcp() {
   $("mcp-builtin").replaceChildren(...mcp.builtin.map((s) => {
-    const r = row(MCP_NAME[s.name] ?? s.name, s.ok ? `연결됨. 도구 ${s.tools}개` : "응답이 없어요");
+    const r = row(MCP_NAME[s.name] ?? s.name, s.ok ? t("연결됨. 도구 {n}개", { n: s.tools }) : "응답이 없어요");
     if (!s.ok) r.querySelector(".sub").classList.add("down");
     return r;
   }));
@@ -1198,13 +1202,13 @@ function renderMcp() {
     if (!s.enabled) r.classList.add("off");
     r.append(actions(
       ...(s.enabled && s.state === "needs-auth" ? [button("로그인", () => mcpSignIn(s, "tools"))] : []),
-      iconButton("M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13", `${s.title} 삭제`, () => removeTool(s)),
-      switchFor(s.enabled, `${s.title} 쓰기`, (on) => changeTool("enable", { name: s.name, on }))));
+      iconButton("M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13", t("{name} 삭제", { name: t(s.title) }), () => removeTool(s)),
+      switchFor(s.enabled, t("{name} 쓰기", { name: t(s.title) }), (on) => changeTool("enable", { name: s.name, on }))));
     return r;
   }) : [el("div", "loading", "아직 없어요")]));
   const rows = [];
   for (const s of mcp.suggested.filter((x) => !x.added && x.group === "home")) {
-    rows.push(row(s.name, `${s.by}. ${s.note}`, adding === s.id ? null : { label: "추가", click: () => { adding = s.id; renderMcp(); } }));
+    rows.push(row(s.name, `${t(s.by)}. ${t(s.note)}`, adding === s.id ? null : { label: "추가", click: () => { adding = s.id; renderMcp(); } }));
     if (adding === s.id) rows.push(suggestedForm(s));
   }
   rows.push(row("직접 추가", "주소나 실행 명령으로 다른 MCP 서버를 붙여요", adding === "own" ? null : { label: "추가", click: () => { adding = "own"; renderMcp(); } }));
@@ -1222,7 +1226,7 @@ function renderServices() {
   for (const s of mcp.suggested.filter((x) => x.group === "service")) {
     const mine = mcp.added.filter((a) => a.suggested === s.id);
     if (!mine.length) {
-      rows.push(row(s.name, `${s.by}. ${s.note}`, serviceForm === s.id ? null : { label: "연결", click: () => { serviceForm = s.id; renderServices(); } }));
+      rows.push(row(s.name, `${t(s.by)}. ${t(s.note)}`, serviceForm === s.id ? null : { label: "연결", click: () => { serviceForm = s.id; renderServices(); } }));
       if (serviceForm === s.id) rows.push(serviceFormFor(s));
       continue;
     }
@@ -1232,7 +1236,7 @@ function renderServices() {
       if (down) r.querySelector(".sub").classList.add("down");
       r.append(actions(
         ...(a.enabled && a.state === "needs-auth" ? [button("로그인", () => mcpSignIn(a, "services"), "play primary")] : []),
-        button("연결 해제", async () => { if (confirm(`${a.title} 연결을 해제할까요?`) && (await changeTool("remove", { name: a.name }))) toast("연결을 해제했어요"); })));
+        button("연결 해제", async () => { if (confirm(t("{name} 연결을 해제할까요?", { name: t(a.title) })) && (await changeTool("remove", { name: a.name }))) toast("연결을 해제했어요"); })));
       rows.push(r);
     }
   }
@@ -1264,14 +1268,14 @@ function serviceFormFor(s) {
 // the address the browser ends on (it cannot reach this computer, so it shows an error page).
 async function mcpSignIn(a, where) {
   const box = $(where === "services" ? "service-flow" : "mcp-flow") ?? $("service-flow");
-  const panel = (...parts) => { box.className = "flow"; box.replaceChildren(text("h3", "", `${a.title} 로그인`), ...parts); box.scrollIntoView({ block: "nearest", behavior: "smooth" }); };
+  const panel = (...parts) => { box.className = "flow"; box.replaceChildren(text("h3", "", t("{name} 로그인", { name: t(a.title) })), ...parts); box.scrollIntoView({ block: "nearest", behavior: "smooth" }); };
   const close = () => { clearTimeout(mcpWaiting); box.replaceChildren(); };
   const cancel = () => button("취소", () => { post("/api/mcp/login/cancel", {}); close(); });
   panel(text("p", "note", "로그인 준비 중…"));
   const r = await post("/api/mcp/login", { name: a.name });
   const show = (l) => {
-    if (!l || l.step === "done") { close(); toast(`${a.title} 연결했어요`); loadMcp(true); return; }
-    if (l.step === "error") { panel(text("p", "err", `연결하지 못했어요. ${l.error ?? ""}`.trim()), actions(button("다시 시도", () => mcpSignIn(a, where), "play primary"), cancel())); return; }
+    if (!l || l.step === "done") { close(); toast(t("{name} 연결했어요", { name: t(a.title) })); loadMcp(true); return; }
+    if (l.step === "error") { panel(text("p", "err", t("연결하지 못했어요. {error}", { error: t(l.error ?? "") }).trim()), actions(button("다시 시도", () => mcpSignIn(a, where), "play primary"), cancel())); return; }
     if (l.step !== "open") { panel(text("p", "note", "확인하는 중…"), actions(cancel())); return; }
     const open = el("a", "play primary"); open.href = l.url; open.target = "_blank"; open.rel = "noopener noreferrer"; open.textContent = "로그인 페이지 열기";
     const back = inputOf("url", "http://127.0.0.1:…/callback?code=…");
@@ -1312,7 +1316,7 @@ async function changeTool(what, body, done) {
   return true;
 }
 async function removeTool(s) {
-  if (!confirm(`'${s.title}' 도구를 삭제할까요?`)) return;
+  if (!confirm(t("'{name}' 도구를 삭제할까요?", { name: t(s.title) }))) return;
   if (await changeTool("remove", { name: s.name })) toast("삭제했어요");
 }
 function formWith(parts, submit) {
@@ -1414,7 +1418,7 @@ async function shrink(file) {
 function renderAttachments() {
   $("attachments").replaceChildren(...attached.map((img, i) => {
     const thumb = el("div", "thumb");
-    const im = new Image(); im.src = dataUrl(img); im.alt = `첨부한 사진 ${i + 1}`;
+    const im = new Image(); im.src = dataUrl(img); im.alt = t("첨부한 사진 {n}", { n: i + 1 });
     const remove = el("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "사진 빼기");
     remove.addEventListener("click", () => { attached.splice(i, 1); renderAttachments(); });
     thumb.append(im, remove);
@@ -1426,7 +1430,7 @@ $("photo-input").addEventListener("change", async (e) => {
   const picked = [...e.target.files];
   e.target.value = ""; // picking the same photo again still fires
   const files = picked.slice(0, MAX_PHOTOS - attached.length);
-  if (picked.length > files.length) toast(`사진은 ${MAX_PHOTOS}장까지 보낼 수 있어요`);
+  if (picked.length > files.length) toast(t("사진은 {n}장까지 보낼 수 있어요", { n: MAX_PHOTOS }));
   for (const f of files) {
     try { attached.push(await shrink(f)); }
     catch (err) { diag("photo failed", { type: f.type, err: String(err) }); toast("이 사진은 열 수 없어요"); }
@@ -1572,10 +1576,10 @@ async function restoreConversation(id = null) {
   if (!r) return;
   shownConversation = r.id; restoredAt = Date.now();
   clearTranscript();
-  for (const t of r.turns.slice(-MAX_TURNS)) {
-    const v = addTurn(t.text + (t.photos ? `${t.text ? " " : ""}(사진 ${t.photos}장)` : ""), [], t.from ? `${t.from}에서` : null);
-    if (t.reply) { v.stream(t.reply); v.finish(); } else if (t.failed) v.fail("답하지 못했어요"); else v.finish();
-    if (t.from) restored.add(`${t.from}|${t.text}`);
+  for (const turn of r.turns.slice(-MAX_TURNS)) {
+    const v = addTurn(turn.text + (turn.photos ? `${turn.text ? " " : ""}${t("(사진 {n}장)", { n: turn.photos })}` : ""), [], turn.from ? t("{from}에서", { from: turn.from }) : null);
+    if (turn.reply) { v.stream(turn.reply); v.finish(); } else if (turn.failed) v.fail("답하지 못했어요"); else v.finish();
+    if (turn.from) restored.add(`${turn.from}|${turn.text}`);
   }
   scrollDown(true);
 }
@@ -1587,7 +1591,7 @@ async function loadConversations() {
     const b = el("button", "device conv" + (now ? " current" : ""), '<span><span class="name"></span><span class="sub"></span></span>');
     b.type = "button";
     b.querySelector(".name").textContent = c.title;
-    b.querySelector(".sub").textContent = now ? `지금 대화. ${clock(c.t)}` : clock(c.t);
+    b.querySelector(".sub").textContent = now ? t("지금 대화. {when}", { when: clock(c.t) }) : clock(c.t);
     if (now) b.setAttribute("aria-current", "true");
     b.addEventListener("click", () => openConversation(c.id, now));
     return b;
@@ -1631,7 +1635,7 @@ addEventListener("pageshow", (e) => { if (e.persisted) openFeed(); }); // back f
 function showFeedItem(item) {
   // A turn the restored conversation already has (it came while the app was closed); a later one is new.
   if (item.kind === "turn" && restored.has(`${item.from}|${item.heard}`) && Date.parse(item.at) <= restoredAt) return;
-  const v = item.kind === "turn" ? addTurn(item.heard, [], `${item.from}에서`) : addTurn("", [], "까치가 보냈어요", true);
+  const v = item.kind === "turn" ? addTurn(item.heard, [], t("{from}에서", { from: item.from })) : addTurn("", [], "까치가 보냈어요", true);
   v.stream(item.text || "");
   v.finish();
   scrollDown(true); // said elsewhere: easy to miss below, so it is brought into view
@@ -1640,7 +1644,12 @@ function showFeedItem(item) {
 }
 restoreConversation().finally(openFeed); // the conversation first, then what came meanwhile
 // The voice setting decides how replies are read aloud, so it is needed before the first one.
-fetch("/api/settings").then((r) => r.json()).then((j) => { saved ??= j.settings; }).catch(() => {});
+fetch("/api/settings").then((r) => r.json()).then((j) => { saved ??= j.settings; useLang(j.settings.lang); }).catch(() => {});
+function useLang(lang) {
+  if (!lang || lang === LANG) return;
+  localStorage.setItem("kkachi.lang", lang);
+  location.reload();
+}
 
 document.addEventListener("visibilitychange", () => {
   diag("visibility " + document.visibilityState);

@@ -40,7 +40,7 @@ export const config = {
     baseUrl: env.KKACHI_STT_BASE_URL ?? "https://api.groq.com/openai/v1",
     apiKey: env.KKACHI_STT_API_KEY ?? env.GROQ_API_KEY ?? "",
     model: env.KKACHI_STT_MODEL ?? "whisper-large-v3", // not turbo: it reports no_speech_prob, which filters noise
-    language: env.KKACHI_STT_LANGUAGE ?? "ko",
+    language: env.KKACHI_STT_LANGUAGE ?? "", // empty: Settings' language (src/speech.ts)
     // OpenAI's chunking_strategy, sent when set ("auto"): a server with a voice detector then writes only
     // where someone speaks. For models that report no no_speech_prob and make words up for silence
     // (Qwen3-ASR on speech.cpp wrote "이미." for three silent seconds).

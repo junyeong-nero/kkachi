@@ -565,6 +565,12 @@
     <div class="cat" data-cat="look">
       <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
       <h1>외형</h1>
+      <h2>언어</h2>
+      <div class="segment two" role="radiogroup" aria-label="언어" translate="no">
+        <label><input type="radio" name="lang" value="ko">한국어</label>
+        <label><input type="radio" name="lang" value="en">English</label>
+      </div>
+      <p class="note">화면, 받아쓰기, 기기의 안내가 이 언어로 바뀌어요.</p>
       <h2>화면</h2>
       <div class="segment" role="radiogroup" aria-label="화면">
         <label><input type="radio" name="theme" value="auto">폰 설정대로</label>
@@ -678,6 +684,7 @@
 
 <script src="/vendor/marked.min.js"></script>
 <script src="/vendor/purify.min.js"></script>
+<script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

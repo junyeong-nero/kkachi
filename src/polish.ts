@@ -29,7 +29,7 @@ Known terms: ${vocabulary().join(", ")}`;
 
 export async function polish(raw: string): Promise<string> {
   if (!raw || FILLER_ONLY.test(raw)) return "";
-  if (settings().polish === "off") return raw; // Settings, 음성
+  if (settings().polish === "off" || settings().lang === "en") return raw; // Settings, 음성; its instructions are for Korean speech
   const { baseUrl } = config.polish, model = config.polish.model || "openai/gpt-oss-120b", apiKey = groqKey() || config.polish.apiKey;
   try {
     const body: Record<string, unknown> = {

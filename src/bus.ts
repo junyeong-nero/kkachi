@@ -8,6 +8,7 @@ import { polish } from "./polish";
 import { pushFeed } from "./feed";
 import { transcribe } from "./speech";
 import { runTurn } from "./turn";
+import { say as inLang } from "./i18n";
 
 async function answer(e: Input) {
   const t0 = performance.now();
@@ -47,7 +48,7 @@ async function respond(e: { id: string; source: { id: string; name: string } }, 
   const t2 = performance.now();
 
   pushFeed({ kind: "turn", from: e.source.name, heard, text, speak: false }); // Kkachi Home shows it, silently
-  if (!parts) say(text || "지금은 답하기 어려워요. 잠시 뒤에 다시 말해 주세요.");
+  if (!parts) say(text || inLang("지금은 답하기 어려워요. 잠시 뒤에 다시 말해 주세요.", "I can't answer right now. Please try again in a moment."));
   sent.push(reply({ heard, part: parts++, last: true, show: text })); // ends it, and leaves the answer on its screen
   await Promise.all(sent);
   const ms = (a: number, b: number) => Math.round(b - a);

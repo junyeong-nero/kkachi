@@ -6,6 +6,7 @@ import { polish } from "./polish";
 import { modelOrder } from "./models";
 import { settings, THINKING, updateSettings, VOICES } from "./settings";
 import { speechReady, synthesize, transcribe } from "./speech";
+import { say } from "./i18n";
 import { applyThinking, currentSession, reloadAgent, modelChoices, newConversation, openConversation, runTurn, startConversation } from "./turn";
 import { conversations, fileOf, idOf, newestId, transcript } from "./conversations";
 import { answerMcpLogin, cancelMcpLogin, currentMcpLogin, mcpLoginShown, startMcpLogin } from "./mcp-login";
@@ -82,6 +83,8 @@ Bun.serve({
         const noCache = { "Cache-Control": "no-cache" };
         if (pathname === "/") return new Response(Bun.file(join(web, "index.html")), { headers: { ...noCache, "Content-Type": "text/html; charset=utf-8" } });
         if (pathname === "/manifest.webmanifest") return new Response(Bun.file(join(web, "manifest.webmanifest")), { headers: { ...noCache, "Content-Type": "application/manifest+json" } });
+        if (pathname === "/i18n.js") return new Response(Bun.file(join(web, "i18n.js")), { headers: { ...noCache, "Content-Type": "text/javascript" } });
+        if (pathname === "/api/lang") return Response.json({ lang: settings().lang }); // the device page's language
         if (pathname === "/app.js") return new Response(Bun.file(join(web, "app.js")), { headers: { ...noCache, "Content-Type": "text/javascript" } });
         // Markdown rendering for replies: marked (MIT) and DOMPurify (Apache-2.0/MPL-2.0), vendored unmodified
         if (["/vendor/marked.min.js", "/vendor/purify.min.js"].includes(pathname)) {
@@ -238,7 +241,7 @@ Bun.serve({
         runTurn(String(text), (e) => record.push(e), images)
           .catch((err) => {
             console.error("turn error", err);
-            record.push({ type: "error", message: "문제가 생겼어요. 다시 말해 주세요." });
+            record.push({ type: "error", message: say("문제가 생겼어요. 다시 말해 주세요.", "Something went wrong. Please say it again.") });
           })
           .finally(() => record.finish());
         return streamTurn(record, 0);

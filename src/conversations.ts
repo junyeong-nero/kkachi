@@ -50,7 +50,7 @@ export function turnsOf(jsonl: string): PastTurn[] {
 export function summaryOf(id: string, turns: PastTurn[]): ConversationSummary | null {
   if (!turns.length) return null;
   const first = turns[0];
-  return { id, title: first.text || (first.photos ? "사진" : "(말 없음)"), t: turns[turns.length - 1].t, turns: turns.length };
+  return { id, title: first.text || (first.photos ? "📷" : "…"), t: turns[turns.length - 1].t, turns: turns.length };
 }
 
 const cache = new Map<string, { mtime: number; turns: PastTurn[] }>(); // parsed once per change

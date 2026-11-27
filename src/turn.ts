@@ -10,6 +10,7 @@ import { currentModel, isLimitError, markLimited, modelOrder } from "./models";
 import { cancelReview, recordTurn as queueForReview, resumeReviews, type ReviewIssue } from "./review";
 import { authedProviders, settings, updateSettings } from "./settings";
 import { Pi, type PiEvent, type PiImage } from "./pi";
+import { say } from "./i18n";
 
 export type TurnEvent =
   | { type: "delta"; text: string }                         // live text for the screen, as it streams
@@ -202,7 +203,7 @@ async function doTurn(text: string, said: string, images: PiImage[], header: str
     await memory.sync();
   } catch (err) {
     console.error("pull failed", err);
-    emit({ type: "error", message: "노트 저장소를 동기화하지 못했어요. 컴퓨터에서 확인이 필요해요." });
+    emit({ type: "error", message: say("노트 저장소를 동기화하지 못했어요. 컴퓨터에서 확인이 필요해요.", "Could not sync the notes repository. It needs a look on the computer.") });
     return;
   }
   // Retry on the next model when a model is rate-limited before saying anything.
@@ -211,7 +212,7 @@ async function doTurn(text: string, said: string, images: PiImage[], header: str
     const limited = await streamTurn(pi, `[지금: ${now()}]${header ? " " + header : ""}\n${text}`, said, images, emit);
     if (!limited) break;
     if (!markLimited(agentModel, limited) || attempt + 1 >= modelOrder().length) {
-      emit({ type: "error", message: "지금 모델들이 모두 바빠요. 잠시 뒤에 다시 말해 주세요." });
+      emit({ type: "error", message: say("지금 모델들이 모두 바빠요. 잠시 뒤에 다시 말해 주세요.", "All models are busy right now. Please try again in a moment.") });
       break;
     }
   }
@@ -321,7 +322,7 @@ async function streamTurn(pi: Pi, message: string, text: string, images: PiImage
     const issue = !aborted && usedSearch && isLimitError(error) ? "search_rate_limit" : undefined;
     // No account yet, or the model's one is gone (src/accounts.ts): say where to sign in.
     const signIn = !authedProviders().has(agentModel.split("/")[0]) && /api key|credential|auth|login|unauthori[sz]ed|401/i.test(error);
-    emit({ type: "error", message: signIn ? "AI 계정이 연결돼 있지 않아요. 까치 홈의 설정, 계정에서 연결해 주세요." : "모델이 응답하지 않아요. 잠시 뒤에 다시 말해 주세요.", issue });
+    emit({ type: "error", message: signIn ? say("AI 계정이 연결돼 있지 않아요. 까치 홈의 설정, 계정에서 연결해 주세요.", "No AI account is connected. Connect one in Kkachi Home, Settings, Accounts.") : say("모델이 응답하지 않아요. 잠시 뒤에 다시 말해 주세요.", "The model is not answering. Please try again in a moment."), issue });
     return null;
   }
 
@@ -335,7 +336,7 @@ async function streamTurn(pi: Pi, message: string, text: string, images: PiImage
     for (const c of changed) sources.add(c);
   } catch (err) {
     console.error("commit/push failed", err);
-    emit({ type: "sentence", text: "기억은 해두었는데 GitHub 에 올리지는 못했어요." });
+    emit({ type: "sentence", text: say("기억은 해두었는데 GitHub 에 올리지는 못했어요.", "Remembered, but could not push it to GitHub.") });
   }
   emit({ type: "done", sources: [...sources], changed: [...changed], titles: noteTitles([...sources]), commit });
   if (end) emit({ type: "end", reason: end });

@@ -69,7 +69,7 @@ class Handler(BaseHTTPRequestHandler):
             style = styles.get(str(body.get("voice", "")), styles[DEFAULT_VOICE])
             speed = max(0.7, min(2.0, 1.05 * float(body.get("speed", 1))))  # 1.05 is the model's own default
             with one_at_a_time:
-                samples, _ = tts.synthesize(text, voice_style=style, lang=LANG, total_steps=STEPS, speed=speed)
+                samples, _ = tts.synthesize(text, voice_style=style, lang=str(body.get("language") or LANG), total_steps=STEPS, speed=speed)
             self.reply(200, wave(samples), "audio/wav")
         except Exception as err:  # the caller falls back to the device's own voice
             self.fail(500, str(err))

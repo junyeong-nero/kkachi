@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { config } from "./config";
 
 export type Tts = "device" | "local" | "edge"; // each device's own voice, Supertonic here, or Edge TTS online
+export type Lang = "ko" | "en";
 export interface Settings {
+  lang: Lang;              // Kkachi Home, the device pages, dictation and what devices say (src/web/i18n.js)
   tts: Tts;
   stt: "local" | "groq";   // dictation: a speech server on this computer, or Groq (src/speech.ts)
   polish: "off" | "groq";  // tidying a transcript before the agent (src/polish.ts)
@@ -21,7 +23,10 @@ const file = join(config.dataDir, "settings.json");
 
 export const local = (url: string) => /\/\/(127\.0\.0\.1|localhost|\[::1\])\b/.test(url);
 // The defaults follow .env.local, as before these were settings.
+// A new install starts in the computer's language (Korean, or else English); KKACHI_LANG says otherwise.
+const systemLang: Lang = /^ko\b/i.test(Intl.DateTimeFormat().resolvedOptions().locale) ? "ko" : "en";
 const defaults: Settings = {
+  lang: process.env.KKACHI_LANG === "ko" || process.env.KKACHI_LANG === "en" ? process.env.KKACHI_LANG : systemLang,
   tts: config.tts.voice === "device" ? "device" : config.tts.provider === "supertonic" ? "local" : "edge",
   stt: local(config.stt.baseUrl) ? "local" : "groq",
   polish: config.polish.model ? "groq" : "off",
@@ -35,6 +40,7 @@ const defaults: Settings = {
 // Only known keys: older files also had the device options (docs/bus.md: they are fixed now).
 const stored = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
 let current: Settings = { ...defaults, ...Object.fromEntries(Object.entries(stored).filter(([k]) => k in defaults)) };
+if (Object.keys(stored).length && !stored.lang) current.lang = "ko"; // an install from before English: it was Korean
 if (!stored.tts) current.tts = current.voice === "device" ? "device" : config.tts.provider === "supertonic" ? "local" : "edge"; // from before the setting
 
 export const settings = () => current;
@@ -47,6 +53,7 @@ export function updateSettings(patch: Partial<Settings>): Settings {
   if (!VOICES[next.tts].some((v) => v.id === next.voice)) next.voice = VOICES[next.tts][0].id;
   next.voiceBy = { ...current.voiceBy, [next.tts]: next.voice };
   if (patch.stt === "local" || patch.stt === "groq") next.stt = patch.stt;
+  if (patch.lang === "ko" || patch.lang === "en") next.lang = patch.lang;
   if (patch.polish === "off" || patch.polish === "groq") next.polish = patch.polish;
   if (typeof patch.rate === "number" && Number.isFinite(patch.rate)) next.rate = Math.max(-50, Math.min(100, Math.round(patch.rate)));
   if (typeof patch.model === "string" && patch.model.includes("/")) next.model = patch.model;

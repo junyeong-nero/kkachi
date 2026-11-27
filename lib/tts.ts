@@ -22,8 +22,8 @@ export const tts = {
 export const BUILT_IN = "device";
 
 /** engine: "local" (Supertonic on this computer) or "edge" (online); without one, KKACHI_TTS_PROVIDER. */
-export async function synthesize(text: string, voice: string, rate: number, engine?: "local" | "edge"): Promise<{ audio: ArrayBuffer; type: string }> {
-  if (engine === "local" || (!engine && tts.provider === "supertonic")) return supertonicTts(text, voice, rate);
+export async function synthesize(text: string, voice: string, rate: number, engine?: "local" | "edge", lang?: string): Promise<{ audio: ArrayBuffer; type: string }> {
+  if (engine === "local" || (!engine && tts.provider === "supertonic")) return supertonicTts(text, voice, rate, lang);
   if (!engine && tts.provider === "openai") return openaiTts(text);
   // The Edge service sometimes answers with no audio (NoAudioReceived); a second try usually works.
   return edgeTts(text, voice, rate).catch(() => edgeTts(text, voice, rate));
@@ -43,11 +43,11 @@ async function edgeTts(text: string, voice: string, rate: number) {
 
 // Supertonic 3 behind scripts/supertonic-server.py: the voice chosen in the settings (F1 to F5, M1 to M5;
 // any other, such as an Edge voice chosen before, is its first), the speed as OpenAI's, a WAVE back.
-async function supertonicTts(text: string, voice: string, rate: number) {
+async function supertonicTts(text: string, voice: string, rate: number, lang?: string) {
   const r = await fetch(`${tts.localUrl}/audio/speech`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input: text, voice, speed: 1 + rate / 100, response_format: "wav" }),
+    body: JSON.stringify({ input: text, voice, speed: 1 + rate / 100, response_format: "wav", ...(lang ? { language: lang } : {}) }),
   });
   if (!r.ok) throw new Error(`supertonic ${r.status}: ${await r.text()}`);
   return { audio: await r.arrayBuffer(), type: r.headers.get("Content-Type") ?? "audio/wav" };

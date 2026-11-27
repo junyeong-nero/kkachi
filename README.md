@@ -20,7 +20,7 @@ It started from not wanting to set up Home Assistant OS just to try a home assis
 The agent behind it is [Pi](https://github.com/earendil-works/pi), a coding agent, run with a setup of Kkachi's own: you sign it in to a model subscription you have (Claude or ChatGPT) or an API key, and add the MCP tools it may use, all in Kkachi Home. So besides the home it can search the web, use those tools and work on code.
 
 > [!NOTE]
-> Early prototype. Runs on macOS, Windows, and Linux (the Linux auto-start is untested). The apps' interface is in Korean.
+> Early prototype. Runs on macOS, Windows, and Linux (the Linux auto-start is untested). The apps are in English and Korean (Settings › Appearance › Language); Kkachi answers in the language you speak to it.
 
 > [!WARNING]
 > Kkachi runs Pi with full access to your computer (shell, files, network) and acts without asking. Anyone who can reach it can make it run commands by voice. Expose it only through Tailscale Serve on a tailnet you control, never Tailscale Funnel or a public URL.
@@ -38,7 +38,7 @@ Not there yet: dictation uses Groq by default (running it locally is a setting, 
 
 ![How Kkachi fits together](docs/architecture-simple.svg)
 
-One process, kkachi-core, runs the agent and starts two services that are plain MCP servers. Anything else that speaks MCP is added in Kkachi Home's settings (도구), and other agents (Claude Desktop, Codex) can use Kkachi's devices and memory the same way. The detailed diagram is [docs/architecture.svg](docs/architecture.svg).
+One process, kkachi-core, runs the agent and starts two services that are plain MCP servers. Anything else that speaks MCP is added in Kkachi Home's Settings › Tools, and other agents (Claude Desktop, Codex) can use Kkachi's devices and memory the same way. The detailed diagram is [docs/architecture.svg](docs/architecture.svg).
 
 ## Installation
 
@@ -65,19 +65,19 @@ The app on your phone: where you talk to Kkachi and look after the devices.
 1. Install Tailscale on the phone and sign in to the same account as the computer.
 2. Open the address the setup printed.
 3. Add the page to your home screen.
-4. In its menu, open 설정, then 계정, and sign in to Claude or ChatGPT (or enter an API key).
+4. In its menu, open Settings › Accounts and sign in to Claude or ChatGPT (or enter an API key).
 
 ### Kkachi Device
 
 A spare phone or tablet becomes a Kkachi Device: Kkachi's eyes, ears and voice in that room. It has a speaker, a microphone, a camera, a sound meter, motion sensors, and on a tablet a lamp.
 
 1. Open `/device` at the same address on the spare phone, name it ("living room") and tap once.
-2. Allow it in Kkachi Home's menu, under 기기. 기기 추가 in the same menu shows these steps with the address to copy.
+2. Allow it in Kkachi Home's menu, under Devices. Add a device, in the same menu, shows these steps with the address to copy.
 3. Keep its screen on.
 
 Then "tell the living room dinner is ready" plays there, "how is the living room?" gets a photo and an answer, and holding the talk pad on its screen asks Kkachi something from that room. In Kkachi Home's menu, open a device to see what is happening there now (how loud it is, when it last moved, a photo when you ask) and to choose what Kkachi may use there.
 
-Real lights, plugs and speakers come in through MCP servers, added in Kkachi Home under 설정, 도구: Home Assistant for a whole house (and the Hue, Tapo, IKEA, Matter or SmartThings devices joined to it) and LG ThinQ are suggested there, asking only for an address or a token; any other server is added by its address or command ([docs/extensions.md](docs/extensions.md) lists some, Korean). Kkachi switches them when you ask.
+Real lights, plugs and speakers come in through MCP servers, added in Kkachi Home under Settings › Tools: Home Assistant for a whole house (and the Hue, Tapo, IKEA, Matter or SmartThings devices joined to it) and LG ThinQ are suggested there, asking only for an address or a token; any other server is added by its address or command ([docs/extensions.md](docs/extensions.md) lists some, Korean). Kkachi switches them when you ask.
 
 ### Kkachi Memory
 
