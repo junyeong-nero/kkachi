@@ -8,7 +8,7 @@ import { memory } from "./memory";
 import { cancelTidy, scheduleTidy } from "./librarian";
 import { currentModel, isLimitError, markLimited, modelOrder } from "./models";
 import { cancelReview, recordTurn as queueForReview, resumeReviews, type ReviewIssue } from "./review";
-import { authedProviders, settings } from "./settings";
+import { authedProviders, settings, updateSettings } from "./settings";
 import { Pi, type PiEvent, type PiImage } from "./pi";
 
 export type TurnEvent =
@@ -68,6 +68,18 @@ export async function openConversation(sessionFile: string) {
   if (currentTurn) await agent?.abort();
   await queue;
   await (await conversation()).switchSession(sessionFile);
+}
+
+/** The accounts or MCP servers changed: the conversation starts its Pi again with them on the next
+ * turn. If the chosen model's account is gone, the first model of an account signed in is chosen. */
+export async function reloadAgent() {
+  await queue;
+  const old = agent;
+  agent = null;
+  old?.stop();
+  if (authedProviders().has(settings().model.split("/")[0])) return;
+  const first = (await modelChoices()).find((m) => authedProviders().has(m.provider));
+  if (first) updateSettings({ model: first.id });
 }
 
 /** Models the user can pick: providers they are signed in to; OpenRouter only its free models. */
@@ -289,7 +301,9 @@ async function streamTurn(pi: Pi, message: string, text: string, images: PiImage
     if (!said && isLimitError(error)) return error;
     // Keep a non-sensitive failure category for memory review, not the provider's raw error or tool arguments.
     const issue = !aborted && usedSearch && isLimitError(error) ? "search_rate_limit" : undefined;
-    emit({ type: "error", message: "모델이 응답하지 않아요. 잠시 뒤에 다시 말해 주세요.", issue });
+    // No account yet, or the model's one is gone (src/accounts.ts): say where to sign in.
+    const signIn = !authedProviders().has(agentModel.split("/")[0]) && /api key|credential|auth|login|unauthori[sz]ed|401/i.test(error);
+    emit({ type: "error", message: signIn ? "AI 계정이 연결돼 있지 않아요. 까치 홈의 설정, 계정에서 연결해 주세요." : "모델이 응답하지 않아요. 잠시 뒤에 다시 말해 주세요.", issue });
     return null;
   }
 

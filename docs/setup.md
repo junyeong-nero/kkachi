@@ -16,15 +16,15 @@ cd kkachi
 bun run init
 ```
 
-`init` checks the tools before it starts. You can run it again later; it keeps what is already set up. To sign Pi in yourself first, use `pi auth login`. It:
+`init` checks the tools before it starts. You can run it again later; it keeps what is already set up. It:
 
 - creates your memory repo, or uses an existing one
-- signs Pi in to a model provider if it is not yet, and lets you pick a model
-- offers to bring in the MCP servers you set up for Claude Code, Codex, Cursor or VS Code (through [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter))
 - asks for a Groq API key for dictation, which you can skip
 - saves settings to `.env.local`
 - starts Kkachi now and at every login
 - makes it reachable on your tailnet with Tailscale Serve, signing this computer in to Tailscale first if needed
+
+Then sign in from Kkachi Home: 설정, 계정. Claude (Pro or Max) gives a code after you sign in, to paste back; ChatGPT (Plus or Pro) shows a code to type on OpenAI's page; OpenAI, Anthropic and OpenRouter API keys are entered there too. Kkachi keeps its accounts, MCP servers and its one package (web search) in `data/agent`, a Pi setup of its own: your own Pi in `~/.pi/agent` (its accounts, MCP servers, extensions, skills) is not used.
 
 Add `?debug` to Kkachi Home's URL for an on-screen log.
 
@@ -66,7 +66,7 @@ All settings are environment variables in `.env.local` (see `src/config.ts`), fo
 - Mention a plan or decision and it goes into the right note, without Kkachi announcing "I've noted that". Each turn is one git commit, and "forget that" reverts it.
 - Ask about your own life and it answers from the notes, showing which notes it used.
 - Take or pick up to four photos and ask about them. They go to the model only; the memory repo records only that there were photos.
-- It can search the web, use MCP tools, and work on code in other repos: whatever your Pi setup can do.
+- It can search the web, use the MCP tools added in 설정, 도구, and work on code in other repos.
 
 ### Kkachi Home's menu
 
@@ -79,7 +79,7 @@ At its top are two tabs.
 - Chat (대화): New chat (새 대화), and under it your earlier conversations. Tap one to go back to it and carry on. The conversation going on is shown again when you reopen the app.
 - Devices (기기): your spare phones and tablets. Open one to see what is happening in that room now (how loud it is, when it last moved, how it lies, where it is; a photo when you ask) and to choose what Kkachi may use there: its voice, speaker, lamp, camera, sound level, motion sensors and location. 기기 추가 shows how to add one, with the address to copy. Waiting devices are allowed here. What is said to a device joins this conversation: that device answers aloud, it shows here too, and Kkachi has the same tools as here, your own MCP servers included.
 
-Settings (설정), at the bottom, is in four parts: 외형 (light or dark, text size), 소리 (read-aloud and voice), 모델 (model and thinking) and 도구 (its MCP servers).
+Settings (설정), at the bottom, is in five parts: 계정 (the model accounts), 외형 (light or dark, text size), 소리 (read-aloud and voice), 모델 (model and thinking) and 도구 (its own servers, the ones you added, and suggestions to add).
 
 The top bar shows whether home answers (집, 기기 2대 켜짐); tap it to see the devices.
 
@@ -111,7 +111,12 @@ Each memory change is one `kkachi: …` commit (pushed only if sync is on) and c
 
 ## Lights, speakers and Home Assistant
 
-Real lights, plugs and speakers come in through MCP servers. [extensions.md](extensions.md) (Korean) lists ones worth adding, local ones first: for TP-Link Tapo, Philips Hue, WiZ and others. For a whole house, plug in Home Assistant with [ha-mcp](https://github.com/homeassistant-ai/ha-mcp): Kkachi then switches lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Put the ha-mcp address in `.env.local` as `KKACHI_HA_MCP_URL`; the steps are in [ha.md](ha.md) (Korean). Without that setting, nothing Home Assistant-related runs.
+Real lights, plugs and speakers come in through MCP servers, added in Kkachi Home under 설정, 도구. Two are suggested there:
+
+- Home Assistant through [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), for a whole house: Kkachi then switches lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Hue, Tapo, IKEA, Tuya, Matter and SmartThings devices come along once they are in Home Assistant. It asks for the ha-mcp address; setting up Home Assistant and ha-mcp is in [ha.md](ha.md) (Korean).
+- LG ThinQ, LG's own server (beta), for LG appliances. It asks for a ThinQ personal access token and runs with `uvx`, so [uv](https://docs.astral.sh/uv/) must be installed on the computer.
+
+Any other server is added by its address (with a token if it wants one) or by the command that starts it. [extensions.md](extensions.md) (Korean) lists some, local ones first. Samsung's own SmartThings server accepts only the clients it knows, so Kkachi cannot sign in to it.
 
 ## Memory repo
 

@@ -1,7 +1,9 @@
 // Pi (https://github.com/earendil-works/pi) as Kkachi's agent runtime, over RPC mode (JSONL on
-// stdin/stdout). Kkachi shares the user's Pi setup (extensions, skills, MCP, auth) and adds its
-// own extension (pi/kkachi.ts) and system prompt. Every Pi command Kkachi uses lives in this file.
+// stdin/stdout). Kkachi has a Pi setup of its own (config.agentDir: its accounts, MCP servers and the
+// web search package, src/agent-dir.ts), not the user's, and adds its extension (pi/kkachi.ts) and
+// system prompt. Every Pi command Kkachi uses lives in this file.
 import { join } from "node:path";
+import { ensureAgentDir } from "./agent-dir";
 import { config } from "./config";
 import { type Agent, toolsFor } from "./mcp-bridge";
 import { settings } from "./settings";
@@ -35,7 +37,7 @@ export class Pi {
   constructor(private opts: PiOptions) {}
 
   async start(model: string) {
-    // Extensions, skills, MCP and auth are always the user's own Pi setup.
+    ensureAgentDir();
     const dir = this.opts.reviewWorktree ?? config.memoryDir;
     const mcp = this.opts.mcp ? await toolsFor(this.opts.mcp) : null;
     const prompt = join(config.root, "prompts", this.opts.prompt);
@@ -45,6 +47,8 @@ export class Pi {
       : ["--system-prompt", prompt, "--no-context-files", "--append-system-prompt", join(dir, "AGENTS.md")];
     const args = [
       config.piBin, "--mode", "rpc",
+      "--no-skills", // the user's skills (~/.agents/skills) are not Kkachi's
+      ...(this.opts.mcp === "chat" ? [] : ["--no-mcp"]), // the servers added in Kkachi Home are for the conversation
       "--model", model,
       ...promptArgs,
       ...(this.opts.reviewWorktree ? ["--tools", "read,ls,find,grep,edit,write"] : ["-e", join(config.root, "pi", "kkachi.ts")]),
@@ -55,7 +59,7 @@ export class Pi {
     if (this.stopped) throw new Error("pi was stopped before it started");
     this.proc = Bun.spawn(args, {
       cwd: dir,
-      env: { ...process.env, KKACHI_ROOT: config.root, KKACHI_DATA_DIR: config.dataDir, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}`, ...(mcp ? { KKACHI_MCP_TOOLS: mcp.file } : {}) },
+      env: { ...process.env, PI_CODING_AGENT_DIR: config.agentDir, KKACHI_ROOT: config.root, KKACHI_DATA_DIR: config.dataDir, KKACHI_MEMORY_DIR: dir, KKACHI_URL: `http://127.0.0.1:${config.port}`, ...(mcp ? { KKACHI_MCP_TOOLS: mcp.file } : {}) },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });
     this.proc.exited.then((code) => this.exit(code));

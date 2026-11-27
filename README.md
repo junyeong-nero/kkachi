@@ -12,7 +12,7 @@ It started from not wanting to set up Home Assistant OS just to try a home assis
   <img src="docs/demo.gif" alt="Kkachi Home: asking whether the study is quiet, then the menu: the study opened to see its room and choose what Kkachi may use there, and how to add a device" width="300">
 </p>
 
-The agent behind it is [Pi](https://github.com/earendil-works/pi), a coding agent, signed in to a model subscription you have (Claude, ChatGPT and others). So besides the home it can search the web, use MCP tools and work on code.
+The agent behind it is [Pi](https://github.com/earendil-works/pi), a coding agent, run with a setup of Kkachi's own: you sign it in to a model subscription you have (Claude or ChatGPT) or an API key, and add the MCP tools it may use, all in Kkachi Home. So besides the home it can search the web, use those tools and work on code.
 
 > [!NOTE]
 > Early prototype. Runs on macOS, Windows, and Linux (the Linux auto-start is untested). The apps' interface is in Korean.
@@ -33,11 +33,11 @@ Not there yet: dictation uses Groq by default (running it locally is a setting, 
 
 ![How Kkachi fits together](docs/architecture-simple.svg)
 
-One process, kkachi-core, runs the agent and starts two services that are plain MCP servers. Anything else that speaks MCP can be added in `kkachi.mcp.json`, and other agents (Claude Desktop, Codex) can use Kkachi's devices and memory the same way. The detailed diagram is [docs/architecture.svg](docs/architecture.svg).
+One process, kkachi-core, runs the agent and starts two services that are plain MCP servers. Anything else that speaks MCP is added in Kkachi Home's settings (도구), and other agents (Claude Desktop, Codex) can use Kkachi's devices and memory the same way. The detailed diagram is [docs/architecture.svg](docs/architecture.svg).
 
 ## Installation
 
-You need a computer that stays on (macOS, Windows, or Linux), a phone, an account Pi can sign in to for a model (such as Claude Pro/Max or ChatGPT Plus/Pro), and a [Tailscale](https://tailscale.com/download) account on both the computer and the phone.
+You need a computer that stays on (macOS, Windows, or Linux), a phone, a model account to sign in to (Claude Pro/Max, ChatGPT Plus/Pro, or an API key), and a [Tailscale](https://tailscale.com/download) account on both the computer and the phone.
 
 On the computer, macOS or Linux:
 
@@ -60,6 +60,7 @@ The app on your phone: where you talk to Kkachi and look after the devices.
 1. Install Tailscale on the phone and sign in to the same account as the computer.
 2. Open the address the setup printed.
 3. Add the page to your home screen.
+4. In its menu, open 설정, then 계정, and sign in to Claude or ChatGPT (or enter an API key).
 
 ### Kkachi Device
 
@@ -71,7 +72,7 @@ A spare phone or tablet becomes a Kkachi Device: Kkachi's eyes, ears and voice i
 
 Then "tell the living room dinner is ready" plays there, "how is the living room?" gets a photo and an answer, and holding the talk pad on its screen asks Kkachi something from that room. In Kkachi Home's menu, open a device to see what is happening there now (how loud it is, when it last moved, a photo when you ask) and to choose what Kkachi may use there.
 
-Real lights, plugs and speakers come in through their MCP servers: add one for TP-Link Tapo, Philips Hue or others ([docs/extensions.md](docs/extensions.md) lists them, Korean), or Home Assistant for a whole house, and Kkachi switches them when you ask.
+Real lights, plugs and speakers come in through MCP servers, added in Kkachi Home under 설정, 도구: Home Assistant for a whole house (and the Hue, Tapo, IKEA, Matter or SmartThings devices joined to it) and LG ThinQ are suggested there, asking only for an address or a token; any other server is added by its address or command ([docs/extensions.md](docs/extensions.md) lists some, Korean). Kkachi switches them when you ask.
 
 ### Kkachi Memory
 

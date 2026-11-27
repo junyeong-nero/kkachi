@@ -527,7 +527,7 @@ async function saveSettings(patch) {
 }
 
 const rateLabel = (v) => (v === 0 ? "보통" : `${v > 0 ? "+" : ""}${v}%`);
-const providerLabel = { openai: "OpenAI", anthropic: "Anthropic", "claude-pro-max-native": "Claude (구독)", openrouter: "OpenRouter 무료" };
+const providerLabel = { anthropic: "Claude", "openai-codex": "ChatGPT", openai: "OpenAI API", openrouter: "OpenRouter 무료" };
 
 // Text size is a per-device preference (a phone and a laptop want different sizes), kept in
 // localStorage as the body font size in px; every other size scales with it.
@@ -570,14 +570,15 @@ function applySpeak() {
   if (!readAloud() && !recording) { stopPlayback(); resetAudio(); setSession("auto"); } // nothing holds audio now
 }
 
-let catalog = null, mcpCount = ""; // what /api/settings offers, for the summaries
+let catalog = null; // what /api/settings offers, for the summaries
 function renderSums() {
   $("sum-look").textContent = `${{ auto: "폰 설정대로", light: "밝게", dark: "어둡게" }[theme()]}. 글자 ${textSize()}px`;
+  if (mcp) $("sum-mcp").textContent = `기본 ${mcp.builtin.length}개, 추가 ${mcp.added.length}개`;
+  if (accountList.length) $("sum-account").textContent = accountList.filter((a) => a.connected).map((a) => a.name).join(", ") || "연결된 계정 없음";
   if (!catalog || !saved) return;
   const name = (list, id) => list.find((x) => x.id === id)?.name ?? "";
   $("sum-voice").textContent = readAloud() ? `읽어 주기 켜짐. ${name(catalog.voices, saved.voice)}` : "읽어 주기 꺼짐";
   $("sum-model").textContent = [name(catalog.models, saved.model) || saved.model?.split("/").pop(), name(catalog.thinking, saved.thinking)].filter(Boolean).join(", ");
-  $("sum-mcp").textContent = mcpCount;
 }
 async function openSettings() {
   renderTextSize();
@@ -663,7 +664,7 @@ function openPage(view, deviceId = null) {
   setMenu(false, false);
   opened = deviceId;
   document.body.dataset.view = view;
-  if (view === "settings") { showCat(""); openSettings(); loadMcp(); }
+  if (view === "settings") { showCat(""); openSettings(); loadAccounts(); loadMcp(); }
   if (view === "device") readRoom(deviceId);
   drawn = ""; renderPage();
   const pane = view === "settings" ? $("settings") : $("devices");
@@ -970,27 +971,203 @@ function renderDevice(d) {
   $("devices-body").replaceChildren(...parts);
 }
 
-// The MCP servers Kkachi can use (GET /api/mcp): its own, with whether each answers now, and the ones
-// registered in the user's Pi.
-const MCP_NAME = { devices: "기기", memory: "노트", ha: "Home Assistant" };
-async function loadMcp() {
-  const rows = (list, sub) => (list.length ? list.map((s) => {
-    const r = row(MCP_NAME[s.name] ?? s.name, sub(s));
-    if (s.ok === false) r.querySelector(".sub").classList.add("down");
+const post = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+  .then(async (r) => ({ ok: r.ok, ...(await r.json().catch(() => ({}))) })).catch(() => ({ ok: false }));
+const field = (label, input) => { const f = el("label", "field"); f.append(text("span", "", label), input); return f; };
+const inputOf = (type, placeholder = "", value = "") => { const i = el(type === "textarea" ? "textarea" : "input"); if (type !== "textarea") i.type = type; i.placeholder = placeholder; i.value = value; i.autocomplete = "off"; i.spellcheck = false; return i; };
+const button = (label, click, cls = "play") => { const b = text("button", cls, label); b.type = "button"; b.addEventListener("click", click); return b; };
+const actions = (...items) => { const a = el("div", "actions"); a.append(...items); return a; };
+
+// ---- accounts (Settings, 계정; src/accounts.ts): signing in to a subscription or entering a key ----
+let accountList = [], flowFor = null; // flowFor: the account being connected, its form under the list
+const CONNECTED = { subscription: "구독으로 연결됨", key: "API 키로 연결됨", env: "서버 설정으로 연결됨" };
+async function loadAccounts() {
+  const r = await fetch("/api/accounts").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  if (!r) { $("accounts").replaceChildren(el("div", "loading", "불러오지 못했어요")); return; }
+  accountList = r.accounts;
+  renderAccounts();
+  if (r.login && !["done", "error"].includes(r.login.step)) { flowFor = r.login.id; showLogin(r.login); } // one already going
+  renderSums();
+}
+function renderAccounts() {
+  $("accounts").replaceChildren(...accountList.map((a) => {
+    const stored = a.connected === "subscription" || a.connected === "key";
+    const r = row(a.name, a.connected ? CONNECTED[a.connected] : a.note, stored
+      ? { label: "연결 해제", click: () => signOut(a) }
+      : { label: "연결", click: () => connect(a) });
+    if (!a.connected) r.classList.add("off");
     return r;
-  }) : [el("div", "loading", "없어요")]);
-  try {
-    const r = await fetch("/api/mcp");
-    if (!r.ok) throw new Error("mcp " + r.status);
-    const { servers } = await r.json();
-    $("mcp-kkachi").replaceChildren(...rows(servers.filter((s) => s.source === "kkachi"), (s) => (s.ok ? `연결됨. 도구 ${s.tools}개` : "응답이 없어요")));
-    $("mcp-pi").replaceChildren(...rows(servers.filter((s) => s.source === "pi"), () => "등록됨"));
-    const own = servers.filter((s) => s.source === "kkachi");
-    mcpCount = `까치 ${own.length}개${own.some((s) => s.ok === false) ? " (응답 없는 것 있음)" : ""}, Pi ${servers.length - own.length}개`;
-    $("sum-mcp").textContent = mcpCount;
-  } catch {
-    for (const id of ["mcp-kkachi", "mcp-pi"]) $(id).replaceChildren(el("div", "loading", "불러오지 못했어요"));
+  }));
+}
+async function signOut(a) {
+  if (!confirm(`${a.name} 연결을 해제할까요?`)) return;
+  const r = await post("/api/accounts/signout", { id: a.id });
+  if (!r.ok) { toast("해제하지 못했어요"); return; }
+  accountList = r.accounts; renderAccounts(); renderSums(); toast("연결을 해제했어요");
+}
+const flowBox = () => $("account-flow");
+function flowPanel(title, ...parts) {
+  const box = flowBox();
+  box.className = "flow";
+  box.replaceChildren(text("h3", "", title), ...parts);
+  box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+function closeFlow() { flowFor = null; flowBox().replaceChildren(); }
+const cancelFlow = () => button("취소", () => { post("/api/accounts/cancel", {}); closeFlow(); });
+function connect(a) {
+  flowFor = a.id;
+  if (a.ways.length > 1) flowPanel(`${a.name} 연결`, actions(button("구독으로 로그인", () => signIn(a), "play primary"), button("API 키 넣기", () => keyForm(a)), cancelFlow()));
+  else if (a.ways[0] === "subscription") signIn(a);
+  else keyForm(a);
+}
+function keyForm(a) {
+  const key = inputOf("password", "API 키");
+  const err = el("p", "err"); err.hidden = true;
+  const save = async () => {
+    if (!key.value.trim()) return;
+    const r = await post("/api/accounts/key", { id: a.id, key: key.value });
+    if (!r.ok) { err.textContent = "저장하지 못했어요"; err.hidden = false; return; }
+    accountList = r.accounts; closeFlow(); renderAccounts(); renderSums(); toast(`${a.name} 연결했어요`);
+  };
+  key.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+  flowPanel(`${a.name.replace(/ API$/, "")} API 키`, field("API 키", key), err, actions(button("저장", save, "play primary"), cancelFlow()));
+  key.focus();
+}
+async function signIn(a) {
+  flowFor = a.id;
+  flowPanel(`${a.name} 로그인`, text("p", "note", "로그인 준비 중…"));
+  const r = await post("/api/accounts/login", { id: a.id });
+  if (flowFor !== a.id) return;
+  showLogin(r.login ?? { id: a.id, step: "error", error: r.error });
+}
+// Where the sign-in is: Claude gives a code to paste back here, ChatGPT a code to type on its page.
+function showLogin(l) {
+  const a = accountList.find((x) => x.id === l.id) ?? { name: l.id };
+  if (l.step === "done") { closeFlow(); toast(`${a.name} 연결했어요`); loadAccounts(); openSettings(); return; }
+  if (l.step === "error") {
+    flowPanel(`${a.name} 로그인`, text("p", "err", `연결하지 못했어요. ${l.error ?? ""}`.trim()), actions(button("다시 시도", () => signIn(a), "play primary"), cancelFlow()));
+    return;
   }
+  const open = el("a", "play primary"); open.href = l.url ?? "#"; open.target = "_blank"; open.rel = "noopener noreferrer";
+  if (l.step === "code") {
+    open.textContent = "로그인 페이지 열기";
+    const code = inputOf("text", "코드");
+    const err = el("p", "err"); err.hidden = true;
+    const send = async () => {
+      if (!code.value.trim()) return;
+      const r = await post("/api/accounts/code", { code: code.value });
+      if (!r.ok || r.login?.step === "error") { err.textContent = `코드가 맞지 않아요. ${r.login?.error ?? ""}`.trim(); err.hidden = false; if (r.login?.step === "error") showLogin(r.login); return; }
+      showLogin(r.login);
+    };
+    code.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+    flowPanel(`${a.name} 로그인`,
+      text("p", "note", "1. 로그인 페이지에서 로그인하세요. 끝나면 코드가 나와요."), actions(open),
+      text("p", "note", "2. 그 코드를 복사해서 여기에 붙여 넣으세요."), field("코드", code), err,
+      actions(button("확인", send, "play primary"), cancelFlow()));
+    return;
+  }
+  if (l.step === "device") {
+    open.textContent = "OpenAI 페이지 열기";
+    flowPanel(`${a.name} 로그인`,
+      text("p", "note", "1. OpenAI 페이지를 열고 로그인하세요."), actions(open),
+      text("p", "note", "2. 이 코드를 넣고 승인하세요. 승인하면 저절로 연결돼요."), text("div", "user-code", l.userCode ?? ""),
+      actions(cancelFlow()));
+  } else flowPanel(`${a.name} 로그인`, text("p", "note", "확인하는 중…"), actions(cancelFlow()));
+  waitForLogin(l.id); // until it is done, or given up
+}
+let waiting = null;
+function waitForLogin(id) {
+  clearTimeout(waiting);
+  waiting = setTimeout(async () => {
+    if (flowFor !== id || page() !== "settings") return;
+    const r = await fetch("/api/accounts").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    if (flowFor !== id) return;
+    if (r?.login && r.login.step !== "device" && r.login.step !== "starting") showLogin(r.login);
+    else if (!r?.login) { closeFlow(); loadAccounts(); } // it ended elsewhere
+    else waitForLogin(id);
+  }, 2000);
+}
+
+// ---- tools (Settings, 도구; src/mcp-servers.ts): Kkachi's own, the ones added, and what to add ----
+const MCP_NAME = { devices: "기기", memory: "노트" };
+let mcp = null, adding = null; // adding: the suggestion (or "own") whose form is open
+async function loadMcp(fresh = false) {
+  const r = await fetch(`/api/mcp${fresh ? "?fresh" : ""}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  if (!r) { for (const id of ["mcp-builtin", "mcp-added"]) $(id).replaceChildren(el("div", "loading", "불러오지 못했어요")); return; }
+  mcp = r; renderMcp(); renderSums();
+}
+const toolState = (s) => (!s.enabled ? ["꺼 둠"] : s.state === "connected" ? [`연결됨. 도구 ${s.tools}개`] : s.state === "needs-auth" ? ["로그인이 필요해요", true]
+  : s.state === "failed" ? [`연결하지 못했어요${s.error ? `. ${s.error.split("\n")[0].slice(0, 80)}` : ""}`, true] : ["확인하는 중…"]);
+function renderMcp() {
+  $("mcp-builtin").replaceChildren(...mcp.builtin.map((s) => {
+    const r = row(MCP_NAME[s.name] ?? s.name, s.ok ? `연결됨. 도구 ${s.tools}개` : "응답이 없어요");
+    if (!s.ok) r.querySelector(".sub").classList.add("down");
+    return r;
+  }));
+  $("mcp-added").replaceChildren(...(mcp.added.length ? mcp.added.map((s) => {
+    const [words, down] = toolState(s);
+    const r = row(s.title, words);
+    if (down) r.querySelector(".sub").classList.add("down");
+    if (!s.enabled) r.classList.add("off");
+    r.append(actions(
+      iconButton("M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13", `${s.title} 삭제`, () => removeTool(s)),
+      switchFor(s.enabled, `${s.title} 쓰기`, (on) => changeTool("enable", { name: s.name, on }))));
+    return r;
+  }) : [el("div", "loading", "아직 없어요")]));
+  const rows = [];
+  for (const s of mcp.suggested.filter((x) => !x.added)) {
+    rows.push(row(s.name, `${s.by}. ${s.note}`, adding === s.id ? null : { label: "추가", click: () => { adding = s.id; renderMcp(); } }));
+    if (adding === s.id) rows.push(suggestedForm(s));
+  }
+  rows.push(row("직접 추가", "주소나 실행 명령으로 다른 MCP 서버를 붙여요", adding === "own" ? null : { label: "추가", click: () => { adding = "own"; renderMcp(); } }));
+  if (adding === "own") rows.push(ownForm());
+  $("mcp-suggest").replaceChildren(...rows);
+}
+async function changeTool(what, body, done) {
+  const r = await post(`/api/mcp/${what}`, body);
+  if (!r.ok) { done?.(r.error ?? "바꾸지 못했어요"); if (!done) toast(r.error ?? "바꾸지 못했어요"); return false; }
+  mcp.added = r.added; mcp.suggested = mcp.suggested.map((x) => ({ ...x, added: r.added.some((a) => a.name === x.id) }));
+  renderMcp(); renderSums();
+  return true;
+}
+async function removeTool(s) {
+  if (!confirm(`'${s.title}' 도구를 삭제할까요?`)) return;
+  if (await changeTool("remove", { name: s.name })) toast("삭제했어요");
+}
+function formWith(parts, submit) {
+  const f = el("div", "form");
+  const err = el("p", "err"); err.hidden = true;
+  const go = button("추가", async () => {
+    go.disabled = true; go.textContent = "확인하는 중…"; // the new server is asked at once
+    const ok = await submit((message) => { err.textContent = message; err.hidden = false; });
+    go.disabled = false; go.textContent = "추가";
+    if (ok) { adding = null; renderMcp(); toast("추가했어요. 다음 말부터 써요"); }
+  }, "play primary");
+  f.append(...parts, err, actions(go, button("취소", () => { adding = null; renderMcp(); })));
+  return f;
+}
+function suggestedForm(s) {
+  const inputs = s.fields.map((x) => [x.key, inputOf(x.secret ? "password" : "text", x.placeholder ?? "", x.value ?? "")]);
+  const help = el("a"); help.href = s.help; help.target = "_blank"; help.rel = "noopener noreferrer"; help.textContent = "어디서 받나요?";
+  const note = el("p", "note"); note.append(help);
+  return formWith([...inputs.map(([k, i]) => field(s.fields.find((x) => x.key === k).label, i)), note],
+    (fail) => changeTool("add", { suggested: s.id, values: Object.fromEntries(inputs.map(([k, i]) => [k, i.value])) }, fail));
+}
+function ownForm() {
+  const name = inputOf("text", "my-server"), url = inputOf("url", "https://…/mcp"), token = inputOf("password", "없으면 비워 두세요");
+  const command = inputOf("text", "npx -y some-mcp-server"), env = inputOf("textarea", "API_KEY=…");
+  const kind = el("div", "segment two", '<label><input type="radio" name="own-kind" value="url" checked>주소</label><label><input type="radio" name="own-kind" value="command">명령</label>');
+  kind.setAttribute("role", "radiogroup"); kind.setAttribute("aria-label", "붙이는 방법");
+  const byUrl = el("div", "form"), byCommand = el("div", "form");
+  byUrl.style.padding = byCommand.style.padding = "0";
+  byUrl.append(field("주소", url), field("토큰", token));
+  byCommand.append(field("실행 명령 (서버에서 실행돼요)", command), field("환경 변수 (한 줄에 하나씩)", env));
+  byCommand.hidden = true;
+  kind.addEventListener("change", () => { const c = kind.querySelector("input:checked").value === "command"; byCommand.hidden = !c; byUrl.hidden = c; });
+  return formWith([field("이름 (영문, 숫자, -, _)", name), kind, byUrl, byCommand], (fail) => {
+    const c = kind.querySelector("input:checked").value === "command";
+    return changeTool("add", c ? { name: name.value, command: command.value, env: env.value } : { name: name.value, url: url.value, token: token.value }, fail);
+  });
 }
 
 $("new-conversation").addEventListener("click", async () => {

@@ -8,7 +8,7 @@
 
 - 공기계는 앱을 깔지 않고 웹페이지 하나로 붙는다.
 - core 는 에이전트 루프와 MCP 연결만 맡는다. 기기, 기억, 집은 MCP 서비스로 꽂는다.
-- 에이전트는 Pi 하나다. Claude Code 나 Codex 를 따로 지원하지 않는다. harness 마다 연결부를 만들면 가볍지 않다. 모델은 Pi 에 로그인한 구독(Claude, ChatGPT 등)을 쓰고, 다른 도구에 붙여 둔 MCP 는 설치할 때 가져올 수 있다(pi-mcp-adapter).
+- 에이전트는 Pi 하나다. Claude Code 나 Codex 를 따로 지원하지 않는다. harness 마다 연결부를 만들면 가볍지 않다. 까치는 사용자의 Pi 와 따로 자기 설정을 갖고, 계정(Claude, ChatGPT 구독이나 API 키)과 쓸 MCP 를 까치 홈에서 정한다. 다른 도구에 붙여 둔 것을 끌어오지 않고 필요한 것만 붙인다.
 - 넓히는 방법은 MCP 하나다. 붙여 쓸 만한 서버는 [extensions.md](extensions.md) 에 모아 둔다. 까치의 기억과 공기계도 MCP 라서 Claude Desktop 이나 Codex 가 까치를 쓸 수 있다.
 - 무거운 것은 필요해질 때 붙이는 선택이다. Home Assistant 는 실제 전구나 카메라가 생기면 ha-mcp 로 붙이고([ha.md](ha.md)), 로컬 모델(LLM, 음성 인식, 목소리)은 그걸 돌릴 수 있는 컴퓨터에서만 쓴다.
 

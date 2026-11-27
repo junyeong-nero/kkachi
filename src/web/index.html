@@ -434,6 +434,26 @@
   @media (hover: hover) { .plain-btn:hover { background: var(--line); } }
   .plain-btn:disabled { color: var(--muted); cursor: progress; } /* waiting for the server */
   .loading { padding: 14px; font-size: var(--t-sm); color: var(--muted); }
+  /* signing in, entering a key, adding a tool: a form under its row */
+  .flow { margin-top: 12px; padding: 16px; border-radius: var(--r-md); background: var(--surface); display: grid; gap: 14px; }
+  .flow:empty { display: none; }
+  .flow h3 { margin: 0; font-size: var(--t-base); }
+  .group > .form { display: grid; gap: 12px; padding: 4px 14px 16px; }
+  .field { display: grid; gap: 6px; }
+  .field > span { font-size: var(--t-sm); color: var(--muted); }
+  .field input, .field textarea {
+    width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); font: inherit; font-size: max(16px, var(--t-base));
+  }
+  .field textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, monospace; font-size: max(16px, var(--t-sm)); }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .actions .play { min-height: 40px; padding: 8px 16px; font-size: var(--t-base); }
+  .play.primary { background: var(--button); color: var(--button-ink); border-color: transparent; font-weight: 700; }
+  a.play { text-decoration: none; display: inline-flex; align-items: center; }
+  .form a, .flow a:not(.play) { color: var(--text); }
+  .user-code { font-size: var(--t-lg); font-weight: 700; letter-spacing: .08em; font-variant-numeric: tabular-nums; user-select: all; }
+  .form .err, .flow .err { margin: 0; color: var(--danger); font-size: var(--t-sm); }
+  .device .actions { flex-wrap: nowrap; gap: 4px; }
   .device { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; }
   .device + .device { border-top: 1px solid var(--line); }
   .device .name { font-size: var(--t-base); font-weight: 600; }
@@ -498,10 +518,11 @@
         <h1>설정</h1>
       </div>
       <div class="group cats">
+        <button type="button" class="device item cat-row" data-cat="account"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/></svg></span><span><span class="name">계정</span><span class="sub" id="sum-account"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="look"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19l5-14 5 14M6 14h6M15 19l3-8 3 8M16 16h4"/></svg></span><span><span class="name">외형</span><span class="sub" id="sum-look"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="voice"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4zM16.5 8.5a5 5 0 0 1 0 7"/></svg></span><span><span class="name">소리</span><span class="sub" id="sum-voice"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="model"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h8v10H8zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h5M3 14h5M16 10h5M16 14h5"/></svg></span><span><span class="name">모델</span><span class="sub" id="sum-model"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
-        <button type="button" class="device item cat-row" data-cat="mcp"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5"/></svg></span><span><span class="name">도구 (MCP)</span><span class="sub" id="sum-mcp"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="device item cat-row" data-cat="mcp"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5"/></svg></span><span><span class="name">도구</span><span class="sub" id="sum-mcp"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
       </div>
       <div class="group cats">
         <button type="button" class="device item" id="refresh"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></span><span><span class="name">앱 다시 불러오기</span><span class="sub">새 버전이 있으면 받아요</span></span></button>
@@ -552,15 +573,26 @@
       <p class="note">빠르게는 답이 일찍 오고, 꼼꼼하게는 어려운 일을 더 잘해요.</p>
     </div>
 
+    <div class="cat" data-cat="account">
+      <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
+      <h1>계정</h1>
+      <p class="lede">까치가 생각하고 답할 때 쓰는 AI 계정이에요. 하나만 있어도 돼요.</p>
+      <div class="group" id="accounts"><div class="loading">불러오는 중…</div></div>
+      <div id="account-flow"></div>
+      <p class="note">계정 정보는 이 서버에만 저장돼요.</p>
+    </div>
+
     <div class="cat" data-cat="mcp">
       <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
-      <h1>도구 (MCP)</h1>
-      <p class="lede">까치가 쓰는 도구 서버예요. MCP 라고 불러요. 까치는 Pi 라는 에이전트 위에서 돌아서, Pi 에 등록한 서버도 써요.</p>
-      <h2>까치의 MCP 서버</h2>
-      <div class="group" id="mcp-kkachi"><div class="loading">불러오는 중…</div></div>
-      <h2>Pi 에 등록한 MCP 서버</h2>
-      <div class="group" id="mcp-pi"><div class="loading">불러오는 중…</div></div>
-      <p class="note">이 서버들은 쓸 때 연결해서, 지금 연결돼 있는지는 여기서 알 수 없어요.</p>
+      <h1>도구</h1>
+      <p class="lede">까치가 집의 기기나 다른 서비스를 다룰 때 쓰는 도구예요. MCP 서버로 붙여요.</p>
+      <h2>기본</h2>
+      <div class="group" id="mcp-builtin"><div class="loading">불러오는 중…</div></div>
+      <h2>추가한 것</h2>
+      <div class="group" id="mcp-added"><div class="loading">불러오는 중…</div></div>
+      <h2>추가하기</h2>
+      <div class="group" id="mcp-suggest"></div>
+      <p class="note">추가하거나 바꾼 도구는 다음 말부터 써요. 기기에 대고 한 말에도 같은 도구를 써요.</p>
     </div>
   </div>
 </section>

@@ -2,7 +2,6 @@
 // They apply server-side: TTS voice and speed, the primary model, the thinking level, and how
 // Kkachi handles what is said to a spare device (docs/bus.md).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { config } from "./config";
 
@@ -64,7 +63,7 @@ export const THINKING = [
 /** Providers the user's Pi has credentials for (names only; secrets are never read out). */
 export function authedProviders(): Set<string> {
   const providers = new Set<string>();
-  const auth = join(process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"), "auth.json");
+  const auth = join(config.agentDir, "auth.json");
   try { for (const k of Object.keys(JSON.parse(readFileSync(auth, "utf8")))) providers.add(k); } catch {}
   if (process.env.OPENROUTER_API_KEY) providers.add("openrouter");
   if (process.env.OPENAI_API_KEY) providers.add("openai");

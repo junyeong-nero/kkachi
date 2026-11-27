@@ -10,15 +10,16 @@
 
 ## 붙이는 법
 
-Pi 에 붙이면 까치가 그대로 쓴다. 까치 홈의 대화는 Pi 설정을 공유한다.
+까치 홈 메뉴의 설정, 도구에서 붙인다. 까치는 사용자의 Pi 설정이 아니라 자기 설정(`data/agent`)을 쓰므로, Claude Code 나 Codex 에 붙여 둔 서버는 따라오지 않는다. 필요한 것만 여기서 다시 붙인다.
 
-1. Claude Code, Codex, Cursor, VS Code, Claude Desktop 에 이미 붙여 둔 서버는 `pi-mcp-adapter init` 으로 가져온다. `bun run init` 이 찾아서 가져올지 물어본다. 어댑터 설정(`~/.pi/agent/mcp-adapter.json`)의 `imports` 에 그 도구들이 들어간다.
-2. 새 서버는 여러 도구가 같이 읽는 `~/.config/mcp/mcp.json`, 또는 `~/.pi/agent/mcp.json` 의 `mcpServers` 에 넣는다. 실행 명령(`command`, `args`, `env`)이나 `url` 은 각 프로젝트 README 에 있는 그대로 쓴다.
-3. 어댑터는 서버를 처음 쓸 때 연결하고, 도구들을 `mcp` 도구 하나로 묶는다. 서버가 늘어도 대화가 무거워지지 않는다.
+- 추천: Home Assistant(ha-mcp, 주소만)와 LG ThinQ(LG 공식, 개인 액세스 토큰). 필요한 값만 묻는다.
+- 직접 추가: 원격 서버는 주소(필요하면 토큰), 로컬 서버는 실행 명령과 환경 변수. 각 프로젝트 README 에 있는 그대로 쓴다. 명령은 까치 서버에서 실행된다.
+- 붙인 서버는 켜고 끄거나 지울 수 있고, 연결됐는지와 도구 수가 보인다. 바꾸면 다음 말부터 쓴다.
+- OAuth 로그인이 필요한 서버는 아직 안 된다. 로그인 뒤 돌아오는 곳이 까치 서버의 localhost 라서 폰에서 끝낼 수 없다. 삼성 SmartThings 공식 서버는 아는 클라이언트(ChatGPT, Claude)만 받아서 붙일 수 없다. SmartThings 기기는 Home Assistant 에 붙여서 쓴다.
 
-`kkachi.mcp.json` 은 까치 core 가 직접 붙는 자리다. 상태를 따로 갖지 않는(stateless) Streamable HTTP 서버만 되고, 대신 에이전트마다 도구를 하나씩 골라 줄 수 있다. Home Assistant 의 ha-mcp 가 이렇게 붙어 있다([ha.md](ha.md)).
+`kkachi.mcp.json` 은 까치 자신의 서비스(기기, 기억)가 붙는 자리다. 여기 넣은 서버는 늘 켜져 있고 설정에서 끌 수 없다.
 
-Pi 에 붙인 서버도 까치 홈 대화와 공기계에서 똑같이 쓴다. 공기계에는 방에 있는 누구나 말할 수 있으니, 멀리 닿는 서버(메일, 저장소, 브라우저)를 붙였다면 손님이 오는 곳의 기기는 음성을 닫아 둔다.
+붙인 서버는 까치 홈 대화와 공기계에서 똑같이 쓴다. 공기계에는 방에 있는 누구나 말할 수 있으니, 멀리 닿는 서버(메일, 저장소, 브라우저)를 붙였다면 손님이 오는 곳의 기기는 음성을 닫아 둔다.
 
 ## 조명
 

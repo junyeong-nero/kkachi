@@ -21,6 +21,8 @@ export const config = {
   root,
   memoryDir,
   dataDir,
+  // Kkachi's own Pi setup (accounts, MCP servers, packages), apart from the user's ~/.pi/agent. src/agent-dir.ts
+  agentDir: resolve(env.KKACHI_AGENT_DIR ?? join(dataDir, "agent")),
   port: Number(env.KKACHI_PORT ?? 4300),
   // Ordered fallback list of Pi models (provider/model, comma-separated). See src/models.ts.
   // Default: the Pi subscription model first, free OpenRouter models if it is limited.

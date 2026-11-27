@@ -6,8 +6,10 @@ import { polish } from "./polish";
 import { modelOrder } from "./models";
 import { settings, THINKING, updateSettings, VOICES } from "./settings";
 import { synthesize, transcribe } from "./speech";
-import { applyThinking, currentSession, modelChoices, newConversation, openConversation, runTurn, startConversation } from "./turn";
+import { applyThinking, currentSession, reloadAgent, modelChoices, newConversation, openConversation, runTurn, startConversation } from "./turn";
 import { conversations, fileOf, idOf, newestId, transcript } from "./conversations";
+import { addOwn, addSuggested, enableServer, forget, listServers, removeServer, suggestions } from "./mcp-servers";
+import { accounts, answerLogin, cancelLogin, currentLogin, loginShown, saveKey, signOut, startLogin } from "./accounts";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
 import { accept, parseInput } from "./bus";
@@ -90,9 +92,14 @@ Bun.serve({
         if (pathname === "/api/settings") {
           return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
         }
-        if (pathname === "/api/mcp") return Response.json({ servers: await connections() }); // Settings' list of MCP servers
+        // Settings, 도구: Kkachi's own servers, the ones added (?fresh asks each again), and the suggestions
+        if (pathname === "/api/mcp") {
+          const [builtin, added] = await Promise.all([connections(), listServers(new URL(req.url).searchParams.has("fresh"))]);
+          return Response.json({ builtin, added, suggested: suggestions() });
+        }
         // Kkachi Home's conversations (Pi's session files): the menu lists them, and the app shows the
         // open one again when it is reopened. ?id= reads another.
+        if (pathname === "/api/accounts") return Response.json({ accounts: accounts(), login: currentLogin() });
         if (pathname === "/api/conversations") return Response.json({ current: await currentId(), list: conversations(SESSIONS) });
         if (pathname === "/api/conversation") {
           const id = new URL(req.url).searchParams.get("id") ?? await currentId();
@@ -126,6 +133,35 @@ Bun.serve({
         if (typeof text !== "string" || !text.trim()) return new Response("empty message", { status: 400 });
         pushFeed({ kind: "message", from: "까치", text: text.slice(0, 4000), speak: true });
         return new Response(null, { status: 204 });
+      }
+
+      // Accounts (Settings, 계정; src/accounts.ts): a subscription signed in to step by step, an API key, signing out.
+      if (req.method === "POST" && pathname.startsWith("/api/accounts/")) {
+        const body = await req.json().catch(() => ({}));
+        const changed = () => { log("account", { id: body.id }); reloadAgent().catch((err) => console.error("reload after account change failed", err)); };
+        const what = pathname.slice("/api/accounts/".length);
+        if (what === "login") { startLogin(String(body.id), changed); return Response.json({ login: await loginShown() }); }
+        if (what === "code") return answerLogin(String(body.code ?? "")) ? Response.json({ login: await loginShown(15000) }) : new Response("no sign-in waiting for a code", { status: 409 });
+        if (what === "cancel") { cancelLogin(); return Response.json({}); }
+        if (what === "key" && typeof body.key === "string" && body.key.trim()) { saveKey(String(body.id), body.key); changed(); return Response.json({ accounts: accounts() }); }
+        if (what === "signout") { signOut(String(body.id)); changed(); return Response.json({ accounts: accounts() }); }
+        return new Response("unknown", { status: 404 });
+      }
+
+      // MCP servers added in Kkachi Home (src/mcp-servers.ts). A change starts the conversation's Pi again.
+      if (req.method === "POST" && pathname.startsWith("/api/mcp/")) {
+        const body = await req.json().catch(() => ({}));
+        const what = pathname.slice("/api/mcp/".length);
+        try {
+          if (what === "add") body.suggested ? addSuggested(String(body.suggested), body.values ?? {}) : addOwn(body);
+          else if (what === "remove") removeServer(String(body.name));
+          else if (what === "enable") enableServer(String(body.name), !!body.on);
+          else return new Response("unknown", { status: 404 });
+        } catch (err) { return Response.json({ error: (err as Error).message }, { status: 400 }); }
+        log("mcp_change", { what, name: body.name ?? body.suggested ?? null });
+        forget();
+        reloadAgent().catch((err) => console.error("reload after an MCP change failed", err));
+        return Response.json({ added: await listServers(true) });
       }
 
       if (req.method === "POST" && pathname === "/api/conversation/open") {
