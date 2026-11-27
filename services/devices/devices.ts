@@ -8,6 +8,7 @@
 //   {type:"state", armed, perms} (sound unlocked, permissions granted),
 //   {type:"result", id, ok, data?|error?},
 //   {type:"input", id, kind:"talk", age, audio, mime} (something said; acked once core has it, docs/bus.md),
+//   {type:"timing", ackMs, heardMs, soundMs, audioMs} (how long the last one took on the page),
 //   {type:"done"|"failed", id, error?} (pages from before "result")
 // Server → device: {type:"pending"|"ready", name, token}, {type:"forgotten"}, {type:"update"},
 //   {type:"use", pads, agent} (whether the talk pad shows, and what is open to the agent: set in Kkachi Home),
@@ -152,6 +153,8 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       if (msg.perms) d.perms = bools(msg.perms);
     }
     if (msg.type === "input") receive(d, msg);
+    // How long things took on the page, from letting go of the talk pad (ms): sent, heard, first sound
+    if (msg.type === "timing") log("device_timing", { name: d.name, ackMs: num(msg.ackMs), heardMs: num(msg.heardMs), soundMs: num(msg.soundMs), audioMs: num(msg.audioMs) });
     if (typeof msg.id === "string") {
       if (msg.type === "result") waiting.get(msg.id)?.({ ok: !!msg.ok, data: msg.data, error: msg.error });
       if (msg.type === "done") waiting.get(msg.id)?.({ ok: true });
@@ -215,6 +218,17 @@ export async function replyOn(target: string, a: { inputId: string; heard: strin
   send(d, msg);
   log("device_reply", { name: d.name, heard: !!a.heard, audio: "audio" in said, online: !!d.socket });
   return d.socket ? "delivered" : "device offline; kept for two minutes";
+}
+
+/** How the answer to an input is coming along, for that device's screen only (no voice, nothing kept):
+ * what was heard, what Kkachi is doing ("노트 찾는 중"), and the words as they are written. */
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : undefined);
+
+export function progressOn(target: string, a: { inputId: string; heard: string; working?: string; draft?: string }): string {
+  const d = find(target);
+  if (!d) throw new Error(`No device named "${target}".`);
+  send(d, { type: "progress", ...a });
+  return "shown";
 }
 
 // Find an allowed device by name ("거실", "거실 폰"), forgiving case and spaces, or by id.

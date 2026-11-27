@@ -19,7 +19,7 @@ const EN = {
   "마이크를 다시 연결했어요. 다시 눌러 말해 주세요": "The microphone was reconnected. Tap again to speak", "받아적는 중…": "Writing it down…",
   "잘 못 들었어요. 다시 말해 주세요.": "Didn't catch that. Please say it again.", "연결이 끊겼어요.": "The connection dropped.", "다시 보내기": "Send again",
   "노트 찾는 중": "Looking in the notes", "파일 보는 중": "Reading files", "기억하는 중": "Remembering", "파일 고치는 중": "Editing files", "웹에서 찾는 중": "Searching the web",
-  "되돌리는 중": "Undoing", "다른 에이전트에게 맡기는 중": "Handing it to another agent", "사진 찍는 중": "Taking a photo", "소리 듣는 중": "Listening to the room",
+  "되돌리는 중": "Undoing", "다른 에이전트에게 맡기는 중": "Handing it to another agent", "사진 찍는 중": "Taking a photo", "소리 듣는 중": "Listening to the room", "밝기 재는 중": "Measuring the light",
   "기기 살펴보는 중": "Checking the device", "조명 바꾸는 중": "Changing the light", "기기로 말하는 중": "Speaking on a device", "도구 쓰는 중": "Using a tool", "작업하는 중": "Working",
   "보낸 사진": "Photo sent", "생각": "Thinking", "{s}초": "{s} s", "기기가 찍은 사진": "Photo from the device", "기억함: {name}": "Remembered: {name}",
   "저장했어요": "Saved", "저장하지 못했어요": "Could not save", "답하지 못했어요": "No answer", "{from}에서": "On {from}", "까치가 보냈어요": "From Kkachi",

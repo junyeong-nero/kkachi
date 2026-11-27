@@ -280,7 +280,7 @@ function activityLabel(tool = "", path = "") {
   if (/web|search|fetch/i.test(tool)) return "웹에서 찾는 중";
   if (/undo/.test(tool)) return "되돌리는 중";
   if (/subagent/i.test(tool)) return "다른 에이전트에게 맡기는 중";
-  const device = { device_snapshot: "사진 찍는 중", device_sound_level: "소리 듣는 중", device_sensors: "기기 살펴보는 중", device_light: "조명 바꾸는 중", device_speak: "기기로 말하는 중" }[tool];
+  const device = { device_snapshot: "사진 찍는 중", device_sound_level: "소리 듣는 중", device_brightness: "밝기 재는 중", device_sensors: "기기 살펴보는 중", device_light: "조명 바꾸는 중", device_speak: "기기로 말하는 중" }[tool];
   if (device) return device;
   if (/mcp|browser/i.test(tool)) return "도구 쓰는 중";
   return "작업하는 중";

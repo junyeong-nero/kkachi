@@ -16,15 +16,22 @@ async function answer(e: Input) {
   try {
     heard = await polish(await transcribe(new Blob([Buffer.from(e.audio, "base64")], { type: e.mime || "audio/wav" })));
   } catch (err) { console.error("device input stt failed", err); }
-  await respond({ id: e.id, source: e.source }, heard, t0);
+  await respond({ id: e.id, source: e.source, age: e.age }, heard, t0);
 }
 
 /** What was said on a device, as words, to the agent, and the agent's answer back to the device. */
-async function respond(e: { id: string; source: { id: string; name: string } }, heard: string, t0 = performance.now()) {
+async function respond(e: { id: string; source: { id: string; name: string }; age?: number }, heard: string, t0 = performance.now()) {
   const reply = (r: { heard: string; text?: string; part?: number; last?: boolean; show?: string }) =>
     callTool("devices", "device_reply", { device: e.source.id, inputId: e.id, ...r }).catch((err) => console.error("device reply failed", err));
   if (!heard) return reply({ heard: "" });
   const t1 = performance.now();
+  // The device's screen follows along, as Kkachi Home's does: what was heard at once, then what Kkachi
+  // is doing and the words as they are written (a few times a second). The voice comes with reply.
+  const progress = (p: { working?: string; draft?: string }) =>
+    callTool("devices", "device_progress", { device: e.source.id, inputId: e.id, heard, ...p }).catch(() => {});
+  let draftTimer: ReturnType<typeof setTimeout> | null = null;
+  const draftSoon = () => { draftTimer ??= setTimeout(() => { draftTimer = null; if (text.trim()) progress({ draft: text.trim() }); }, 400); };
+  progress({ working: inLang("생각하는 중", "Thinking") });
 
   // The answer goes to the device a sentence at a time, each as soon as it is written, so the device
   // starts speaking while the agent is still writing (and each sentence's voice is made on its own, side
@@ -39,12 +46,14 @@ async function respond(e: { id: string; source: { id: string; name: string } }, 
 
   let text = "";
   await runTurn(heard, (ev) => { // a turn in Kkachi Home's conversation
-    if (ev.type === "delta") text += ev.text;
+    if (ev.type === "delta") { text += ev.text; draftSoon(); }
+    if (ev.type === "activity") progress({ working: workingWords(ev.tool, ev.path) });
     if (ev.type === "aside") text = ""; // what was said before a tool call ("찾아볼게요") has been spoken, as a sign of life; it is not the answer
     if (ev.type === "sentence") say(ev.text);
     if (ev.type === "error") { if (!text) text = ev.message; say(ev.message); }
   }, [], { device: e.source.name, header: `[기기: ${e.source.name}]` });
   text = text.trim();
+  if (draftTimer) clearTimeout(draftTimer);
   const t2 = performance.now();
 
   pushFeed({ kind: "turn", from: e.source.name, heard, text, speak: false }); // Kkachi Home shows it, silently
@@ -52,7 +61,18 @@ async function respond(e: { id: string; source: { id: string; name: string } }, 
   sent.push(reply({ heard, part: parts++, last: true, show: text })); // ends it, and leaves the answer on its screen
   await Promise.all(sent);
   const ms = (a: number, b: number) => Math.round(b - a);
-  log("device_input", { device: e.source.name, sttMs: ms(t0, t1), firstMs, turnMs: ms(t1, t2), replyMs: ms(t2, performance.now()), parts });
+  log("device_input", { device: e.source.name, ageMs: e.age, sttMs: ms(t0, t1), firstMs, turnMs: ms(t1, t2), replyMs: ms(t2, performance.now()), parts });
+}
+
+// What Kkachi is doing, in words, for the device's screen (Kkachi Home says the same: src/web/app.js).
+function workingWords(tool = "", path = ""): string {
+  const note = /\.md$/.test(path) && !path.startsWith("/");
+  if (/^(read|grep|find|ls|glob)$/.test(tool)) return note ? inLang("노트 찾는 중", "Looking in the notes") : inLang("파일 보는 중", "Reading files");
+  if (tool === "edit" || tool === "write") return note ? inLang("기억하는 중", "Remembering") : inLang("파일 고치는 중", "Editing files");
+  if (/web|search|fetch/i.test(tool)) return inLang("웹에서 찾는 중", "Searching the web");
+  const device: Record<string, [string, string]> = { device_snapshot: ["사진 찍는 중", "Taking a photo"], device_sound_level: ["소리 듣는 중", "Listening to the room"], device_brightness: ["밝기 재는 중", "Measuring the light"], device_sensors: ["기기 살펴보는 중", "Checking the device"], device_light: ["조명 바꾸는 중", "Changing the light"], device_speak: ["기기로 말하는 중", "Speaking on a device"] };
+  if (device[tool]) return inLang(...device[tool]);
+  return inLang("작업하는 중", "Working");
 }
 
 export const accept = makeInbox((e) => { answer(e).catch((err) => console.error("device input failed", err)); });

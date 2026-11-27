@@ -1,7 +1,7 @@
 // kkachi-devices as an MCP service: the tools and what they do. Which agent gets which is set in
 // core's kkachi.mcp.json.
 import type { McpService, McpTool } from "./lib/mcp-server";
-import { brightnessOn, describeDevices, lightOn, replyOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
+import { brightnessOn, describeDevices, lightOn, progressOn, replyOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
 
 const device = { type: "string", description: "Device name, as in list_devices" };
 
@@ -10,6 +10,12 @@ const DEFS: (Omit<McpTool, "run">)[] = [
     name: "device_reply",
     description: "Kkachi core only: the answer to something said on a device, shown there (what was heard, the answer read aloud, or where the answer went instead). A long answer comes a sentence at a time, as it is written: part counts them from 0, and last ends the answer (show: the whole answer, to leave on screen).",
     inputSchema: { type: "object", properties: { device, inputId: { type: "string" }, heard: { type: "string" }, text: { type: "string" }, part: { type: "number" }, last: { type: "boolean" }, show: { type: "string" } }, required: ["device", "inputId", "heard"] },
+    internal: true,
+  },
+  {
+    name: "device_progress",
+    description: "Kkachi core only: while an answer to something said on a device is being made, show on that device what was heard, what Kkachi is doing, and the words so far. Nothing is spoken.",
+    inputSchema: { type: "object", properties: { device, inputId: { type: "string" }, heard: { type: "string" }, working: { type: "string" }, draft: { type: "string" } }, required: ["device", "inputId", "heard"] },
     internal: true,
   },
   {
@@ -61,6 +67,10 @@ const DEFS: (Omit<McpTool, "run">)[] = [
 const name = (a: any) => String(a?.device ?? "");
 const looks = { readOnlyHint: true, openWorldHint: true }; // reads the room; changes nothing
 const RUN: Record<string, Pick<McpTool, "run" | "annotations">> = {
+  device_progress: {
+    annotations: { readOnlyHint: false, destructiveHint: false },
+    run: (a) => progressOn(name(a), { inputId: String(a?.inputId ?? ""), heard: String(a?.heard ?? ""), ...(typeof a?.working === "string" && { working: a.working.slice(0, 80) }), ...(typeof a?.draft === "string" && { draft: a.draft.slice(0, 2000) }) }),
+  },
   device_reply: {
     annotations: { readOnlyHint: false, destructiveHint: false },
     run: (a) => replyOn(name(a), { inputId: String(a?.inputId ?? ""), heard: String(a?.heard ?? ""), ...(a?.text && { text: String(a.text) }), ...(Number.isInteger(a?.part) && { part: a.part }), ...(a?.last === true && { last: true }), ...(typeof a?.show === "string" && { show: a.show }) }),

@@ -76,6 +76,8 @@
   #status.err { color: var(--danger); }
   #said { font-size: 22px; line-height: 1.45; min-height: 1.45em; color: var(--muted); }
   #said.speaking { color: var(--text); } /* the words being spoken now; earlier ones fade */
+  #said.working { font-size: 17px; } /* what Kkachi is doing, until words come */
+  #said.draft { color: var(--muted); } /* the answer as it is written, before its voice */
   form, #start { margin-top: 32px; width: 100%; }
   #name-input {
     width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: var(--r-md); text-align: center;
@@ -278,7 +280,7 @@
 // and answered is not translated. (Kkachi Home does the same in src/web/i18n.js.)
 const LANG = localStorage.getItem("kkachi.lang") || (/^ko\b/i.test(navigator.language || "") ? "ko" : "en");
 document.documentElement.lang = LANG;
-const EN = {"연결됨":"Connected", "연결됨. 화면을 한 번 눌러 주세요":"Connected. Tap the screen once", "스피커":"Speaker", "조명":"Lamp", "비추는 중":"Lit", "켜짐":"On", "음성":"Voice", "카메라":"Camera", "소리 크기":"Sound level", "움직임 센서":"Motion sensors", "위치":"Location", "탭 필요":"Needs a tap", "권한 없음":"Not allowed", "지원 안 함":"Not supported", "듣는 중":"Listening", "에이전트에게 닫힘":"Closed to Kkachi", "닫힘":"Closed", "입력 상태: {list}. 눌러서 설정 열기":"Inputs: {list}. Tap for settings", "아직 없어요":"Nothing yet", "다시 연결하는 중":"Reconnecting", "까치에 다시 연결하는 중…":"Reconnecting to Kkachi…", "휴대폰 까치 앱의 설정 → 기기에서 이 기기를 허용해 주세요.":"Allow this device in Kkachi Home on your phone: the menu, Devices.", "이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.":"This device was removed. Reload to use it again.", "이 기기를 다른 창에서 열었어요. 여기서 쓰려면 새로고침하세요.":"This device was opened in another window. Reload to use it here.", "말하는 중":"Speaking", "까치가 말했어요":"Kkachi spoke", "찍는 중":"Taking a photo", "까치 홈에서 사진을 찍었어요 (저장 안 함)":"Kkachi Home took a photo (not kept)", "까치가 사진을 찍었어요 (저장 안 함)":"Kkachi took a photo (not kept)", "재는 중":"Measuring", "까치 홈에서 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi Home measured the sound level (not recorded)", "까치가 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi measured the sound level (not recorded)", "읽는 중":"Reading", "까치 홈에서 센서를 읽었어요":"Kkachi Home read the sensors", "까치가 센서를 읽었어요":"Kkachi read the sensors", "까치 홈에서 밝기를 쟀어요 (사진 안 남김)":"Kkachi Home measured the light (no photo kept)", "까치가 밝기를 쟀어요 (사진 안 남김)":"Kkachi measured the light (no photo kept)", "켜는 중":"Turning on", "끄는 중":"Turning off", "까치가 조명을 켰어요":"Kkachi turned the lamp on", "까치가 조명을 껐어요":"Kkachi turned the lamp off", "전했어요":"Sent", "잘 못 들었어요":"Didn't catch that", "누른 채로 말하고, 떼면 보내요":"Hold to talk, let go to send", "듣고 있어요. 떼면 보내요":"Listening. Let go to send", "보내는 중…":"Sending…", "마이크를 쓸 수 없어요. 브라우저 설정에서 허용해 주세요.":"The microphone is not allowed. Allow it in the browser's settings.", "마이크 준비됐어요. 다시 누른 채로 말하세요":"The microphone is ready. Hold again to talk", "까치에 전하지 못했어요. 다시 말해 주세요":"Could not reach Kkachi. Please say it again", "음성이 꺼져 있어요":"Voice is closed", "너무 늦게 도착해서 버렸어요. 다시 말해 주세요":"It arrived too late and was dropped. Please say it again", "들을 까치가 연결돼 있지 않아요":"No Kkachi is connected to hear it", "까치가 받지 못했어요":"Kkachi did not get it", "잘 못 들었어요. 다시 말해 주세요":"Didn't catch that. Please say it again", "연결하는 중…":"Connecting…", "이 기기를 어디에 둘지 이름을 붙여 주세요.":"Name this device after where it will be.", "까치 기기":"Kkachi Device", "새 기기":"New device", "이 기기의 음성이 까치에게 닫혀 있어요. 까치 홈의 기기에서 열 수 있어요.":"This device's voice is closed to Kkachi. Open it in Kkachi Home, Devices.", "새 버전이 있어요. 눌러서 새로고침":"A new version is here. Tap to reload", "이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.":"This device cannot keep its screen on. Turn off auto-lock in its settings.", "시작":"Start", "탭해서 시작":"Tap to start", "소리와 마이크를 쓰려면 화면을 한 번 눌러야 해요.":"Tap the screen once for sound and the microphone.", "기록":"Log", "완료":"Done", "이 기기에서 있었던 일 최근 50개예요. 페이지를 새로 열면 비워져요.":"The last 50 things that happened on this device. Opening the page again clears it.", "이 기기":"This device", "출력":"Outputs", "입력":"Inputs", "까치가 무엇을 쓸지는 까치 홈에서 정해요. 여기는 지금 상태만 보여 줘요. 음성이 까치에게 열려 있으면 화면 가운데에 누르고 말하는 버튼이 나와요.":"What Kkachi may use is chosen in Kkachi Home; this shows how things are. With Voice open to Kkachi, a hold-to-talk button sits in the middle of the screen.", "까치":"Kkachi", "설정":"Settings", "이 기기의 입력":"This device's inputs", "음성: 누르고 있는 동안 말하고, 떼면 보내요":"Voice: talk while you hold, let go to send", "이 기기 이름 (예: 거실)":"This device's name (e.g. Living room)", "이 기기 이름":"This device's name", "이 기기로 할 수 있는 것":"What this device can do", "불 꺼줘":"Turn off the light"};
+const EN = {"연결됨":"Connected", "연결됨. 화면을 한 번 눌러 주세요":"Connected. Tap the screen once", "스피커":"Speaker", "조명":"Lamp", "비추는 중":"Lit", "켜짐":"On", "음성":"Voice", "카메라":"Camera", "소리 크기":"Sound level", "움직임 센서":"Motion sensors", "위치":"Location", "탭 필요":"Needs a tap", "권한 없음":"Not allowed", "지원 안 함":"Not supported", "듣는 중":"Listening", "에이전트에게 닫힘":"Closed to Kkachi", "닫힘":"Closed", "입력 상태: {list}. 눌러서 설정 열기":"Inputs: {list}. Tap for settings", "아직 없어요":"Nothing yet", "다시 연결하는 중":"Reconnecting", "까치에 다시 연결하는 중…":"Reconnecting to Kkachi…", "휴대폰 까치 앱의 설정 → 기기에서 이 기기를 허용해 주세요.":"Allow this device in Kkachi Home on your phone: the menu, Devices.", "이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.":"This device was removed. Reload to use it again.", "이 기기를 다른 창에서 열었어요. 여기서 쓰려면 새로고침하세요.":"This device was opened in another window. Reload to use it here.", "말하는 중":"Speaking", "까치가 말했어요":"Kkachi spoke", "찍는 중":"Taking a photo", "까치 홈에서 사진을 찍었어요 (저장 안 함)":"Kkachi Home took a photo (not kept)", "까치가 사진을 찍었어요 (저장 안 함)":"Kkachi took a photo (not kept)", "재는 중":"Measuring", "까치 홈에서 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi Home measured the sound level (not recorded)", "까치가 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi measured the sound level (not recorded)", "읽는 중":"Reading", "까치 홈에서 센서를 읽었어요":"Kkachi Home read the sensors", "까치가 센서를 읽었어요":"Kkachi read the sensors", "까치 홈에서 밝기를 쟀어요 (사진 안 남김)":"Kkachi Home measured the light (no photo kept)", "까치가 밝기를 쟀어요 (사진 안 남김)":"Kkachi measured the light (no photo kept)", "켜는 중":"Turning on", "끄는 중":"Turning off", "까치가 조명을 켰어요":"Kkachi turned the lamp on", "까치가 조명을 껐어요":"Kkachi turned the lamp off", "전했어요":"Sent", "잘 못 들었어요":"Didn't catch that", "누른 채로 말하고, 떼면 보내요":"Hold to talk, let go to send", "듣고 있어요. 떼면 보내요":"Listening. Let go to send", "보내는 중…":"Sending…", "마이크를 쓸 수 없어요. 브라우저 설정에서 허용해 주세요.":"The microphone is not allowed. Allow it in the browser's settings.", "마이크 준비됐어요. 다시 누른 채로 말하세요":"The microphone is ready. Hold again to talk", "까치에 전하지 못했어요. 다시 말해 주세요":"Could not reach Kkachi. Please say it again", "음성이 꺼져 있어요":"Voice is closed", "너무 늦게 도착해서 버렸어요. 다시 말해 주세요":"It arrived too late and was dropped. Please say it again", "들을 까치가 연결돼 있지 않아요":"No Kkachi is connected to hear it", "까치가 받지 못했어요":"Kkachi did not get it", "잘 못 들었어요. 다시 말해 주세요":"Didn't catch that. Please say it again", "연결하는 중…":"Connecting…", "이 기기를 어디에 둘지 이름을 붙여 주세요.":"Name this device after where it will be.", "까치 기기":"Kkachi Device", "새 기기":"New device", "이 기기의 음성이 까치에게 닫혀 있어요. 까치 홈의 기기에서 열 수 있어요.":"This device's voice is closed to Kkachi. Open it in Kkachi Home, Devices.", "새 버전이 있어요. 눌러서 새로고침":"A new version is here. Tap to reload", "이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.":"This device cannot keep its screen on. Turn off auto-lock in its settings.", "시작":"Start", "탭해서 시작":"Tap to start", "소리와 마이크를 쓰려면 화면을 한 번 눌러야 해요.":"Tap the screen once for sound and the microphone.", "기록":"Log", "완료":"Done", "이 기기에서 있었던 일 최근 50개예요. 페이지를 새로 열면 비워져요.":"The last 50 things that happened on this device. Opening the page again clears it.", "이 기기":"This device", "출력":"Outputs", "입력":"Inputs", "까치가 무엇을 쓸지는 까치 홈에서 정해요. 여기는 지금 상태만 보여 줘요. 음성이 까치에게 열려 있으면 화면 가운데에 누르고 말하는 버튼이 나와요.":"What Kkachi may use is chosen in Kkachi Home; this shows how things are. With Voice open to Kkachi, a hold-to-talk button sits in the middle of the screen.", "까치":"Kkachi", "설정":"Settings", "이 기기의 입력":"This device's inputs", "음성: 누르고 있는 동안 말하고, 떼면 보내요":"Voice: talk while you hold, let go to send", "이 기기 이름 (예: 거실)":"This device's name (e.g. Living room)", "이 기기 이름":"This device's name", "이 기기로 할 수 있는 것":"What this device can do", "불 꺼줘":"Turn off the light", "생각하는 중":"Thinking"};
 const t = (ko, vars) => { let s = LANG === "en" ? EN[ko] ?? ko : ko; if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v)); return s; };
 fetch("/api/lang").then((r) => r.json()).then(({ lang }) => { if (lang && lang !== LANG) { localStorage.setItem("kkachi.lang", lang); location.reload(); } }).catch(() => {});
 if (LANG === "en") {
@@ -542,6 +544,7 @@ async function onMessage(m) {
   if (m.type === "update") $("update").hidden = false;
   if (m.type === "ack") onAck(m);
   if (m.type === "reply") onReply(m);
+  if (m.type === "progress") onProgress(m);
   if (m.type === "use") { // Kkachi Home changed what this device is used for
     use = { pads: Array.isArray(m.pads) ? m.pads : [], agent: m.agent && typeof m.agent === "object" ? m.agent : {} };
     store.set("use", JSON.stringify(use));
@@ -778,7 +781,9 @@ async function stopTalking() {
   setBusy("talk", null);
   const at = Date.now();
   const wav = await toBase64(encodeWav(frames, audio.sampleRate, RATE));
-  outbox.push({ id: newId(), at, audio: wav, mime: "audio/wav" });
+  const id = newId();
+  outbox.push({ id, at, audio: wav, mime: "audio/wav" });
+  timings.set(id, { let: at, audioMs: Date.now() - at }); // audioMs: making the recording ready to send
   hint("보내는 중…");
   flushOutbox();
 }
@@ -807,6 +812,7 @@ const ACK_ERRORS = { "switched off": "음성이 꺼져 있어요", expired: "너
 function onAck(m) {
   if (!outbox.some((x) => x.id === m.id)) return;
   outbox = outbox.filter((x) => x.id !== m.id);
+  timed(m.id, "ackMs");
   hint(m.ok ? "전했어요" : ACK_ERRORS[m.error] ?? "까치가 받지 못했어요");
 }
 // An answer comes in parts, a sentence each, while Kkachi is still writing it (part: 0, 1, …; last ends it
@@ -814,15 +820,27 @@ function onAck(m) {
 // voice is made on its own: they are said by number, one after another. A message without a part is a
 // whole answer.
 let answer = { id: null, next: 0, parts: new Map(), saying: false, words: "" };
+// A new answer: what was heard, under the talk pad. False: nothing was heard.
+function startAnswer(m) {
+  if (m.inputId === answer.id) return true;
+  answer = { id: m.inputId, next: 0, parts: new Map(), saying: false, words: "" };
+  hint("누른 채로 말하고, 떼면 보내요");
+  timed(m.inputId, "heardMs");
+  if (!m.heard) { $("heard").textContent = ""; hint("잘 못 들었어요. 다시 말해 주세요"); return false; }
+  $("heard").textContent = `“${m.heard}”`;
+  $("said").textContent = ""; $("said").className = "";
+  return true;
+}
+// While the answer is made (core's progress): what Kkachi is doing, then the words as they are written.
+// The spoken parts take over the screen once they start.
+function onProgress(m) {
+  if (!startAnswer(m) || answer.words) return;
+  if (m.draft) { $("said").textContent = m.draft; $("said").className = "draft"; }
+  else if (m.working) { $("said").textContent = m.working; $("said").className = "working"; }
+}
 function onReply(m) {
   const part = Number.isInteger(m.part) ? m.part : 0, whole = !Number.isInteger(m.part);
-  if (m.inputId !== answer.id) {
-    answer = { id: m.inputId, next: 0, parts: new Map(), saying: false, words: "" };
-    hint("누른 채로 말하고, 떼면 보내요");
-    if (!m.heard) { $("heard").textContent = ""; hint("잘 못 들었어요. 다시 말해 주세요"); return; }
-    $("heard").textContent = `“${m.heard}”`;
-    $("said").textContent = ""; $("said").className = "";
-  }
+  if (!startAnswer(m)) { sendTiming(m.inputId); return; }
   if (part < answer.next || answer.parts.has(part)) return; // sent again after a reconnect
   answer.parts.set(part, whole ? { ...m, last: true } : m);
   sayParts(answer);
@@ -836,12 +854,25 @@ async function sayParts(a) {
       a.words = a.words ? `${a.words} ${m.text}` : m.text;
       if (armed() && !m.quiet) { // quiet: this device's speaker is not open to Kkachi, the words only show
         setBusy("speak", "말하는 중");
+        if (a.next === 0) { timed(a.id, "soundMs"); sendTiming(a.id); }
         try { await speakOut({ ...m, text: a.words, say: m.text }); } catch {} finally { setBusy("speak", null); } // the words stay on screen
       } else { $("said").textContent = a.words; $("said").className = ""; }
     }
+    if (m.last) sendTiming(a.id); // no sound came (its speaker is closed): the timings go now
     if (m.last && m.show && a === answer) { $("said").textContent = m.show; $("said").className = ""; } // the answer, without what was said on the way to it
   }
   a.saying = false;
+}
+
+// How long the last thing said took here, from letting go of the pad: kept until its first sound (or
+// its end without one), then sent for the server's log (device_timing).
+const timings = new Map();
+function timed(id, key) { const t = timings.get(id); if (t && t[key] == null) t[key] = Date.now() - t.let; }
+function sendTiming(id) {
+  const t = timings.get(id);
+  if (!t) return;
+  timings.delete(id);
+  ws?.readyState === 1 && ws.send(JSON.stringify({ type: "timing", ackMs: t.ackMs, heardMs: t.heardMs, soundMs: t.soundMs, audioMs: t.audioMs }));
 }
 
 // 16 kHz mono 16-bit WAV, as Kkachi Home sends (src/web/app.js).
