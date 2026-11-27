@@ -546,6 +546,7 @@ const SHOWN = {
   snapshot: (m) => ["camera", "찍는 중", `${who(m)} 사진을 찍었어요 (저장 안 함)`],
   sound: (m) => ["sound", "재는 중", `${who(m)} 소리 크기를 쟀어요 (녹음 안 함)`],
   sensors: (m) => ["sensors", "읽는 중", `${who(m)} 센서를 읽었어요`],
+  brightness: (m) => ["camera", "재는 중", `${who(m)} 밝기를 쟀어요 (사진 안 남김)`],
   light: (m) => ["light", m.on ? "켜는 중" : "끄는 중", m.on ? "까치가 조명을 켰어요" : "까치가 조명을 껐어요"],
 };
 
@@ -576,6 +577,34 @@ const REQUESTS = {
       for (let i = 0; i < px.length; i += 4 * 97) { luma += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]; n++; }
       const url = canvas.toDataURL("image/jpeg", 0.85);
       return { data: url.slice(url.indexOf(",") + 1), width: canvas.width, height: canvas.height, brightness: Math.round(luma / n / 2.55) };
+    } finally {
+      stream.getTracks().forEach((t) => t.stop());
+      $("cam").srcObject = null;
+    }
+  },
+
+  // How bright the room is, as a light sensor would say: the camera that faces the room (the front one,
+  // unless this device lies face down) for a moment, and no picture leaves the page, only numbers: the
+  // mean brightness of a small frame (0 to 1, as the camera encodes it) and, where the camera reports
+  // them (Chrome on Android), the exposure it chose. Auto exposure brightens a dark room, so the
+  // exposure is what says how much light there is (src/devices.ts turns it into lux).
+  async brightness() {
+    const facingMode = orient?.pose === "flat, screen down" ? "environment" : "user";
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 } } });
+    try {
+      const video = $("cam");
+      video.srcObject = stream;
+      await video.play();
+      await sleep(1200); // exposure settles
+      const canvas = document.createElement("canvas");
+      canvas.width = 160; canvas.height = Math.max(1, Math.round(160 * video.videoHeight / Math.max(1, video.videoWidth)));
+      const g = canvas.getContext("2d", { willReadFrequently: true });
+      g.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const px = g.getImageData(0, 0, canvas.width, canvas.height).data;
+      let luma = 0, n = 0;
+      for (let i = 0; i < px.length; i += 4) { luma += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]; n++; }
+      const s = stream.getVideoTracks()[0]?.getSettings?.() ?? {};
+      return { luma: +(luma / n / 255).toFixed(3), camera: facingMode === "user" ? "front" : "back", ...(s.exposureTime > 0 && s.iso > 0 ? { exposureTime: s.exposureTime, iso: s.iso } : {}) };
     } finally {
       stream.getTracks().forEach((t) => t.stop());
       $("cam").srcObject = null;

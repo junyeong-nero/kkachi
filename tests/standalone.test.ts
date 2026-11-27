@@ -41,7 +41,7 @@ test("devices, copied alone, runs as an MCP server with its page and icon", asyn
   await up(`${devicesBase}/device`);
   const rpc = mcp(devicesBase);
   expect((await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } })).result.serverInfo.name).toBe("kkachi-devices");
-  expect((await rpc("tools/list")).result.tools.map((t: any) => t.name)).toEqual(["list_devices", "device_speak", "device_snapshot", "device_sound_level", "device_sensors", "device_light"]);
+  expect((await rpc("tools/list")).result.tools.map((t: any) => t.name)).toEqual(["list_devices", "device_speak", "device_snapshot", "device_sound_level", "device_brightness", "device_sensors", "device_light"]);
   const page = await fetch(`${devicesBase}/device`);
   expect(page.status).toBe(200);
   expect(await page.text()).toContain("/api/device/icon.png");

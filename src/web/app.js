@@ -762,6 +762,7 @@ const PIC = {
   "motion sensors": "M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z",
   location: "M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 7a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5z",
   pose: "M4 19h16M6 15l12-6", // how it lies: a tilted line over the ground
+  brightness: "M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4", // a sun
   motion: "M3 12h4l3-7 4 14 3-7h4", // when it last moved
 };
 const picture = (pic) => el("span", "pic", icon(PIC[pic] ?? PIC.phone));
@@ -896,7 +897,7 @@ async function read(id, what) {
   const body = await r?.json().catch(() => null);
   return r?.ok && body ? body : { error: body?.error ?? "읽지 못했어요" };
 }
-function readRoom(id, whats = ["sensors", "sound"]) {
+function readRoom(id, whats = ["sensors", "sound", "brightness"]) {
   const d = devices.find((x) => x.id === id);
   if (!d?.online) return;
   const now = { ...reading.get(id) };
@@ -912,6 +913,9 @@ const compass = (deg) => ["북", "북동", "동", "남동", "남", "남서", "�
 function roomRows(r = {}, name = "") {
   const s = r.sensors, sound = r.sound, rows = [];
   const add = (pic, name, words, down = false) => { const x = row(name, words); x.classList.add("cap"); x.prepend(picture(pic)); if (down) x.querySelector(".sub").classList.add("down"); rows.push(x); };
+  const light = r.brightness;
+  const LIGHT = { dark: "어두워요. 불이 꺼진 것 같아요", dim: "어둑해요", lit: "불이 켜진 방 정도로 밝아요", bright: "밝아요", daylight: "햇빛처럼 아주 밝아요" };
+  add("brightness", "밝기", light === null ? "재는 중…" : light?.error ? why(light.error) : light ? `${LIGHT[light.level] ?? ""}${light.lux != null ? `. 약 ${light.lux} lx` : ""}` : "", !!light?.error);
   add("sound level", "소리", sound === null ? "재는 중…" : sound?.error ? why(sound.error) : sound ? `${sound.avg < -55 ? "조용해요" : sound.avg < -35 ? "보통이에요" : "시끄러워요"}${sound.peak > -25 && sound.avg < -35 ? ". 가끔 큰 소리가 나요" : ""}` : "", !!sound?.error);
   const motionWords = s === null ? "읽는 중…" : s?.error ? why(s.error) : s?.lastMovedAgoSec != null ? (s.lastMovedAgoSec < 5 ? "지금 움직이고 있어요" : `${s.lastMovedAgoSec < 90 ? `${s.lastMovedAgoSec}초` : `${Math.round(s.lastMovedAgoSec / 60)}분`} 전에 움직였어요`) : s?.motion ? "페이지를 연 뒤로 움직이지 않았어요" : why(s?.unavailable?.motion);
   add("motion", "움직임", motionWords, !!s?.error);
@@ -930,10 +934,10 @@ function renderDevice(d) {
   const parts = [backToMenu(), text("h1", "", d.name), text("p", "lede", d.online ? `${stateOf(d)}.` : "꺼져 있어요. 그 기기에서 기기 페이지를 열어 두면 다시 켜져요.")];
   if (d.online) {
     const head = el("div", "title-row sub-head");
-    head.append(text("h2", "", "지금 이 방"), iconButton("M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7", "다시 읽기", () => readRoom(d.id, ["sensors", "sound", ...(r.photo ? ["photo"] : [])])));
+    head.append(text("h2", "", "지금 이 방"), iconButton("M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7", "다시 읽기", () => readRoom(d.id, ["sensors", "sound", "brightness", ...(r.photo ? ["photo"] : [])])));
     const room = el("div", "group");
     room.append(...roomRows(r, d.name));
-    const shot = row("사진", r.photo === null ? "찍는 중…" : r.photo?.error ? why(r.photo.error) : r.photo ? `방금 찍었어요. 밝기 ${r.photo.brightness}` : "뒤쪽 카메라로 한 장 찍어요. 저장하지 않아요", r.photo === null ? null : { label: r.photo ? "다시 찍기" : "찍기", click: () => readRoom(d.id, ["photo"]) });
+    const shot = row("사진", r.photo === null ? "찍는 중…" : r.photo?.error ? why(r.photo.error) : r.photo ? "방금 찍었어요" : "뒤쪽 카메라로 한 장 찍어요. 저장하지 않아요", r.photo === null ? null : { label: r.photo ? "다시 찍기" : "찍기", click: () => readRoom(d.id, ["photo"]) });
     shot.classList.add("cap"); shot.prepend(picture("photo"));
     if (r.photo?.error) shot.querySelector(".sub").classList.add("down");
     room.append(shot);

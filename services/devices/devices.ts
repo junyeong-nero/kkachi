@@ -13,7 +13,7 @@
 //   {type:"use", pads, agent} (whether the talk pad shows, and what is open to the agent: set in Kkachi Home),
 //   {type:"ack", id, ok, error?}, {type:"reply", inputId, heard, text?, audio?, mime?},
 //   requests with an id: {type:"speak", text, audio, mime}, {type:"snapshot", camera},
-//   {type:"sound", seconds}, {type:"sensors"}, {type:"light", on, color, brightness}
+//   {type:"sound", seconds}, {type:"sensors"}, {type:"brightness"}, {type:"light", on, color, brightness}
 //   (by: "home" on a request from Kkachi Home, not the agent: the page's log says so)
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -22,6 +22,7 @@ import type { ServerWebSocket, WebSocketHandler } from "bun";
 import { core, speech } from "./core";
 import { dataDir, log } from "./data";
 import type { Content } from "./lib/mcp-server";
+import { type Brightness, brightnessFrom } from "./brightness";
 
 type Socket = ServerWebSocket<{ id?: string }>;
 type Features = Record<string, boolean>;
@@ -225,7 +226,7 @@ function find(target: string): Device | undefined {
 }
 
 // What each request needs: one of these abilities (see can()).
-const NEEDS: Record<string, string[]> = { speak: ["speak"], snapshot: ["photo"], sound: ["sound level"], sensors: ["motion sensors", "location"], light: ["lamp"] };
+const NEEDS: Record<string, string[]> = { speak: ["speak"], snapshot: ["photo"], brightness: ["photo"], sound: ["sound level"], sensors: ["motion sensors", "location"], light: ["lamp"] };
 
 export function describeDevices(): string {
   const allowed = listDevices().filter((d) => d.allowed);
@@ -286,6 +287,16 @@ export async function snapshotOn(target: string, camera: unknown): Promise<Conte
   ];
 }
 
+const LEVEL: Record<Brightness["level"], string> = {
+  dark: "dark (lights probably off)", dim: "dim", lit: "lit like a room with its lights on", bright: "bright", daylight: "very bright, like daylight",
+};
+
+export async function brightnessOn(target: string): Promise<string> {
+  const { name, data } = await ask(target, { type: "brightness" }, 15_000, { agent: true });
+  const b = brightnessFrom(data ?? {});
+  return `${name}: ${LEVEL[b.level]}.${b.lux != null ? ` About ${b.lux} lux (estimated from the camera's exposure).` : ` No exposure reading from this camera, so only dark, dim or lit (auto exposure brightens a dim room).`} Frame brightness ${Math.round(b.luma * 100)}/100. No photo was taken or kept.`;
+}
+
 export async function soundLevelOn(target: string, seconds: unknown): Promise<string> {
   const s = Math.min(10, Math.max(1, Number(seconds) || 3));
   const { name, data } = await ask(target, { type: "sound", seconds: s }, (s + 10) * 1000, { armed: true, agent: true });
@@ -318,6 +329,7 @@ export async function readOn(id: string, what: unknown): Promise<object> {
     const { data } = await ask(d.id, { type: "sound", seconds: 2, by: "home" }, 12_000, { armed: true });
     return { avg: Math.round(Number(data?.avg)), peak: Math.round(Number(data?.peak)) };
   }
+  if (what === "brightness") return brightnessFrom((await ask(d.id, { type: "brightness", by: "home" }, 15_000)).data ?? {});
   if (what === "photo") {
     const { data } = await ask(d.id, { type: "snapshot", camera: "back", by: "home" }, 20_000);
     if (typeof data?.data !== "string" || !/^[A-Za-z0-9+/]+=*$/.test(data.data)) throw new Error("no photo");

@@ -19,7 +19,7 @@ Edge headless 의 가짜 카메라와 마이크로 확인했고, iPhone 실기�
 |---|---|---|---|
 | 스피커 | Web Audio | `device_speak` | 첫 탭으로 소리 켜기 필요 |
 | 카메라 | `getUserMedia` (video) | `device_snapshot` | 후면 기본, `camera: "front"`. 찍을 때만 켜고 바로 끔(초록 점 잠깐). 까치 홈 답 아래 사진 표시 |
-| 밝기 (조도 센서 대신) | 카메라 프레임 평균 휘도 | `device_snapshot` 결과 | 0 어두움 ~ 100 밝음. 자동 노출 때문에 대략값 |
+| 밝기 (조도 센서 대신) | 카메라 한 프레임: 평균 휘도, 그리고 카메라가 정한 노출(`getSettings()` 의 `exposureTime`, `iso`) | `device_brightness` | 어두움, 어둑함, 켜진 방, 밝음, 햇빛. 노출을 알려 주는 카메라(Android Chrome)는 대략의 lux 도(f/1.8 가정, EV 에서 lux = 2.5·2^EV). iPhone 은 노출을 안 알려 줘서, 자동 노출이 밝게 끌어올린 화면으로 어두운지 켜졌는지만 안다. 방을 보는 카메라(보통 앞면, 엎어져 있으면 뒷면)를 1초쯤 켰다 끄고 사진은 기기 밖으로 나가지 않는다. 카메라를 까치에게 열어야 쓴다. 까치 홈의 "지금 이 방"에도 나온다 |
 | 마이크: 소음 크기 | Web Audio (RMS) | `device_sound_level` | 1~10초, quiet / moderate / loud. 녹음은 남기지 않음. 정확한 측정을 위해 자동 게인·잡음 억제 끔 |
 | 마이크: 음성 | `getUserMedia` (audio) | 누르고 말하기 | WebSocket `input`/`ack`/`reply` ([bus.md](bus.md)). 에이전트로 가거나, 연결한 다른 기기의 스피커에서 그대로 재생 |
 | 가속도·자이로 | `DeviceMotionEvent` | `device_sensors` | 마지막으로 움직인 때, 최근 10분 최대 흔들림. iOS 는 탭할 때 권한 요청 |

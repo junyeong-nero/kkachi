@@ -11,7 +11,7 @@ Three parties: the page a device opens (`device.html`), this service, and Kkachi
 | `GET /api/device/ws` | the page's WebSocket (below) |
 | `GET /api/device/list` | `{devices: [{id, name, kind, allowed, online, armed, can, ...}]}`. `kind` is what the device is, for its picture: `phone` or `tablet` |
 | `POST /api/device/<id>/allow`, `/forget` | allow a waiting device, or remove one |
-| `POST /api/device/<id>/read` | `{what: "sensors" | "sound" | "photo"}`: what is happening in that room, for Kkachi Home: the page's `sensors` data, `{avg, peak}` over 2 s, or a back-camera `snapshot`. Asked by the user, so what is closed to the agent is read too; the page's log says Kkachi Home asked (`by: "home"` on the request). 409 with `{error}` when the device cannot |
+| `POST /api/device/<id>/read` | `{what: "sensors" | "sound" | "brightness" | "photo"}`: what is happening in that room, for Kkachi Home: the page's `sensors` data, `{avg, peak}` over 2 s, `{level, lux?, luma}` (dark, dim, lit, bright or daylight; lux when the camera reports its exposure), or a back-camera `snapshot`. Asked by the user, so what is closed to the agent is read too; the page's log says Kkachi Home asked (`by: "home"` on the request). 409 with `{error}` when the device cannot |
 | `POST /api/device/<id>/agent` | `{cap, open}`: open one of its inputs or outputs to the agent, or close it. `cap` is `talk`, `photo`, `sound level`, `motion sensors`, `location`, `speak` or `lamp`. Kept with the device; everything is open on a new one. Only a tablet has `lamp`: a lit lamp is the whole screen, and on a phone it took the touches meant for its talk pad. The list gives each device's `agent` map, and `can` (what works there now, whatever is open) |
 | `POST /mcp` (also `/mcp/devices`) | MCP, Streamable HTTP, stateless JSON |
 
@@ -49,6 +49,7 @@ Every request must come from this computer or a `*.ts.net` name, and a browser's
 | `speak` | `text`, `rate`, `audio?`, `mime?` | none, once it has been said |
 | `snapshot` | `camera: "back" \| "front"` | `{data, width, height, brightness}`: a JPEG (base64), at most 1280 px |
 | `sound` | `seconds`, `by?` | `{avg, peak}` in dBFS; nothing recorded |
+| `brightness` | `by?` | `{luma, camera, exposureTime?, iso?}`: the mean brightness (0 to 1) of a 160 px frame from the camera facing the room (front, back when lying face down), and the exposure the camera chose where it reports it. No picture leaves the page |
 | `sensors` | `skip?` (of `motion sensors`, `location`: not open to the agent, left out), `by?` | orientation, `motion`, `maxRecent`, `lastMovedAgoSec`, `location`, and `unavailable` with reasons |
 | `light` | `on`, `color`, `brightness` | none |
 
