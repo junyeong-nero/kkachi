@@ -9,7 +9,7 @@ Kkachi (까치, "magpie") is an agent that stays home. It runs on the computer y
 It started from not wanting to set up Home Assistant OS just to try a home assistant: a dedicated machine or a VM, an OS image, and add-ons before anything answers. Kkachi is one command on a computer that stays on, and one web page on each phone.
 
 <p align="center">
-  <img src="docs/demo.gif" alt="Kkachi Home: asking whether the study is quiet, then the menu: the study opened to see its room and choose what Kkachi may use there, and how to add a device" width="300">
+  <img src="docs/demo.gif" alt="Kkachi Home on a tablet: asking whether the study is quiet, then the menu: the study opened to see its room (how bright and loud it is, when it moved) and choose what Kkachi may use there, and how to add a device" width="420">
 </p>
 
 The agent behind it is [Pi](https://github.com/earendil-works/pi), a coding agent, run with a setup of Kkachi's own: you sign it in to a model subscription you have (Claude or ChatGPT) or an API key, and add the MCP tools it may use, all in Kkachi Home. So besides the home it can search the web, use those tools and work on code.
