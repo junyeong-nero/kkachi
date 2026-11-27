@@ -8,7 +8,7 @@ Run the install command again. It skips anything already installed and updates K
 
 ## Install by hand
 
-Install [Git](https://git-scm.com/downloads), [Bun](https://bun.sh), [Pi](https://pi.dev) and [Tailscale](https://tailscale.com/download) yourself, then run the same setup:
+Install [Git](https://git-scm.com/downloads), [Bun](https://bun.sh), [Pi](https://pi.dev), [uv](https://docs.astral.sh/uv/) (for the voices) and [Tailscale](https://tailscale.com/download) yourself, then run the same setup:
 
 ```sh
 git clone https://github.com/junyeong-nero/kkachi.git
@@ -18,8 +18,10 @@ bun run init
 
 `init` checks the tools before it starts. You can run it again later; it keeps what is already set up. It:
 
+- installs Kkachi's packages (`bun install`)
 - creates your memory repo, or uses an existing one
-- asks for a Groq API key for dictation, which you can skip
+- installs the online voice (edge-tts), and asks whether Kkachi's voice is made on this computer (Supertonic, on the CPU) and whether dictation runs here too (it fetches [speech.cpp](https://github.com/nyosegawa/speech.cpp) for Qwen3-ASR into `data/speech`; fast on Apple silicon or with a small GPU, 3 to 10 s a sentence on a laptop CPU). Kkachi starts these servers itself and starts them again if they stop
+- otherwise asks for a Groq API key for dictation, which you can skip and enter later in 설정, 계정
 - saves settings to `.env.local`
 - starts Kkachi now and at every login
 - makes it reachable on your tailnet with Tailscale Serve, signing this computer in to Tailscale first if needed
@@ -34,8 +36,8 @@ Typing needs nothing extra. Dictation and server-made voices are optional, and w
 
 | | Default | On your own computer |
 |---|---|---|
-| Dictation | [Groq](https://console.groq.com/keys) Whisper, an outside service (free key: enter it in 설정, 계정, Groq, or add `GROQ_API_KEY` to `.env.local`) | Qwen3-ASR on [speech.cpp](https://github.com/nyosegawa/speech.cpp): 1 to 2 s a sentence with a small GPU, 3 to 10 s without |
-| Reading replies | each phone's and device's own built-in voice: nothing is sent anywhere | Supertonic 3 on the CPU: run `uv run scripts/supertonic-server.py`, then choose 이 컴퓨터 under 목소리 |
+| Dictation | [Groq](https://console.groq.com/keys) Whisper, an outside service (free key: enter it in 설정, 계정, Groq, or add `GROQ_API_KEY` to `.env.local`) | Qwen3-ASR on [speech.cpp](https://github.com/nyosegawa/speech.cpp): 1 to 2 s a sentence with a small GPU, 3 to 10 s without. `bun scripts/speech-install.ts` fetches it (init offers to), then choose 이 컴퓨터 under 받아쓰기 |
+| Reading replies | each phone's and device's own built-in voice: nothing is sent anywhere | Supertonic 3 on the CPU: choose 이 컴퓨터 under 목소리, and Kkachi starts `scripts/supertonic-server.py` with uv |
 
 Microsoft's neural voices (made online, 온라인 under 목소리) are there too: install [uv](https://docs.astral.sh/uv/) and run `uv tool install edge-tts`. Cleaning up transcripts with an LLM (English terms, noise; `openai/gpt-oss-120b` on the Groq key unless `KKACHI_POLISH_MODEL` says otherwise) is 받아쓴 말 다듬기 in the same place. The page says when a server on this computer is not running or Groq has no key. The settings and the timings measured are in [design.md](design.md) (Korean).
 

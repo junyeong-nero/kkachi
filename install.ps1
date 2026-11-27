@@ -1,4 +1,4 @@
-# Kkachi in one command on Windows: installs what is missing (Git, Bun, Pi, Tailscale), puts Kkachi
+# Kkachi in one command on Windows: installs what is missing (Git, Bun, Pi, uv, Tailscale), puts Kkachi
 # in ~\kkachi (or $env:KKACHI_DIR) and runs its setup (bun run init), which asks the rest.
 #   powershell -c "irm https://raw.githubusercontent.com/junyeong-nero/kkachi/main/install.ps1 | iex"
 # Safe to run again: it installs nothing that is there, and updates Kkachi instead of cloning it.
@@ -18,6 +18,7 @@ function Winget($id, $what) {
 if (-not (Have git)) { Say "Installing Git"; Winget "Git.Git" "Git (https://git-scm.com/downloads)" }
 if (-not (Have bun)) { Say "Installing Bun (https://bun.sh)"; powershell -c "irm bun.sh/install.ps1 | iex"; Update-Path }
 if (-not (Have pi)) { Say "Installing Pi, the agent Kkachi runs on (https://pi.dev)"; powershell -c "irm https://pi.dev/install.ps1 | iex"; Update-Path }
+if (-not (Have uv)) { Say "Installing uv, which runs the voices (https://docs.astral.sh/uv/)"; powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"; Update-Path }
 if (-not (Have tailscale)) {
   Say "Installing Tailscale, so your phone can reach this computer and nothing else can"
   Winget "Tailscale.Tailscale" "Tailscale (https://tailscale.com/download)"

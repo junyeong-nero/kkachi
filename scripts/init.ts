@@ -1,8 +1,11 @@
-// Guided setup: bun run init
-// Checks the tools, creates the memory repo, saves settings to .env.local, then optionally starts
-// Kkachi at login and makes it reachable from your phone through Tailscale Serve.
+// Guided setup: bun run init (install.sh and install.ps1 run it after installing the tools)
+// Checks the tools, installs Kkachi's packages, creates the memory repo, sets up the voice and
+// dictation (on this computer or online), saves settings to .env.local, then optionally starts Kkachi
+// at login and makes it reachable from your phone through Tailscale Serve. Accounts and tools are
+// connected afterwards, in Kkachi Home's settings.
 // Safe to run again: it keeps what is already set up.
 import { cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { installSpeech } from "./speech-install";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -24,7 +27,7 @@ function fail(message: string): never {
   process.exit(1);
 }
 const ask = (question: string, fallback = "") => ((fallback ? prompt(question, fallback) : prompt(question)) ?? fallback).trim();
-const yes = (question: string) => !/^n/i.test(ask(`${question} [Y/n]`, "y"));
+const yes = (question: string, byDefault = true) => (byDefault ? !/^n/i.test(ask(`${question} [Y/n]`, "y")) : /^y/i.test(ask(`${question} [y/N]`, "n")));
 
 // .env.local is gitignored. Forward slashes keep Windows paths free of escapes.
 function save(key: string, value: string) {
@@ -47,6 +50,7 @@ const missing = [
 if (missing.length) fail(`Install these first, then run \`bun run init\` again:\n${missing.map(([b, how]) => `  ${b}: ${how}`).join("\n")}`);
 const tailscale = Bun.which("tailscale");
 if (!tailscale) console.log("Note: Tailscale is not installed. Your phone reaches Kkachi through it: https://tailscale.com/download");
+must([process.execPath, "install", "--frozen-lockfile"], root); // Kkachi's own packages (sign-in flows)
 
 // 2. Memory repo
 let memory = env.KKACHI_MEMORY_DIR;
@@ -72,18 +76,35 @@ if (memory && existsSync(join(memory, ".git"))) {
   save("KKACHI_MEMORY_DIR", memory);
 }
 
-// 3. Accounts and tools are set up in Kkachi Home (설정, 계정 and 도구), in Kkachi's own Pi setup
-// (data/agent), not in your own Pi: nothing to do here.
+// 3. The voice and dictation: on this computer (nothing leaves the house) or online. Each can be
+// changed later in Kkachi Home, 설정, 음성; these are where they start.
 const interactive = { stdin: "inherit", stdout: "inherit", stderr: "inherit" } as const;
-
-// 4. Speech-to-text key (Groq free tier)
-if (!env.GROQ_API_KEY && !env.KKACHI_STT_API_KEY) {
-  const key = ask("Groq API key for dictation (free at https://console.groq.com/keys; Enter to skip):");
+const uv = Bun.which("uv");
+if (!uv) console.log("Note: uv is not installed (https://docs.astral.sh/uv/). The voice made on this computer and the online voice need it; until then each phone speaks with its own voice.");
+else {
+  if (!Bun.which("edge-tts") && !run([uv, "tool", "install", "edge-tts"]).ok) console.log("Could not install edge-tts (the online voice). Try: uv tool install edge-tts");
+  if (!env.KKACHI_TTS_PROVIDER && yes("Make Kkachi's voice on this computer (Supertonic: about 400 MB once, runs on the CPU, no words leave the house)?")) {
+    save("KKACHI_TTS_PROVIDER", "supertonic");
+    save("KKACHI_TTS_VOICE", "F1");
+  }
+}
+const appleSilicon = process.platform === "darwin" && process.arch === "arm64";
+if (!env.KKACHI_STT_BASE_URL && yes(`Dictation on this computer too (Qwen3-ASR, about 1 GB once; ${appleSilicon ? "fast on this Mac" : "1 to 2 s a sentence with a small GPU, 3 to 10 s without"})?`, appleSilicon)) {
+  try {
+    console.log("Getting speech.cpp…");
+    console.log(`speech.cpp is in ${await installSpeech()}. Kkachi starts it, and it fetches its models the first time.`);
+    save("KKACHI_STT_BASE_URL", "http://127.0.0.1:8091/v1");
+    save("KKACHI_STT_MODEL", "qwen3-asr-0.6b");
+    save("KKACHI_STT_CHUNKING", "auto");
+  } catch (err) { console.log(`${(err as Error).message}. Dictation goes to Groq instead.`); }
+}
+if (!env.KKACHI_STT_BASE_URL && !env.GROQ_API_KEY) {
+  const key = ask("Groq API key for dictation (free at https://console.groq.com/keys; Enter to skip, or add it later in Kkachi Home, 설정, 계정):");
   if (key) save("GROQ_API_KEY", key);
-  else console.log("Skipped: you can type, but not dictate. Add GROQ_API_KEY to .env.local later.");
+  else console.log("Skipped: you can type, and add a Groq key later to dictate.");
 }
 
-// 5. Start at login
+// 4. Start at login
 if (yes("Start Kkachi now and whenever you log in?")) {
   const p = Bun.spawnSync([process.execPath, join(root, "scripts", "service.ts"), "install"], { stdout: "inherit", stderr: "inherit" });
   if (p.exitCode) fail("Could not set up auto-start. You can still run `bun start` yourself.");
@@ -91,7 +112,7 @@ if (yes("Start Kkachi now and whenever you log in?")) {
   console.log("Run `bun start` when you want to use Kkachi.");
 }
 
-// 6. Phone access: Tailscale Serve keeps Kkachi on your tailnet (never Funnel, which is public)
+// 5. Phone access: Tailscale Serve keeps Kkachi on your tailnet (never Funnel, which is public)
 if (tailscale) {
   const tailnetName = () => String(JSON.parse(run(["tailscale", "status", "--json"]).out || "{}").Self?.DNSName ?? "").replace(/\.$/, "");
   let host = tailnetName();

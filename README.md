@@ -51,7 +51,7 @@ Windows:
 powershell -c "irm https://raw.githubusercontent.com/junyeong-nero/kkachi/main/install.ps1 | iex"
 ```
 
-It installs what is missing ([Git](https://git-scm.com/downloads), [Bun](https://bun.sh), [Pi](https://pi.dev), Tailscale), puts Kkachi in `~/kkachi`, asks a few questions, starts Kkachi now and at every login, and prints an address like `https://<computer>.<tailnet>.ts.net`. That one install is all three parts below.
+It installs what is missing ([Git](https://git-scm.com/downloads), [Bun](https://bun.sh), [Pi](https://pi.dev), [uv](https://docs.astral.sh/uv/), Tailscale), puts Kkachi in `~/kkachi`, and asks a few questions: where to keep your notes, and whether Kkachi's voice and dictation run on this computer (then nothing you say leaves the house) or online. It starts Kkachi now and at every login, and prints an address like `https://<computer>.<tailnet>.ts.net`. Open it on your phone and sign in to Claude or ChatGPT in its settings. That one install is all three parts below.
 
 ### Kkachi Home
 

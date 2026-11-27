@@ -1,5 +1,5 @@
 #!/bin/sh
-# Kkachi in one command on macOS or Linux: installs what is missing (Git, Bun, Pi, Tailscale), puts
+# Kkachi in one command on macOS or Linux: installs what is missing (Git, Bun, Pi, uv, Tailscale), puts
 # Kkachi in ~/kkachi (or $KKACHI_DIR) and runs its setup (bun run init), which asks the rest.
 #   curl -fsSL https://raw.githubusercontent.com/junyeong-nero/kkachi/main/install.sh | sh
 # Safe to run again: it installs nothing that is there, and updates Kkachi instead of cloning it.
@@ -33,6 +33,12 @@ if ! have pi; then
   say "Installing Pi, the agent Kkachi runs on (https://pi.dev)"
   curl -fsSL https://pi.dev/install.sh | sh
   PATH="$HOME/.pi/agent/bin:$HOME/.local/bin:$PATH"
+fi
+
+if ! have uv; then
+  say "Installing uv, which runs the voices (https://docs.astral.sh/uv/)"
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  PATH="$HOME/.local/bin:$PATH"
 fi
 
 if ! have tailscale; then

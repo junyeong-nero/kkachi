@@ -16,6 +16,7 @@ import type { PiImage } from "./pi";
 import { accept, parseInput } from "./bus";
 import { feedStream, pushFeed } from "./feed";
 import { routeFor, startServices } from "./services";
+import { ensureSpeechServers } from "./speech-servers";
 import { connections } from "./mcp-bridge";
 import { internal, trusted } from "../lib/trust";
 import { BUILT_IN } from "../lib/tts";
@@ -112,6 +113,7 @@ Bun.serve({
       if (req.method === "POST" && pathname === "/api/settings") {
         const next = updateSettings(await req.json());
         await applyThinking(); // model changes apply on the next turn
+        ensureSpeechServers(); // this computer chosen for the voice or dictation: start it
         log("settings", { ...next });
         return Response.json({ settings: next });
       }
@@ -257,4 +259,5 @@ Bun.serve({
 console.log(`Kkachi listening on http://127.0.0.1:${config.port} (memory: ${config.memoryDir}, models: ${modelOrder().join(", ")})`);
 // After listening: the conversation Pi lists its MCP tools from the services, which must be up.
 await startServices();
+ensureSpeechServers(); // the voice and dictation on this computer, if Settings choose them
 await startConversation();

@@ -27,11 +27,13 @@ export const groqKey = (): string => readAgentJson("keys.json").groq ?? process.
 // (KKACHI_STT_LOCAL_URL, or KKACHI_STT_BASE_URL when it is local; speech.cpp with Qwen3-ASR by default),
 // or Groq's Whisper (KKACHI_STT_BASE_URL when it is not local).
 const GROQ = "https://api.groq.com/openai/v1";
+export function localStt() {
+  const { baseUrl, model } = config.stt, here = local(baseUrl);
+  return { baseUrl: process.env.KKACHI_STT_LOCAL_URL ?? (here ? baseUrl : "http://127.0.0.1:8091/v1"), model: process.env.KKACHI_STT_LOCAL_MODEL ?? (here ? model : "qwen3-asr-0.6b") };
+}
 export function sttConfig() {
   const { baseUrl, model, language } = config.stt, here = local(baseUrl);
-  if (settings().stt === "local") {
-    return { baseUrl: process.env.KKACHI_STT_LOCAL_URL ?? (here ? baseUrl : "http://127.0.0.1:8091/v1"), apiKey: "", model: process.env.KKACHI_STT_LOCAL_MODEL ?? (here ? model : "qwen3-asr-0.6b"), language, chunking: "auto" };
-  }
+  if (settings().stt === "local") return { ...localStt(), apiKey: "", language, chunking: "auto" };
   return { baseUrl: here ? GROQ : baseUrl, apiKey: groqKey() || (here ? "" : config.stt.apiKey), model: here ? "whisper-large-v3" : model, language, chunking: "" };
 }
 
@@ -63,7 +65,7 @@ export const synthesize = (text: string, voice = settings().voice, rate = settin
 /** Whether each way is ready: the servers on this computer answer, Groq has a key, edge-tts is installed. */
 export async function speechReady() {
   const up = (url: string) => fetch(url, { signal: AbortSignal.timeout(1500) }).then(() => true, () => false);
-  const stt = settings().stt === "local" ? sttConfig().baseUrl : process.env.KKACHI_STT_LOCAL_URL ?? (local(config.stt.baseUrl) ? config.stt.baseUrl : "http://127.0.0.1:8091/v1");
+  const stt = localStt().baseUrl;
   const [sttLocal, ttsLocal] = await Promise.all([up(`${stt}/models`), up(config.tts.localUrl.replace(/\/v1$/, "") + "/health")]);
   return { sttLocal, ttsLocal, groq: !!groqKey(), edge: !!Bun.which("edge-tts") };
 }
