@@ -73,7 +73,7 @@ export default function (pi: ExtensionAPI) {
   // The user's own MCP servers (pi-mcp-adapter, which also brings in Claude Code's, Codex's, ...;
   // or Pi's built-in MCP) are for Kkachi Home. Anyone in the room can talk to a spare device, so a
   // turn from one (a "[기기: …]" header) runs without them unless Settings → 공기계 대화 → 내 MCP
-  // says 공기계도 (docs/philosophy.md, 3). Kkachi's own tools, registered above, stay.
+  // says 공기계도 (docs/philosophy.md, 부딪힐 때). Kkachi's own tools, registered above, stay.
   const userMcp = (t: any) => /pi-mcp-adapter/.test(`${t.sourceInfo?.source} ${t.sourceInfo?.path}`) || t.sourceInfo?.path === "builtin:mcp";
   let setAside: string[] = [];
   pi.on("before_agent_start", (event: any) => {

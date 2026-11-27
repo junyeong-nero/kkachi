@@ -98,7 +98,7 @@ if (env.KKACHI_MODEL) {
 }
 
 // 4. MCP servers you already set up for Claude Code, Codex, Cursor or VS Code: pi-mcp-adapter
-// imports those configs into Pi, so Kkachi's conversation can use them too (docs/philosophy.md, 3).
+// imports those configs into Pi, so Kkachi's conversation can use them too (docs/philosophy.md, 1).
 const piDir = env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
 const findAdapter = () => {
   const bin = join(piDir, "npm", "node_modules", ".bin", process.platform === "win32" ? "pi-mcp-adapter.cmd" : "pi-mcp-adapter");

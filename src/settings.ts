@@ -54,10 +54,13 @@ export function updateSettings(patch: Partial<Settings>): Settings {
   return current;
 }
 
-// The device's own voice first (made on the phone or spare device, nothing sent out), then Edge TTS
-// voices that speak Korean (made online). Multilingual voices read English terms more naturally.
-export const VOICES = [
-  { id: "device", name: "기기 목소리", note: "폰과 공기계에 들어 있는 목소리. 까치 서버에서 만들지 않아요" },
+// The device's own voice first (made on the phone or spare device, nothing sent out), then the voices
+// the server makes: with KKACHI_TTS_PROVIDER=supertonic, Supertonic 3's ten, made on this computer;
+// otherwise Edge TTS voices that speak Korean (made online; the multilingual ones read English terms
+// more naturally).
+const DEVICE_VOICE = { id: "device", name: "기기 목소리", note: "폰과 공기계에 들어 있는 목소리. 까치 서버에서 만들지 않아요" };
+const SUPERTONIC_VOICES = ["F", "M"].flatMap((g) => [1, 2, 3, 4, 5].map((n) => ({ id: `${g}${n}`, name: `${g === "F" ? "여성" : "남성"} ${n}`, note: "이 컴퓨터에서 만드는 목소리 (Supertonic 3)" })));
+const EDGE_VOICES = [
   { id: "ko-KR-SunHiNeural", name: "선희", note: "여성, 차분한 한국어" },
   { id: "ko-KR-InJoonNeural", name: "인준", note: "남성, 또렷한 한국어" },
   { id: "ko-KR-HyunsuMultilingualNeural", name: "현수", note: "남성, 영어 섞인 말에 자연스러움" },
@@ -65,6 +68,7 @@ export const VOICES = [
   { id: "en-US-EmmaMultilingualNeural", name: "엠마", note: "여성, 다국어, 밝은 목소리" },
   { id: "en-US-AndrewMultilingualNeural", name: "앤드루", note: "남성, 다국어, 따뜻한 목소리" },
 ];
+export const VOICES = [DEVICE_VOICE, ...(config.tts.provider === "supertonic" ? SUPERTONIC_VOICES : EDGE_VOICES)];
 
 export const THINKING = [
   { id: "minimal", name: "빠르게" },

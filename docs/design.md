@@ -141,6 +141,7 @@
 - 받아쓰기: 모든 구간의 무음 확률이 0.4를 넘으면 버린다. "시청해주셔서 감사합니다"처럼 Whisper 가 무음에서 지어내는 문구만 있으면 그것도 버린다. Whisper 의 `prompt`(용어 힌트)는 쓰지 않는다. 무음에서 힌트를 그대로 받아적었다
 - 다듬기: 기본은 꺼져 있다. 받아쓸 때마다 외부 LLM 을 한 번 더 부르는 일이라서다([philosophy.md](philosophy.md) 2번). 꺼져 있어도 "아 아 아" 같은 소리와 Whisper 가 무음에서 지어낸 문구는 규칙으로 버리고, 나머지는 들은 그대로 입력창에 둔다. `KKACHI_POLISH_MODEL` (예: Groq 의 `openai/gpt-oss-120b`)을 정하면 켜진다. 켜면 용어 목록(`vocabulary.md`, 노트 제목, 기본 용어)으로 잘못 들은 영어 용어와 숫자를 고친다. "아 아 아"처럼 말이 아닌 소리는 버린다. 2.5초 안에 끝나지 않으면 원문을 그대로 쓴다. 다듬은 문장이 원문과 다르면 까치에게 원문도 함께 보낸다
 - 읽어 주기: 기본은 "기기 목소리", 폰과 공기계에 들어 있는 목소리(Web Speech API)다. 문장이 서버로 가지 않고, 기기 안에서 만드는 한국어 목소리를 먼저 고른다. iOS 는 처음 한 번을 탭 안에서 말해야 해서 보내기 탭(공기계는 "탭해서 시작")에서 소리 없는 한 마디를 말해 둔다. 설정에서 Edge TTS 목소리를 고르면 서버가 만든다. Edge 는 가끔 소리 없이 응답해서 한 번 더 시도한다
+- 이 컴퓨터에서 만드는 목소리(선택): [Supertonic 3](https://huggingface.co/Supertone/supertonic-3)(ONNX, CPU, 99M, 한국어 포함 31개 언어). `uv run scripts/supertonic-server.py` 로 띄우고 `.env.local` 에 `KKACHI_TTS_PROVIDER=supertonic` 을 넣으면 설정의 목소리 목록이 Edge 대신 여성 1~5, 남성 1~5가 된다. 문장이 집 밖으로 나가지 않는다. 노트북 CPU(i5-10210U)에서 5초짜리 문장이 1.5초에 만들어진다(3단계. `SUPERTONIC_STEPS` 를 올리면 더 좋고 더 느리다: 2단계 1.3초, 5단계 2.2초, 8단계 3.5초). 알려진 문제: 숫자를 가끔 틀리게 읽는다("영하 2도"를 "영하 두 도"). 원 저장소는 보관 처리되어 더 고쳐지지 않고, 모델 라이선스는 OpenRAIL-M 이다
 - 원본 녹음은 저장하지 않는다
 
 받아쓰기와 TTS 는 OpenAI 호환 API 하나로 다뤄서, 클라우드와 로컬을 같은 코드로 쓴다.
@@ -148,7 +149,7 @@
 | | 인터페이스 | 클라우드 예 | 로컬 예 |
 |---|---|---|---|
 | 받아쓰기 | `POST /v1/audio/transcriptions` | Groq Whisper, OpenAI | whisper.cpp 의 `whisper-server` (아래), OpenAI 호환 서버로 띄운 Qwen3-ASR 또는 faster-whisper |
-| TTS | `POST /v1/audio/speech` | OpenAI TTS | 기본값인 기기 목소리가 이미 로컬 |
+| TTS | `POST /v1/audio/speech` | OpenAI TTS | 기본값인 기기 목소리가 이미 로컬. 서버 목소리는 Supertonic 3 (`scripts/supertonic-server.py`) |
 
 설정은 provider 마다 `BASE_URL`, `API_KEY`, `MODEL` (TTS 는 `VOICE` 추가)이다.
 
@@ -199,5 +200,4 @@ GPU 없는 노트북(i5-10210U, 8스레드)에서 잰 값이다. 모델을 올�
 
 - 호출어 "까치야" (공기계, 화면이 켜진 동안)
 - 읽는 중에 말하면 멈추기 (에코 처리 필요)
-- 로컬 TTS
 - 공기계 움직임 감지 알림, 실시간 보기 ([sensors.md](sensors.md) "다음 단계")
