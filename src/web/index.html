@@ -418,6 +418,12 @@
   .voice + .voice { border-top: 1px solid var(--line); }
   .voice input { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; }
   .voice .name { font-size: var(--t-base); font-weight: 600; }
+  /* rows that hold a control: a small two-way segment, or a slider between the name and its value */
+  .segment.mini { min-width: 168px; }
+  .segment.mini label { min-height: 40px; font-size: var(--t-sm); }
+  .device.slider { grid-template-columns: auto minmax(0, 1fr) auto; }
+  #voice-row { grid-template-columns: minmax(0, 1fr) auto; } /* no picture: the chevron at the end */
+  #tts-engine { margin-top: 16px; }
   .voice .sub:empty { display: none; } /* Supertonic's voices: the engine's note says it */
   .voice .sub { display: block; font-size: var(--t-sm); color: var(--muted); margin-top: 2px; }
   .play {
@@ -566,25 +572,27 @@
     <div class="cat" data-cat="voice">
       <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
       <h1>음성</h1>
-      <div class="group" id="speak-group"></div>
-      <p class="note">답의 첫 두 문장을 소리로 읽어 줘요. 이 기기에만 적용돼요.</p>
       <h2>목소리</h2>
+      <div class="group">
+        <div class="device" id="speak-row"></div>
+        <button type="button" class="device item" id="voice-row"><span><span class="name">목소리</span><span class="sub" id="voice-now"></span></span><span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <div class="device slider"><span class="name">말 빠르기</span><input type="range" id="rate" min="-30" max="60" step="10" aria-label="말 빠르기" /><output id="rate-out"></output></div>
+      </div>
+      <p class="note">읽어 주기는 이 폰에만, 목소리와 빠르기는 공기계에도 적용돼요.</p>
+      <h2>받아쓰기</h2>
+      <div class="group">
+        <div class="device"><span><span class="name">받아쓰는 곳</span><span class="sub" id="stt-note"></span></span><div class="segment two mini" id="stt-engine" role="radiogroup" aria-label="받아쓰는 곳"></div></div>
+        <div class="device"><span><span class="name">다듬기</span><span class="sub" id="polish-note"></span></span><div class="segment two mini" id="polish-engine" role="radiogroup" aria-label="받아쓴 말 다듬기"></div></div>
+      </div>
+      <p class="note">다듬기는 잘못 들은 말, 띄어쓰기, 숫자를 고쳐요.</p>
+    </div>
+
+    <div class="cat" data-cat="voice-pick">
+      <button type="button" class="back cat-back" data-back="voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>음성</button>
+      <h1>목소리</h1>
       <div class="segment" id="tts-engine" role="radiogroup" aria-label="목소리를 만드는 곳"></div>
       <p class="note" id="tts-note"></p>
-      <div id="voice-settings">
-        <div class="group" id="voices"><div class="loading">불러오는 중…</div></div>
-        <h2>말 빠르기</h2>
-        <div class="row">
-          <input type="range" id="rate" min="-30" max="60" step="10" aria-label="말 빠르기" />
-          <output id="rate-out"></output>
-        </div>
-      </div>
-      <h2>받아쓰기</h2>
-      <div class="segment two" id="stt-engine" role="radiogroup" aria-label="받아쓰는 곳"></div>
-      <p class="note" id="stt-note"></p>
-      <h2>받아쓴 말 다듬기</h2>
-      <div class="segment two" id="polish-engine" role="radiogroup" aria-label="받아쓴 말 다듬기"></div>
-      <p class="note" id="polish-note"></p>
+      <div class="group" id="voices"><div class="loading">불러오는 중…</div></div>
     </div>
 
     <div class="cat" data-cat="model">

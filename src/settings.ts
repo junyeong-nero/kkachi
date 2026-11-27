@@ -11,6 +11,7 @@ export interface Settings {
   stt: "local" | "groq";   // dictation: a speech server on this computer, or Groq (src/speech.ts)
   polish: "off" | "groq";  // tidying a transcript before the agent (src/polish.ts)
   voice: string;    // one of VOICES[tts]
+  voiceBy: Partial<Record<Tts, string>>; // the voice last chosen in each engine: switching back finds it
   rate: number;     // speech speed in percent, -50..+100 (0 = normal)
   model: string;    // primary Pi model; config.models stay as fallbacks
   thinking: string; // Pi thinking level
@@ -25,6 +26,7 @@ const defaults: Settings = {
   stt: local(config.stt.baseUrl) ? "local" : "groq",
   polish: config.polish.model ? "groq" : "off",
   voice: config.tts.voice,
+  voiceBy: {},
   rate: 0,
   model: config.models[0],
   thinking: config.thinking,
@@ -40,8 +42,10 @@ export const settings = () => current;
 export function updateSettings(patch: Partial<Settings>): Settings {
   const next = { ...current };
   if (typeof patch.tts === "string" && patch.tts in VOICES) next.tts = patch.tts;
+  if (next.tts !== current.tts) next.voice = current.voiceBy[next.tts] ?? VOICES[next.tts][0].id; // another engine: its voice from last time
   if (typeof patch.voice === "string" && VOICES[next.tts].some((v) => v.id === patch.voice)) next.voice = patch.voice;
-  if (!VOICES[next.tts].some((v) => v.id === next.voice)) next.voice = VOICES[next.tts][0].id; // another engine: its first voice
+  if (!VOICES[next.tts].some((v) => v.id === next.voice)) next.voice = VOICES[next.tts][0].id;
+  next.voiceBy = { ...current.voiceBy, [next.tts]: next.voice };
   if (patch.stt === "local" || patch.stt === "groq") next.stt = patch.stt;
   if (patch.polish === "off" || patch.polish === "groq") next.polish = patch.polish;
   if (typeof patch.rate === "number" && Number.isFinite(patch.rate)) next.rate = Math.max(-50, Math.min(100, Math.round(patch.rate)));

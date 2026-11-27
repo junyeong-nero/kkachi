@@ -553,10 +553,10 @@ function renderTextSize() {
 
 // Read-aloud: a radio group in the sheet, stored on this device.
 function renderDevicePrefs() {
-  const r = row("읽어 주기", "");
-  r.classList.add("cap"); r.prepend(picture("speak"));
-  r.append(switchFor(readAloud(), "읽어 주기", (on) => { localStorage.setItem("kkachi.speak", on ? "on" : "off"); applySpeak(); }));
-  $("speak-group").replaceChildren(r);
+  const r = row("이 폰에서 읽어 주기", "답의 첫 두 문장을 소리로");
+  r.id = "speak-row";
+  r.append(switchFor(readAloud(), "이 폰에서 읽어 주기", (on) => { localStorage.setItem("kkachi.speak", on ? "on" : "off"); applySpeak(); renderSums(); }));
+  $("speak-row").replaceWith(r);
   applySpeak();
   // 외형's 화면: the phone's setting, or always light or dark
   for (const input of document.querySelectorAll("input[name=theme]")) {
@@ -576,7 +576,7 @@ function renderSums() {
   if (accountList.length) $("sum-account").textContent = accountList.filter((a) => a.connected).map((a) => a.name).join(", ") || "연결된 계정 없음";
   if (!catalog || !saved) return;
   const name = (list, id) => list.find((x) => x.id === id)?.name ?? "";
-  $("sum-voice").textContent = `${{ device: "기기 목소리", local: "이 컴퓨터 목소리", edge: "온라인 목소리" }[saved.tts]}. 받아쓰기 ${saved.stt === "local" ? "이 컴퓨터" : "Groq"}`;
+  $("sum-voice").textContent = `목소리 ${{ device: "기기", local: "이 컴퓨터", edge: "온라인" }[saved.tts]}, 받아쓰기 ${saved.stt === "local" ? "이 컴퓨터" : "Groq"}`;
   $("sum-model").textContent = [name(catalog.models, saved.model) || saved.model?.split("/").pop(), name(catalog.thinking, saved.thinking)].filter(Boolean).join(", ");
 }
 async function openSettings() {
@@ -636,15 +636,20 @@ const segmentOf = (id, name, options, value, change) => {
 function renderSpeech() {
   if (!saved || !catalog) return;
   const ok = speechState ?? {}, known = !!speechState; // until it is known, nothing is said to be off
-  segmentOf("tts-engine", "tts", [["device", "기기"], ["local", "이 컴퓨터"], ["edge", "온라인"]], saved.tts, async (v) => { await saveSettings({ tts: v }); renderSpeech(); });
+  const ENGINE = { device: "기기", local: "이 컴퓨터", edge: "온라인" };
+  segmentOf("tts-engine", "tts", Object.entries(ENGINE), saved.tts, async (v) => { await saveSettings({ tts: v }); renderSpeech(); });
+  const ttsDown = known && ((saved.tts === "local" && !ok.ttsLocal) || (saved.tts === "edge" && !ok.edge));
   $("tts-note").textContent = {
-    device: "폰과 각 기기에 들어 있는 목소리예요. 읽을 말이 밖으로 나가지 않아요.",
-    local: ok.ttsLocal || !known ? "이 컴퓨터에서 만들어요 (Supertonic). 읽을 말이 밖으로 나가지 않아요." : "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켜기 전에는 말하지 못해요.",
-    edge: ok.edge || !known ? "Microsoft Edge 의 목소리예요. 읽을 말이 인터넷으로 나가요." : "edge-tts 가 이 컴퓨터에 없어요. 설치하기 전에는 말하지 못해요.",
+    device: "폰과 각 공기계에 들어 있는 목소리예요. 읽을 말이 밖으로 나가지 않아요.",
+    local: ttsDown ? "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켜기 전에는 말하지 못해요." : "이 컴퓨터에서 만들어요 (Supertonic). 읽을 말이 밖으로 나가지 않아요.",
+    edge: ttsDown ? "edge-tts 가 이 컴퓨터에 없어요. 설치하기 전에는 말하지 못해요." : "Microsoft Edge 의 목소리예요. 읽을 말이 인터넷으로 나가요.",
   }[saved.tts];
-  $("tts-note").classList.toggle("down", known && ((saved.tts === "local" && !ok.ttsLocal) || (saved.tts === "edge" && !ok.edge)));
+  $("tts-note").classList.toggle("down", ttsDown);
+  const voiceName = saved.tts === "device" ? "기기 목소리" : (catalog.voices[saved.tts] ?? []).find((v) => v.id === saved.voice)?.name ?? saved.voice;
+  $("voice-now").textContent = ttsDown ? `${ENGINE[saved.tts]}. 지금 말하지 못해요` : saved.tts === "device" ? voiceName : `${ENGINE[saved.tts]}, ${voiceName}`;
+  $("voice-now").classList.toggle("down", ttsDown);
   const voices = catalog.voices[saved.tts] ?? [];
-  $("voices").hidden = saved.tts === "device";
+  $("voices").hidden = saved.tts === "device"; // the device voice is the only one
   $("voices").replaceChildren(...voices.map((v) => {
     const row = document.createElement("label");
     row.className = "voice";
@@ -658,13 +663,13 @@ function renderSpeech() {
     return row;
   }));
   segmentOf("stt-engine", "stt", [["local", "이 컴퓨터"], ["groq", "Groq"]], saved.stt, async (v) => { await saveSettings({ stt: v }); renderSpeech(); });
-  const noKey = "Groq 키가 없어요. 계정에서 넣어 주세요.";
+  const noKey = "Groq 키가 없어요";
   $("stt-note").textContent = saved.stt === "local"
-    ? (ok.sttLocal || !known ? "이 컴퓨터에서 받아써요 (Qwen3-ASR). 녹음이 밖으로 나가지 않아요." : "이 컴퓨터의 받아쓰기 서버가 꺼져 있어요. 켜기 전에는 받아쓰지 못해요.")
-    : (ok.groq || !known ? "Groq 의 Whisper 로 받아써요. 녹음이 Groq 로 나가요." : noKey);
+    ? (ok.sttLocal || !known ? "밖으로 안 나가요" : "서버가 꺼져 있어요")
+    : (ok.groq || !known ? "Groq 로 나가요" : noKey);
   $("stt-note").classList.toggle("down", known && (saved.stt === "local" ? !ok.sttLocal : !ok.groq));
   segmentOf("polish-engine", "polish", [["off", "끄기"], ["groq", "Groq"]], saved.polish, async (v) => { await saveSettings({ polish: v }); renderSpeech(); });
-  $("polish-note").textContent = saved.polish === "off" ? "받아쓴 그대로 입력창에 넣어요." : ok.groq || !known ? "잘못 들은 말, 띄어쓰기, 숫자를 고쳐요. 받아쓴 글이 Groq 로 나가요." : noKey;
+  $("polish-note").textContent = saved.polish === "off" ? "받아쓴 그대로" : ok.groq || !known ? "Groq 로 나가요" : noKey;
   $("polish-note").classList.toggle("down", known && saved.polish === "groq" && !ok.groq);
 }
 
@@ -729,7 +734,8 @@ document.addEventListener("keydown", (e) => {
   if (page() === "chat" || typing(e.target)) return;
   e.preventDefault();
   const inCat = $("settings-body").querySelector(".cat-home").hidden; // a category of settings is open
-  if (page() === "settings" && inCat) showCat(""); else closePage();
+  const open = document.querySelector("#settings .cat:not([hidden]) .cat-back");
+  if (page() === "settings" && inCat) showCat(open?.dataset.back ?? ""); else closePage();
 });
 let ticks = 0; // the menu and a device's page every 5 seconds; the top bar's 집 every 30
 setInterval(() => { if (document.visibilityState === "visible" && (menuOpen || page() === "device" || ++ticks % 6 === 0)) loadDevices(); }, 5000);
@@ -816,7 +822,8 @@ function showCat(cat) {
   enter($("settings-body"), "forward");
 }
 for (const b of document.querySelectorAll("#settings .cat-row")) b.addEventListener("click", () => showCat(b.dataset.cat));
-for (const b of document.querySelectorAll("#settings .cat-back")) b.addEventListener("click", () => showCat(""));
+for (const b of document.querySelectorAll("#settings .cat-back")) b.addEventListener("click", () => showCat(b.dataset.back ?? ""));
+$("voice-row").addEventListener("click", () => showCat("voice-pick"));
 // The menu's tabs, remembered on this device.
 const menuTab = (tab) => { menu.dataset.tab = tab; localStorage.setItem("kkachi.menuTab", tab); };
 const pickMenuTab = (tab) => { menuTab(tab); for (const i of document.querySelectorAll("input[name=menu-tab]")) i.checked = i.value === tab; };
