@@ -1215,7 +1215,7 @@ const say = $("say"), send = $("send");
 const grow = () => {
   say.style.height = "auto";
   const border = say.offsetHeight - say.clientHeight; // scrollHeight leaves the border out
-  say.style.height = `${Math.min(say.scrollHeight + border, 160)}px`;
+  say.style.height = `${Math.min(say.scrollHeight + border, 200)}px`; // as #say's max-height
   send.disabled = !say.value.trim() && !attached.length;
 };
 

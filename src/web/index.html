@@ -323,13 +323,22 @@
   #status:empty { display: none; }
   body[data-state=recording] #status { color: var(--accent); font-weight: 600; }
   body[data-state=error] #status { color: var(--danger); }
-  #compose { display: flex; align-items: flex-end; gap: 8px; }
-  #say {
-    flex: 1; resize: none; font: inherit; font-size: max(16px, var(--t-base)); line-height: 1.45; /* 16px+: iOS does not zoom */
-    padding: 10px 14px; border-radius: 22px; border: 1px solid var(--line); background: var(--surface); color: var(--text);
-    max-height: 160px; outline: none;
+  /* the composer is one card: the photos waiting, the words across its whole width, and under them a
+     row of buttons that belongs to it, so the card grows upwards as one piece (isolation: the mic's
+     halo stays above the card's fill) */
+  #compose {
+    display: grid; padding: 4px 6px 6px; border-radius: 24px; border: 1px solid var(--line); background: var(--surface);
+    isolation: isolate; transition: border-color var(--dur-fast) var(--ease-out);
   }
-  #say:focus { border-color: var(--accent); }
+  #compose:has(#say:focus) { border-color: var(--accent); }
+  #say:focus-visible { box-shadow: none; } /* the card's border shows the focus */
+  #say {
+    width: 100%; resize: none; font: inherit; font-size: max(16px, var(--t-base)); line-height: 1.45; /* 16px+: iOS does not zoom */
+    padding: 8px 10px 4px; border: 0; border-radius: 0; background: transparent; color: var(--text);
+    max-height: 200px; outline: none; word-break: keep-all; overflow-wrap: anywhere;
+  }
+  #compose .tools { display: flex; align-items: center; gap: 6px; }
+  #compose .tools #mic { margin-left: auto; }
   #send {
     flex: none; width: 44px; height: 44px; border-radius: var(--r-pill); border: 0; cursor: pointer;
     background: var(--button); color: var(--button-ink); display: grid; place-items: center;
@@ -341,25 +350,25 @@
   /* mic: tap to start, tap again (or let go after holding) to stop */
   #mic {
     flex: none; position: relative; width: 44px; height: 44px; border-radius: var(--r-pill); cursor: pointer;
-    border: 1px solid var(--line); background: var(--bg); color: var(--text); display: grid; place-items: center;
+    border: 0; background: transparent; color: var(--text); display: grid; place-items: center;
     touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
     transition: background-color var(--dur) var(--ease-out); /* never box-shadow: the focus ring must not fade in */
   }
   #mic svg { width: 21px; height: 21px; }
-  @media (hover: hover) { #mic:hover { background: var(--surface); } }
+  @media (hover: hover) { #mic:hover { background: var(--line); } }
 
   /* photo: pick or take pictures to ask about; they wait above the text box until sent */
   #photo {
     flex: none; width: 44px; height: 44px; border-radius: var(--r-pill); cursor: pointer;
-    border: 1px solid var(--line); background: var(--bg); color: var(--text); display: grid; place-items: center;
+    border: 0; background: transparent; color: var(--text); display: grid; place-items: center;
     transition: background-color var(--dur) var(--ease-out);
   }
   #photo svg { width: 21px; height: 21px; }
   #photo { position: relative; }
   #photo input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; } /* focusable, not visible */
-  @media (hover: hover) { #photo:hover { background: var(--surface); } }
+  @media (hover: hover) { #photo:hover { background: var(--line); } }
   #photo:focus-within { box-shadow: 0 0 0 3px var(--accent-ring); }
-  #attachments { display: flex; gap: 8px; margin: 0 0 8px; padding: 6px 6px 0 0; overflow-x: auto; } /* room for the remove buttons */
+  #attachments { display: flex; gap: 8px; padding: 10px 10px 4px 4px; overflow-x: auto; } /* room for the remove buttons */
   #attachments:empty { display: none; }
   .thumb { position: relative; flex: none; }
   .thumb img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); }
@@ -491,19 +500,21 @@
 
 <footer id="dock">
   <div id="status" role="status"></div>
-  <div id="attachments"></div>
   <form id="compose" autocomplete="off">
-    <label id="photo" aria-label="사진 첨부: 찍거나 골라서 물어보세요">
-      <input id="photo-input" type="file" accept="image/*" multiple>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
-    </label>
+    <div id="attachments"></div>
     <textarea id="say" rows="1" placeholder="메시지를 입력하세요" enterkeyhint="send" aria-label="메시지"></textarea>
-    <button id="mic" type="button" aria-label="말하기" title="눌러서 말하고 다시 눌러 멈춰요. 받아적은 말은 입력창에 들어가요. Space 를 누른 채로 말해도 돼요">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-    </button>
-    <button id="send" type="submit" aria-label="보내기" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-    </button>
+    <div class="tools">
+      <label id="photo" aria-label="사진 첨부: 찍거나 골라서 물어보세요">
+        <input id="photo-input" type="file" accept="image/*" multiple>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      </label>
+      <button id="mic" type="button" aria-label="말하기" title="눌러서 말하고 다시 눌러 멈춰요. 받아적은 말은 입력창에 들어가요. Space 를 누른 채로 말해도 돼요">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+      <button id="send" type="submit" aria-label="보내기" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+    </div>
   </form>
 </footer>
 <div id="toast" role="status"></div>
