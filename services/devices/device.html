@@ -317,7 +317,7 @@ const CAPS = [
   { key: "talk", to: "out", name: "음성", icon: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', state: () => armed() ? perm.mic : "tap" },
   { key: "camera", to: "out", name: "카메라", icon: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', state: () => perm.camera },
   { key: "sound", to: "out", name: "소리 크기", icon: '<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/>', state: () => armed() ? perm.mic : "tap" },
-  { key: "sensors", to: "out", name: "가속도 센서", icon: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>', state: () => perm.motion },
+  { key: "sensors", to: "out", name: "움직임 센서", icon: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>', state: () => perm.motion },
   { key: "location", to: "out", name: "위치", icon: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', state: () => perm.location },
 ];
 const STATE = { ok: "켜짐", tap: "탭 필요", denied: "권한 없음", none: "지원 안 함" };

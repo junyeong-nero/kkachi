@@ -683,7 +683,7 @@ function renderSpeech() {
   segmentOf("tts-engine", "tts", Object.entries(ENGINE), saved.tts, async (v) => { await saveSettings({ tts: v }); renderSpeech(); });
   const ttsDown = known && ((saved.tts === "local" && !ok.ttsLocal) || (saved.tts === "edge" && !ok.edge));
   $("tts-note").textContent = {
-    device: "폰과 각 공기계에 들어 있는 목소리예요. 읽을 말이 밖으로 나가지 않아요.",
+    device: "폰과 각 기기에 들어 있는 목소리예요. 읽을 말이 밖으로 나가지 않아요.",
     local: ttsDown ? "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켜기 전에는 말하지 못해요." : "이 컴퓨터에서 만들어요 (Supertonic). 읽을 말이 밖으로 나가지 않아요.",
     edge: ttsDown ? "edge-tts 가 이 컴퓨터에 없어요. 설치하기 전에는 말하지 못해요." : "Microsoft Edge 의 목소리예요. 읽을 말이 인터넷으로 나가요.",
   }[saved.tts];

@@ -3,10 +3,10 @@
 까치는 프로세스 세 개로 돈다. core 가 에이전트 루프와 MCP 연결을 맡고, kkachi-devices 와 kkachi-memory 는 core 가 띄우는 독립 MCP 서비스다. 그림은 [architecture.svg](architecture.svg), 원칙은 [philosophy.md](philosophy.md)에 있다.
 
 ```
-까치 홈, 공기계, 다른 에이전트 ─ Tailscale Serve (HTTPS) ─ kkachi-core (Bun, 127.0.0.1:4300)
+까치 홈, 기기, 다른 에이전트 ─ Tailscale Serve (HTTPS) ─ kkachi-core (Bun, 127.0.0.1:4300)
    ├─ 받아쓰기 (Groq) → 다듬기 (켜 두면 Groq LLM), 읽어 주기 (기본은 기기 내장, 고르면 Edge)
-   ├─ Pi RPC: 대화, 공기계 세션, 사서, 30분 대화 정리
-   ├─ kkachi-devices (4301): 공기계 입출력 MCP
+   ├─ Pi RPC: 대화(기기에 한 말도), 사서, 30분 대화 정리
+   ├─ kkachi-devices (4301): 기기 입출력 MCP
    └─ kkachi-memory (4302): 노트와 git MCP
 ```
 
@@ -22,24 +22,24 @@
 | `models.ts` | `KKACHI_MODEL` 의 모델 목록. 한도(429)에 걸리면 같은 턴을 다음 모델로 다시 보낸다 |
 | `speech.ts`, `polish.ts`, `vocabulary.ts` | 받아쓰기, 받아쓴 말 다듬기, 다듬기에 넣는 용어 목록(memory 레포의 `vocabulary.md`, 노트 제목, 기본 용어). [design.md](design.md) "음성 처리" |
 | `replay.ts` | 턴의 이벤트를 id 로 보관한다. 폰에서 연결이 끊겨도 앱이 받은 데서부터 이어 받는다 |
-| `bus.ts`, `inbox.ts`, `feed.ts` | 입력 버스. 공기계의 입력을 id 하나당 한 번, 60초 안에만 접수하고, 까치 홈 대화의 한 턴으로 답해 그 기기로 보내고 폰 피드에도 올린다. [bus.md](bus.md) |
+| `bus.ts`, `inbox.ts`, `feed.ts` | 입력 버스. 기기의 입력을 id 하나당 한 번, 60초 안에만 접수하고, 까치 홈 대화의 한 턴으로 답해 그 기기로 보내고 폰 피드에도 올린다. [bus.md](bus.md) |
 | `agent-dir.ts`, `accounts.ts`, `mcp-servers.ts`, `mcp-login.ts` | 까치 자신의 Pi 설정(`data/agent`). 사용자의 `~/.pi/agent` 와 따로다. 계정(구독 로그인과 API 키, `auth.json`; Groq 처럼 까치가 직접 쓰는 키는 `keys.json`)과 까치 홈에서 붙인 MCP 서버(`mcp.json`, Pi 의 MCP 기능이 연결. OAuth 로그인은 `pi mcp login` 을 띄우고 폰에서 붙여 넣은 돌아올 주소를 서버에서 대신 연다), 웹 검색 패키지 하나. Pi 는 `PI_CODING_AGENT_DIR` 로 여기를 쓰고 사용자 스킬은 읽지 않는다 |
 | `conversations.ts` | 까치 홈의 대화들. Pi 세션 파일(`data/pi-sessions`)에서 목록과 내용을 읽는다. 메뉴의 지난 대화, 앱을 다시 열 때의 대화 |
 | `mcp-bridge.ts`, `services.ts` | `kkachi.mcp.json` 을 읽어 서버 목록과 에이전트별 허용 도구를 정한다. Pi 를 띄울 때 `tools/list` 로 도구를 받아 넘긴다. `command` 가 있는 서버는 core 가 띄우고 멈추면 다시 띄우며, `routes` 는 core 주소에서 중계한다 |
 | `memory.ts` | memory 서비스의 `git_*` 도구를 부른다. 턴 전 sync, 턴 끝 checkpoint, 사서와 대화 정리의 작업 사본 |
 | `review.ts` | 30분 조용하면 대화를 노트와 견줘 빠진 것을 채운다 |
 | `librarian.ts` | 사서. 노트를 정리하고 목록을 다시 쓴다 |
-| `settings.ts` | 설정 화면에서 바꾼 값(`data/settings.json`): 목소리와 말 빠르기, 모델, 생각 깊이, 공기계 대화 |
+| `settings.ts` | 설정 화면에서 바꾼 값(`data/settings.json`): 목소리와 말 빠르기, 모델, 생각 깊이, 기기 대화 |
 | `config.ts`, `check.ts` | 환경 변수 설정과 시작할 때의 점검. git 이나 Pi 가 없으면 서버를 멈추고, 음성 쪽이 빠지면 그 기능만 끈다 |
 | `web/` | 까치 홈. 화면 동작은 [design.md](design.md), 색과 글꼴은 [DESIGN.md](../DESIGN.md) |
 
 ## kkachi-devices (`services/devices/`)
 
-안 쓰는 폰과 태블릿을 스피커, 조명, 카메라, 센서, 마이크로 쓰게 해 주는 서비스다. 공기계는 `/device` 페이지를 열어 WebSocket 으로 붙고, 까치 홈에서 허용하면 토큰을 받는다. 에이전트가 무엇을 쓸지는 까치 홈에서 정해 이 서비스가 기기마다 기억하고, 기기 화면은 상태만 보여 준다.
+안 쓰는 폰과 태블릿을 스피커, 조명, 카메라, 센서, 마이크로 쓰게 해 주는 서비스다. 기기는 `/device` 페이지를 열어 WebSocket 으로 붙고, 까치 홈에서 허용하면 토큰을 받는다. 에이전트가 무엇을 쓸지는 까치 홈에서 정해 이 서비스가 기기마다 기억하고, 기기 화면은 상태만 보여 준다.
 
 - 에이전트가 쓰는 MCP 도구는 `list_devices`, `device_speak`, `device_snapshot`, `device_sound_level`, `device_sensors`, `device_light` 다. core 안에서는 `/mcp`, 다른 에이전트는 `/mcp/devices` 로 쓴다.
 - 사진과 측정값은 전달만 하고 저장하지 않는다.
-- 공기계에 한 말은 WebSocket `input` 으로 받아 core 의 입력 버스에 넘기고 ACK 를 돌려준다. 답은 core 만 부를 수 있는 `device_reply` 로 온다. 까치 홈은 `POST /api/device/<id>/read` 로 그 방의 센서, 소리 크기, 사진을 직접 읽는다.
+- 기기에 한 말은 WebSocket `input` 으로 받아 core 의 입력 버스에 넘기고 ACK 를 돌려준다. 답은 core 만 부를 수 있는 `device_reply` 로 온다. 까치 홈은 `POST /api/device/<id>/read` 로 그 방의 센서, 소리 크기, 사진을 직접 읽는다.
 - 폴더만 복사해도 MCP 서버로 돈다. 그때는 core 가 없으니 기기에 한 말을 거절하고, 기기는 자기 목소리로 말한다.
 
 기능별 현황은 [sensors.md](sensors.md), 서비스 사용법은 [services/devices/README.md](../services/devices/README.md), core 와의 약속은 [PROTOCOL.md](../services/devices/PROTOCOL.md)에 있다.
@@ -54,7 +54,7 @@
 - 원격이 있어도 `KKACHI_MEMORY_SYNC=1` 일 때만 pull 과 push 를 한다.
 - 폴더만 복사해도 MCP 서버로 돈다.
 
-까치 홈 대화의 Pi 는 노트 파일을 직접 고치고, 공기계 제한 모드와 다른 에이전트는 `memory_*` 도구로만 접근한다. 서비스 사용법은 [services/memory/README.md](../services/memory/README.md)에 있다.
+까치 홈 대화의 Pi 는 노트 파일을 직접 고치고, 다른 에이전트는 `memory_*` 도구로만 접근한다. 서비스 사용법은 [services/memory/README.md](../services/memory/README.md)에 있다.
 
 ## 나머지
 
@@ -100,5 +100,5 @@ memory 레포를 도서관처럼 유지한다. 레포를 열면 `README.md` 목�
 
 - core 는 127.0.0.1 에만 열리고, 밖에서는 Tailscale Serve 로만 들어온다. 앱 로그인은 없고 tailnet 이 경계다. Tailscale Funnel 은 쓰지 않는다.
 - 까치 홈 대화의 Pi 는 shell, 파일, 웹, MCP 를 확인 없이 쓴다. tailnet 에 들어올 수 있는 기기는 말로 명령을 실행시킬 수 있고, 웹 페이지에 숨은 지시(prompt injection)가 실행될 수도 있다. 혼자 쓰는 것을 전제로 받아들인 위험이다.
-- 공기계에는 방에 있는 누구나 말할 수 있다. 혼자 쓰는 집이라는 가정으로 공기계도 까치 홈과 같은 도구를 쓴다. 손님이 오는 곳의 기기는 음성을 닫는다([bus.md](bus.md)).
+- 기기에는 방에 있는 누구나 말할 수 있다. 혼자 쓰는 집이라는 가정으로 기기도 까치 홈과 같은 도구를 쓴다. 손님이 오는 곳의 기기는 음성을 닫는다([bus.md](bus.md)).
 - 턴마다 커밋 하나가 바로 남는다. "방금 거 취소해"로 되돌린다.
