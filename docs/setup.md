@@ -68,13 +68,16 @@ All settings are environment variables in `.env.local` (see `src/config.ts`), fo
 - Take or pick up to four photos and ask about them. They go to the model only; the memory repo records only that there were photos.
 - It can search the web, use MCP tools, and work on code in other repos: whatever your Pi setup can do.
 
-### Kkachi Home's tabs
+### Kkachi Home's menu
 
 The interface is in Korean.
 
-- Chat (대화): opens first. Talk to Kkachi, from home or anywhere on your tailnet.
-- Devices (기기): your spare phones and tablets. Open one to see what is happening in that room now (how loud it is, when it last moved, how it lies, where it is; a photo when you ask) and to choose what Kkachi may use there: its voice, speaker, lamp, camera, sound level, motion sensors and location. Waiting devices are allowed here, and old ones removed.
-- Settings (설정): read-aloud and voice, text size, model, how Kkachi answers what is said to a device, its MCP servers, and what it was used for lately.
+The conversation is the screen. Everything else is in a menu that slides in from the left: tap the button at the top left, or swipe in from the left edge.
+
+- New chat (새 대화).
+- Devices (기기): your spare phones and tablets. Open one to see what is happening in that room now (how loud it is, when it last moved, how it lies, where it is; a photo when you ask) and to choose what Kkachi may use there: its voice, speaker, lamp, camera, sound level, motion sensors and location. The + shows how to add one, with the address to copy. Waiting devices are allowed here.
+- Recent (최근 기록): what Kkachi was used for lately, from here and from the devices.
+- Settings (설정): read-aloud and voice, text size, model, how Kkachi answers what is said to a device, and its MCP servers.
 
 ### Spare devices
 

@@ -64,7 +64,7 @@ reply {inputId, heard, 답}  ◀── device_reply (core 전용 도구) ◀─�
 
 ## 까치에게 열린 것
 
-까치가 기기에서 무엇을 쓸지는 기기마다 하나씩 정한다. 까치 홈의 기기 탭에서 기기를 눌러 연다. 공기계 화면에는 스위치가 없다. kkachi-devices 가 기기마다 갖고(`data/devices.json`, `POST /api/device/<id>/agent {cap, open}`), 새 기기는 모두 열려 있다.
+까치가 기기에서 무엇을 쓸지는 기기마다 하나씩 정한다. 까치 홈의 메뉴에서 기기를 눌러 연다. 공기계 화면에는 스위치가 없다. kkachi-devices 가 기기마다 갖고(`data/devices.json`, `POST /api/device/<id>/agent {cap, open}`), 새 기기는 모두 열려 있다.
 
 - 음성: 열려 있으면 공기계 화면 가운데에 누르고 말하는 패드가 나오고, 한 말이 까치의 한 턴이 된다. 닫으면 패드가 사라지고, 그래도 들어온 말은 devices 가 거절한다(`switched off`)
 - 스피커, 조명, 카메라, 소리 크기, 가속도 센서, 위치: 까치가 도구로 쓴다. 닫힌 것을 쓰려 하면 devices 가 거절하고, `list_devices` 에도 닫혀 있다고 나온다

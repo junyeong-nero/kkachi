@@ -9,7 +9,7 @@ Kkachi (까치, "magpie") is an agent that stays home. It runs on the computer y
 It started from not wanting to set up Home Assistant OS just to try a home assistant: a dedicated machine or a VM, an OS image, and add-ons before anything answers. Kkachi is one command on a computer that stays on, and one web page on each phone.
 
 <p align="center">
-  <img src="docs/demo.gif" alt="Kkachi Home: asking how the living room is, then opening a device to see its room and choose what Kkachi may use there" width="300">
+  <img src="docs/demo.gif" alt="Kkachi Home: asking whether the study is quiet, then the menu: the study opened to see its room and choose what Kkachi may use there, and how to add a device" width="300">
 </p>
 
 The agent behind it is [Pi](https://github.com/earendil-works/pi), a coding agent, signed in to a model subscription you have (Claude, ChatGPT and others). So besides the home it can search the web, use MCP tools and work on code.
@@ -66,10 +66,10 @@ The app on your phone: where you talk to Kkachi and look after the devices.
 A spare phone or tablet becomes a Kkachi Device: Kkachi's eyes, ears and voice in that room. It has a speaker, a microphone, a camera, a sound meter, motion sensors, and on a tablet a lamp.
 
 1. Open `/device` at the same address on the spare phone, name it ("living room") and tap once.
-2. Allow it in Kkachi Home, under Devices (기기).
+2. Allow it in Kkachi Home's menu, under 기기. The menu's + (기기 추가) shows these steps with the address to copy.
 3. Keep its screen on.
 
-Then "tell the living room dinner is ready" plays there, "how is the living room?" gets a photo and an answer, and holding the talk pad on its screen asks Kkachi something from that room. In Kkachi Home, open a device to see what is happening there now (how loud it is, when it last moved, a photo when you ask) and to choose what Kkachi may use there.
+Then "tell the living room dinner is ready" plays there, "how is the living room?" gets a photo and an answer, and holding the talk pad on its screen asks Kkachi something from that room. In Kkachi Home's menu, open a device to see what is happening there now (how loud it is, when it last moved, a photo when you ask) and to choose what Kkachi may use there.
 
 Real lights, plugs and speakers come in through their MCP servers: add one for TP-Link Tapo, Philips Hue or others ([docs/extensions.md](docs/extensions.md) lists them, Korean), or Home Assistant for a whole house, and Kkachi switches them when you ask.
 

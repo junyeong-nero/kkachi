@@ -635,32 +635,83 @@ async function preview(voice) {
   } catch (e) { toast("목소리를 불러오지 못했어요"); }
 }
 
-// ---- screens, switched in the bar at the bottom: 대화 (opens first), 기기, 설정 ----
-const chatting = () => document.body.dataset.tab === "chat";
-// Motion (DESIGN.md, What moves): what a screen does when it is arrived at. tab: it fades in; forward
-// and back: it also comes 12px from the side it was opened from. Reduced motion keeps the fade only (CSS).
+// ---- screens: the conversation, and a menu that slides in from the left over it (the button at the
+// top left, or a swipe from the left edge): 새 대화, the devices (+ to add one), what Kkachi was used
+// for, and 설정. A device, adding one, and 설정 open as a page over the conversation; going back
+// shows the menu again, where they were opened from ----
+const page = () => document.body.dataset.view; // chat | device | add | settings
+const chatting = () => page() === "chat" && !menuOpen;
+// Motion (DESIGN.md, What moves): a page comes 12px from the right with a fade; going back, the menu
+// slides in. Reduced motion keeps the fades only (CSS).
 function enter(node, how) {
-  node.classList.remove("in-tab", "in-forward", "in-back");
+  node.classList.remove("in-forward");
   void node.offsetWidth; // start again, also when the last one has not finished
   node.classList.add(`in-${how}`);
 }
 const SETTLE = 160; // a switch finishes moving before its list is drawn again
-const TABS = ["chat", "devices", "settings"];
-function show(tab) {
-  const moved = document.body.dataset.tab !== tab;
-  document.body.dataset.tab = tab;
-  $("nav").style.setProperty("--tab", TABS.indexOf(tab)); // where the bar's pill slides to
-  for (const b of $("nav").children) { if (b.dataset.tab === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
-  if (tab === "settings") { openSettings(); loadMcp(); loadHistory(); }
-  else if (tab === "devices") { renderDevices(); loadDevices(); }
-  else scrollDown(true);
-  if (moved) enter(tab === "chat" ? $("log") : $(`${tab}-body`), "tab");
+function openPage(view, deviceId = null) {
+  setMenu(false, false);
+  opened = deviceId;
+  document.body.dataset.view = view;
+  if (view === "settings") { openSettings(); loadMcp(); }
+  if (view === "device") readRoom(deviceId);
+  drawn = ""; renderPage();
+  const pane = view === "settings" ? $("settings") : $("devices");
+  pane.scrollTop = 0;
+  enter(pane.firstElementChild, "forward");
 }
-for (const b of $("nav").children) b.addEventListener("click", () => {
-  const tab = b.dataset.tab;
-  if (document.body.dataset.tab === tab && tab === "devices" && opened) openDevice(null); // the same tab again: back to the list
-  show(tab);
-});
+function closePage() { document.body.dataset.view = "chat"; opened = null; setMenu(true); scrollDown(true); }
+
+// The menu. It follows the finger from the left edge and from itself, and opens or closes on letting go
+// by how far and how fast it went. While it is open the rest of the app is inert: Tab stays in it,
+// Escape closes it.
+let menuOpen = false;
+const menu = $("menu"), scrim = $("scrim");
+function setMenu(open, focus = true) {
+  menuOpen = open;
+  document.body.classList.toggle("menu", open);
+  menu.style.transform = ""; scrim.style.opacity = "";
+  menu.inert = !open;
+  for (const id of ["top", "log", "dock", "devices", "settings"]) $(id).inert = open;
+  if (open) { loadDevices(); loadHistory(); if (focus) menu.focus({ preventScroll: true }); } // the menu itself: Tab goes on to its first row
+  else if (focus && page() === "chat") $("open-menu").focus({ preventScroll: true });
+}
+setMenu(false, false);
+$("open-menu").addEventListener("click", () => setMenu(true));
+scrim.addEventListener("click", () => setMenu(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menuOpen) { e.preventDefault(); setMenu(false); } });
+setInterval(() => { if ((menuOpen || page() === "device") && document.visibilityState === "visible") loadDevices(); }, 5000);
+{
+  const EDGE = 24; // a swipe that starts this close to the left edge opens the menu
+  let drag = null; // { x0, y0, t0, open, width, dx, sideways }
+  addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    if (e.touches.length !== 1 || (!menuOpen && (t.clientX > EDGE || page() !== "chat"))) return;
+    drag = { x0: t.clientX, y0: t.clientY, t0: performance.now(), open: menuOpen, width: menu.offsetWidth, dx: 0, sideways: null };
+  }, { passive: true });
+  addEventListener("touchmove", (e) => {
+    if (!drag) return;
+    const t = e.touches[0], dx = t.clientX - drag.x0, dy = t.clientY - drag.y0;
+    drag.sideways ??= Math.abs(dx) > 8 || Math.abs(dy) > 8 ? Math.abs(dx) > Math.abs(dy) : null;
+    if (drag.sideways === false) { drag = null; return; } // a scroll: not the menu's
+    if (!drag.sideways) return;
+    e.preventDefault();
+    drag.dx = dx;
+    const shown = Math.min(1, Math.max(0, (drag.open ? drag.width + dx : dx) / drag.width)); // 0 closed, 1 open
+    document.body.classList.add("dragging", "menu");
+    menu.style.transform = `translateX(${(shown - 1) * 100}%)`;
+    scrim.style.opacity = String(shown);
+  }, { passive: false });
+  addEventListener("touchend", () => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    document.body.classList.remove("dragging");
+    if (!d.sideways) { if (!d.open) document.body.classList.remove("menu"); return; }
+    const speed = d.dx / (performance.now() - d.t0); // px per ms, + to the right
+    const shown = (d.open ? d.width + d.dx : d.dx) / d.width;
+    setMenu(speed > 0.4 || (speed > -0.4 && shown > 0.5));
+  });
+}
 
 // A row in a list: a name, a line under it, and sometimes a button.
 function row(name, sub, button) {
@@ -694,14 +745,15 @@ const PIC = {
   motion: "M3 12h4l3-7 4 14 3-7h4", // when it last moved
 };
 const picture = (pic) => el("span", "pic", icon(PIC[pic] ?? PIC.phone));
-function backTo(label, go) {
+function backToMenu() {
   const b = el("button", "back", icon("M15 6l-6 6 6 6"));
-  b.type = "button"; b.append(label);
-  b.addEventListener("click", go);
+  b.type = "button"; b.append("메뉴");
+  b.addEventListener("click", closePage);
   return b;
 }
-// One light for whether something can be used: green (ok) it can, red (no) it cannot, grey (off) the
-// device is off. The words are for screen readers and a long press.
+$("settings-back").addEventListener("click", closePage);
+// One light for whether something can be used: green (ok) it can, grey (off) the device is off. The
+// words are for screen readers and a long press.
 function light(level, words) {
   const s = el("span", `dot ${level}`);
   s.setAttribute("role", "img"); s.setAttribute("aria-label", words); s.title = words;
@@ -715,61 +767,78 @@ const switchFor = (on, label, flip) => {
   return sw;
 };
 
-// ---- 기기: the spare phones and tablets, what is happening in each room, and what Kkachi may use there ----
-// The list is read again every 5 seconds while it shows. Opening a device reads its room (sensors, how
-// loud it is) through the devices service; a photo only when asked for.
-let devices = [], listed = true, opened = null; // as last read; listed: the list came; opened: the device on screen
+// ---- the devices: listed in the menu; one opened is a page with its room and what Kkachi may use ----
+let devices = [], listed = true, opened = null; // as last read; listed: the list came; opened: the device on its page
 const reading = new Map(); // device id → { sensors, sound, photo }: each null (reading), an object, or { error }
 async function loadDevices() {
   const r = await fetch("/api/device/list").then((x) => (x.ok ? x.json() : null)).catch(() => null);
   listed = !!r;
   if (r) devices = r.devices;
-  renderDevices();
-}
-setInterval(() => { if (document.body.dataset.tab === "devices" && document.visibilityState === "visible") loadDevices(); }, 5000);
-function openDevice(id) {
-  opened = id;
-  if (id) readRoom(id);
-  drawn = ""; renderDevices();
-  $("devices").scrollTop = 0;
-  enter($("devices-body"), id ? "forward" : "back");
-}
-// Draw the screen that is showing, unless nothing it shows has changed: redrawing under a finger loses the tap.
-let drawn = "";
-function renderDevices() {
-  if (document.body.dataset.tab !== "devices") return;
-  const d = devices.find((x) => x.id === opened);
-  const key = JSON.stringify([opened, devices, listed, d && reading.get(d.id)]);
-  if (key === drawn) return;
-  drawn = key;
-  if (d) renderDevice(d); else { opened = null; renderDeviceList(); }
+  renderMenuDevices();
+  renderPage();
 }
 const stateOf = (d) => (!d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있어요" : !d.armed ? "켜져 있어요. 화면을 한 번 눌러야 소리를 써요" : "켜져 있어요");
-function renderDeviceList() {
-  const group = el("div", "group");
-  group.append(...devices.map((d) => {
+let menuDrawn = "";
+function renderMenuDevices() {
+  const key = JSON.stringify([devices, listed]);
+  if (key === menuDrawn) return; // redrawing under a finger loses the tap
+  menuDrawn = key;
+  const rows = devices.map((d) => {
     const r = el(d.allowed ? "button" : "div", "device item", '<span><span class="name"></span><span class="sub"></span></span>');
     r.querySelector(".name").textContent = d.name;
-    r.querySelector(".sub").textContent = stateOf(d);
+    r.querySelector(".sub").textContent = d.allowed ? (d.online ? "켜져 있어요" : "꺼져 있어요") : "허용을 기다려요";
     r.prepend(picture(d.kind));
     if (!d.online || !d.allowed) r.classList.add("off");
     if (d.allowed) {
       r.type = "button";
-      r.append(light(d.online ? "ok" : "off", stateOf(d)), el("span", "chev", icon("M9 6l6 6-6 6")));
-      r.addEventListener("click", () => openDevice(d.id));
+      r.append(light(d.online ? "ok" : "off", stateOf(d)));
+      r.addEventListener("click", () => openPage("device", d.id));
     } else {
       const allow = text("button", "play allow", "허용");
       allow.type = "button"; allow.setAttribute("aria-label", `${d.name} 허용`);
-      allow.addEventListener("click", async () => { const res = await fetch(`/api/device/${d.id}/allow`, { method: "POST" }); if (res.ok) { devices = (await res.json()).devices; renderDevices(); } else toast("허용하지 못했어요"); });
+      allow.addEventListener("click", async () => { const res = await fetch(`/api/device/${d.id}/allow`, { method: "POST" }); if (res.ok) { devices = (await res.json()).devices; renderMenuDevices(); } else toast("허용하지 못했어요"); });
       r.append(allow);
     }
     return r;
-  }));
-  const how = el("p", "note");
-  how.append("안 쓰는 폰이나 태블릿에서 ", text("b", "url", `${location.origin}/device`), " 를 열면 여기에 나타나요. 허용하면 까치가 그 방을 보고 듣고 말할 수 있어요.");
-  $("devices-body").replaceChildren(text("h1", "", "기기"),
-    ...(!listed ? [text("p", "note", "기기 목록을 불러오지 못했어요.")] : devices.length ? [group] : [text("p", "lede", "아직 기기가 없어요.")]),
-    how);
+  });
+  $("menu-devices").replaceChildren(...(!listed ? [el("div", "loading", "기기 목록을 불러오지 못했어요")]
+    : rows.length ? rows : [el("div", "loading", "아직 없어요. + 로 추가해요")]));
+}
+$("add-device").addEventListener("click", () => openPage("add"));
+$("open-settings").addEventListener("click", () => openPage("settings"));
+
+// The page showing, unless nothing it shows has changed: redrawing under a finger loses the tap.
+let drawn = "";
+function renderPage() {
+  const view = page(), d = devices.find((x) => x.id === opened);
+  if (view !== "device" && view !== "add") return;
+  const key = JSON.stringify([view, opened, view === "device" && [devices, listed, d && reading.get(d.id)]]);
+  if (key === drawn) return;
+  drawn = key;
+  if (view === "add") renderAdd();
+  else if (d) renderDevice(d);
+  else closePage(); // it was deleted
+}
+
+// Adding a device: what to do on the spare phone, and the address to open there, to copy.
+function renderAdd() {
+  const url = `${location.origin}/device`;
+  const address = el("div", "address");
+  const copy = text("button", "play", "복사");
+  copy.type = "button"; copy.setAttribute("aria-label", "주소 복사");
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(url); copy.textContent = "복사했어요"; setTimeout(() => (copy.textContent = "복사"), 1600); }
+    catch { getSelection().selectAllChildren(address.querySelector(".url")); toast("주소를 길게 눌러 복사해 주세요"); } // no clipboard: the address is selected
+  });
+  address.append(text("span", "url", url), copy);
+  const steps = el("ol", "steps");
+  for (const [title, words] of [
+    ["이 주소를 여세요", "안 쓰는 폰이나 태블릿의 Safari 나 Chrome 에서요. 그 기기도 이 폰과 같은 Tailscale 계정에 로그인해 있어야 열려요."],
+    ["이름을 붙이고 화면을 한 번 누르세요", "거실, 주방처럼 둔 곳의 이름이 좋아요. 그때 마이크, 카메라, 움직임, 위치 권한을 한꺼번에 물어요."],
+    ["여기서 허용하세요", "메뉴의 기기 목록에 허용을 기다리는 기기로 나타나요."],
+    ["화면을 켜 두세요", "자동 잠금을 꺼 두고 충전기에 꽂아 두면 좋아요."],
+  ]) { const li = el("li"); li.append(text("span", "name", title), text("span", "sub", words)); steps.append(li); }
+  $("devices-body").replaceChildren(backToMenu(), text("h1", "", "기기 추가"), text("p", "lede", "안 쓰는 폰이나 태블릿이 그 방에서 까치의 눈과 귀와 입이 돼요. 앱은 깔지 않아요."), address, steps);
 }
 
 // What is happening in a device's room, read when it is opened (POST /api/device/<id>/read).
@@ -784,7 +853,7 @@ function readRoom(id, whats = ["sensors", "sound"]) {
   const now = { ...reading.get(id) };
   for (const w of whats) now[w] = null;
   reading.set(id, now);
-  for (const w of whats) read(id, w).then((v) => { reading.set(id, { ...reading.get(id), [w]: v }); renderDevices(); });
+  for (const w of whats) read(id, w).then((v) => { reading.set(id, { ...reading.get(id), [w]: v }); renderPage(); });
 }
 // A reading, as words: [words, down?]. The device's own reasons ("not allowed yet (tap the screen)") are
 // turned into the app's.
@@ -805,7 +874,7 @@ function roomRows(r = {}) {
 }
 function renderDevice(d) {
   const r = reading.get(d.id) ?? {};
-  const parts = [backTo("기기", () => openDevice(null)), text("h1", "", d.name), text("p", "lede", d.online ? `${stateOf(d)}.` : "꺼져 있어요. 그 기기에서 기기 페이지를 열어 두면 다시 켜져요.")];
+  const parts = [backToMenu(), text("h1", "", d.name), text("p", "lede", d.online ? `${stateOf(d)}.` : "꺼져 있어요. 그 기기에서 기기 페이지를 열어 두면 다시 켜져요.")];
   if (d.online) {
     const head = el("div", "title-row sub-head");
     head.append(text("h2", "", "지금 이 방"), iconButton("M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7", "다시 읽기", () => readRoom(d.id, ["sensors", "sound", ...(r.photo ? ["photo"] : [])])));
@@ -831,7 +900,7 @@ function renderDevice(d) {
       const res = await fetch(`/api/device/${d.id}/agent`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cap: c, open: on }) });
       await sleep(SETTLE);
       if (res.ok) devices = (await res.json()).devices; else toast("바꾸지 못했어요");
-      drawn = ""; renderDevices(); // a refusal: the switch goes back
+      drawn = ""; renderPage(); // a refusal: the switch goes back
     }));
     return x;
   }));
@@ -842,29 +911,28 @@ function renderDevice(d) {
     if (!confirm(`'${d.name}' 기기를 삭제할까요? 다시 쓰려면 그 기기에서 처음부터 다시 붙여야 해요.`)) return;
     const res = await fetch(`/api/device/${d.id}/forget`, { method: "POST" });
     if (!res.ok) { toast("삭제하지 못했어요"); return; }
-    devices = (await res.json()).devices; reading.delete(d.id); openDevice(null);
+    devices = (await res.json()).devices; reading.delete(d.id); closePage();
   });
   parts.push(forget);
   $("devices-body").replaceChildren(...parts);
 }
-show("chat");
 
-// What the agent was used for (GET /api/agent): the latest turns, from this app and the spare devices.
+// What the agent was used for (GET /api/agent): the latest turns, from this app and the spare devices,
+// in the menu as a list of what was said, newest first.
 async function loadHistory() {
   try {
     const r = await fetch("/api/agent");
     if (!r.ok) throw new Error("agent " + r.status);
-    const { uses, model } = await r.json();
-    $("model-note").textContent = `모델 ${model}`;
-    $("uses").replaceChildren(...(uses.length ? uses.map((u) => {
-      const how = u.error ? "답하지 못했어요" : u.aborted ? "중간에 멈췄어요" : `${(u.ms / 1000).toFixed(1)}초 걸렸어요${u.tools ? `. 도구를 ${u.tools}번 썼어요` : ""}`;
+    const { uses } = await r.json();
+    $("menu-history").replaceChildren(...(uses.length ? uses.map((u) => {
+      const how = u.error ? "답하지 못했어요" : u.aborted ? "중간에 멈췄어요" : `${(u.ms / 1000).toFixed(1)}초`;
       const r = row(u.text || "(말 없이 사진만)", `${clock(u.t)}, ${u.from ?? "까치 홈"}. ${how}`);
       r.classList.add("use");
       if (u.error) r.querySelector(".sub").classList.add("down");
       return r;
     }) : [el("div", "loading", "아직 없어요")]));
   } catch {
-    $("uses").replaceChildren(el("div", "loading", "불러오지 못했어요"));
+    $("menu-history").replaceChildren(el("div", "loading", "불러오지 못했어요"));
   }
 }
 
@@ -893,7 +961,7 @@ $("new-conversation").addEventListener("click", async () => {
   if (!r.ok) { toast("새 대화를 시작하지 못했어요"); return; }
   turnId++; stopPlayback();
   clearTranscript();
-  show("chat");
+  document.body.dataset.view = "chat"; setMenu(false);
   ready();
   toast("새 대화를 시작했어요");
 });
@@ -985,12 +1053,10 @@ say.addEventListener("keydown", (e) => {
 // conversation shrinks above the text box (CSS: body height and offset).
 //
 // Typing has three cases, and the text box sits at the bottom of what can be seen in each:
-// - the on-screen keyboard (it covers more than 80px): the bar at the bottom goes and the text box sits
-//   on the keyboard. iOS reports the keyboard only once it has come up, so the height it had last time is
+// - the on-screen keyboard (it covers more than 80px): the text box sits on the keyboard. iOS reports the keyboard only once it has come up, so the height it had last time is
 //   remembered and the text box goes up with it, not after it;
 // - a keyboard joined to an iPhone or iPad: no keyboard comes up, but iOS floats a pill (previous, next,
-//   done) over the bottom 58px of the screen, right where the bar is. The bar goes here too, and the
-//   text box keeps clear of the pill;
+//   done) over the bottom 58px of the screen, and the text box keeps clear of it;
 // - a computer: nothing covers anything, and nothing changes.
 const vv = window.visualViewport;
 if (vv) {
@@ -1018,9 +1084,7 @@ if (vv) {
     // from the on-screen keyboard that was there before. Not following that left the text box off screen.
     const covered = cover;
     root.setProperty("--vv-top", `${Math.min(Math.max(0, vv.offsetTop), covered)}px`);
-    // The on-screen keyboard is up: the bar at the bottom goes, so the text box sits on the keyboard.
-    // With an external keyboard iOS only floats a short bar over the bottom of the screen, without
-    // shrinking the visible area: the bar at the bottom stays, and it is what ends up under that bar.
+    // The on-screen keyboard is up: the text box sits on it, with no room left for the home indicator.
     document.body.classList.toggle("kb", covered > 80);
     // A joined keyboard: known once the on-screen one has had time to come and did not, or at once when
     // that is how it went last time.
@@ -1066,7 +1130,7 @@ clearTranscript();
 // ?demo=<state> renders a sample screen for design review (no audio, no requests).
 const demo = new URLSearchParams(location.search).get("demo");
 if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.dataset.theme = "light";
-if (demo === "settings") show("settings");
+if (demo === "settings") openPage("settings");
 else if (demo) {
   const hints = { recording: "듣고 있어요. 다시 누르면 받아적어요", transcribing: "받아적는 중…" };
   if (hints[demo]) setState(demo, hints[demo]);
