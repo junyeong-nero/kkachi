@@ -1,6 +1,6 @@
 // One conversational turn: sync notes, prompt Pi, stream speakable sentences, collect sources,
 // commit and push. There are no fixed voice commands: the agent decides, using pi/kkachi.ts tools.
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
 import { log } from "./log";
@@ -29,12 +29,15 @@ const MAX_SPOKEN_SENTENCES = 2; // long replies are tiring to listen to; the res
 // ---- the long-lived conversation agent ----
 let agent: Pi | null = null;
 let agentModel = "";
-let starting: Promise<Pi> | null = null; // one Pi, even when the first turn arrives while it starts
+let starting: Promise<Pi> | null = null;
+let mcpSeen = 0; // when Kkachi's mcp.json last changed, as the running Pi read it
+const mcpChanged = () => { try { return statSync(join(config.agentDir, "mcp.json")).mtimeMs; } catch { return 0; } }; // one Pi, even when the first turn arrives while it starts
 
 async function conversation(): Promise<Pi> {
   if (!agent) {
     starting ??= (async () => {
       agentModel = currentModel();
+      mcpSeen = mcpChanged();
       const pi = new Pi({ prompt: "kkachi.md", mode: "append", session: "continue", mcp: "chat" });
       await pi.start(agentModel);
       pi.exited.then((code) => { console.error(`pi exited (${code}); restarting on next turn`); if (agent === pi) agent = null; });
@@ -181,6 +184,8 @@ export async function runTurn(text: string, emit: (e: TurnEvent) => void, images
   queue = turn.catch(() => {});
   currentTurn = turn;
   try { await turn; } finally { if (currentTurn === turn) currentTurn = null; }
+  // The agent added or removed an MCP server itself (pi mcp add): its tools come with the next message.
+  if (agent && mcpChanged() !== mcpSeen) { log("mcp_changed_by_agent"); await reloadAgent(); }
 }
 let queue: Promise<void> = Promise.resolve();
 
