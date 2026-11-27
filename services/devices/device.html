@@ -25,13 +25,14 @@
     --accent: oklch(0.76 0.095 190); --accent-soft: oklch(0.3 0.045 192); --accent-ring: oklch(0.76 0.095 190 / .4);
     --accent-ink: oklch(0.2 0.03 192); /* icons on the light teal */
     --dim: oklch(0.1 0.005 250); /* the lamp's dimmer layer */
-    --scrim: oklch(0.1 0.005 250 / .6); /* behind the settings sheet */
+    --scrim: oklch(0.1 0.005 250 / .6); /* behind the log sheet */
     --danger: oklch(0.74 0.13 40);
+    --ok: oklch(0.76 0.16 150); /* the green light: connected, as in Kkachi Home */
     --font: "SUIT Variable", "Apple SD Gothic Neo", sans-serif;
     --r-md: 14px; --r-pill: 999px; --ease-out: cubic-bezier(.22, 1, .36, 1);
   }
   * { box-sizing: border-box; }
-  /* The main screen is for talking to Kkachi; the switches live in settings, and the lamp is Kkachi's to
+  /* The main screen is for talking to Kkachi; what it may use is chosen in Kkachi Home, and the lamp is Kkachi's to
      light. The page fits the screen in either orientation and never scrolls. The talk button sits at the
      exact centre: the header floats above, what was heard and said fills the row over the button, and
      the hint, status and inputs the row under it (two equal rows). */
@@ -74,10 +75,34 @@
   #status { font-size: 16px; color: var(--muted); margin: 8px 0 0; line-height: 1.5; }
   #status.ok { color: var(--text); }
   #status.err { color: var(--danger); }
-  #said { font-size: 22px; line-height: 1.45; min-height: 1.45em; color: var(--muted); }
-  #said.speaking { color: var(--text); } /* the words being spoken now; earlier ones fade */
-  #said.working { font-size: 17px; } /* what Kkachi is doing, until words come */
+  /* the words, as a lyrics view: what was heard and Kkachi's answer, newest at the bottom over the talk
+     pad, earlier ones scrolling up and fading, and the sentence being spoken bright. Nothing is cut:
+     a long answer scrolls, and earlier exchanges are there to scroll back to */
+  #lines {
+    width: 100%; height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+    display: flex; flex-direction: column; padding: 40% 0 8px; scroll-behavior: smooth;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 35%); mask-image: linear-gradient(to bottom, transparent 0, #000 35%);
+    -webkit-user-select: text; user-select: text;
+  }
+  #lines::-webkit-scrollbar { display: none; }
+  .ex { margin: auto 0 0; padding-top: 28px; transition: opacity 300ms var(--ease-out); }
+  .ex + .ex { margin-top: 0; }
+  .ex.past { opacity: .4; }
+  .ex .heard, #heard { font-size: 17px; color: var(--muted); margin: 0; line-height: 1.5; }
+  .ex .said, #said { font-size: 26px; font-weight: 600; line-height: 1.4; margin: 6px 0 0; color: var(--text); letter-spacing: -0.01em; }
+  .ex.past .said { font-size: 21px; }
+  #heard:empty, #said:empty { display: none; }
+  #said .done { opacity: .45; transition: opacity 300ms var(--ease-out); } /* sentences already spoken */
+  #said.working { font-size: 17px; font-weight: 400; color: var(--muted); } /* what Kkachi is doing, until words come */
   #said.draft { color: var(--muted); } /* the answer as it is written, before its voice */
+  @media (prefers-reduced-motion: reduce) { #lines { scroll-behavior: auto; } }
+  /* the connection, at the top right: green connected, a green ring when its screen needs a tap,
+     red while it is reconnecting or stopped, grey before it is allowed */
+  .dot { flex: none; width: 12px; height: 12px; margin: 0 16px 0 0; border-radius: 50%; }
+  .dot.ok { background: var(--ok); }
+  .dot.wait { box-shadow: inset 0 0 0 2px var(--ok); }
+  .dot.no { background: var(--danger); }
+  .dot.off { background: var(--muted); opacity: .5; }
   form, #start { margin-top: 32px; width: 100%; }
   #name-input {
     width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: var(--r-md); text-align: center;
@@ -99,13 +124,12 @@
   #talk-area { grid-area: talk; position: relative; display: grid; place-items: center; }
   #pads { display: grid; grid-template-columns: var(--pad); }
   .pad {
-    width: var(--pad); height: var(--pad); padding: 0 0 18%; margin: 0; border-radius: var(--r-md); display: grid; place-items: center;
+    width: var(--pad); height: var(--pad); padding: 0; margin: 0; border-radius: var(--r-md); display: grid; place-items: center;
     background: var(--surface); color: var(--text); border: 1px solid var(--line);
     touch-action: none; -webkit-touch-callout: none; position: relative;
     transition: background-color 120ms var(--ease-out); /* never box-shadow: the focus ring must not fade in */
   }
   .pad > svg { width: 30%; height: 30%; }
-  .pad .t { position: absolute; left: 0; right: 0; bottom: 11%; font-size: 13px; line-height: 1.3; color: var(--muted); font-variant-numeric: tabular-nums; }
   button.pad:active { background: var(--line); }
   /* the voice-level halo: a disc behind the button, scaled with transform (4 to 18px around it) */
   #talk::before {
@@ -113,26 +137,18 @@
     z-index: -1; opacity: 0; transform: scale(calc(1 + var(--level, 0) * 0.23)); transition: transform 80ms linear;
   }
   #talk { border-radius: 50%; } /* round, like Kkachi Home's mic */
-  #talk .t { bottom: 15%; }
-  #talk.recording, #talk.recording .t { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  #talk.recording { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
   #talk.recording::before { opacity: 1; }
   #talk:disabled { color: var(--muted); cursor: progress; } /* waiting for Kkachi's answer */
-  /* under the button without pushing it off centre */
-  #heard { font-size: 17px; color: var(--muted); margin: auto 0 0; min-height: 1.5em; line-height: 1.5; }
-  #said { margin: 4px 0 0; }
-  #heard, #said { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; flex: none; }
-  #said { -webkit-line-clamp: 3; line-clamp: 3; }
   #talk-off { grid-area: talk; justify-self: center; max-width: 280px; margin: 0; }
   @media (prefers-reduced-motion: reduce) { #talk::before { transform: scale(1.03); transition: none; } }
 
   /* the input environment at a glance: which senses are on, and which one Kkachi is using now.
-     Anyone in the room can see it; a tap opens the switches */
+     Anyone in the room can see it */
   #senses {
     display: inline-flex; gap: 4px; padding: 4px; margin: 0; border: 0; border-radius: var(--r-pill);
     background: var(--surface); color: var(--text);
   }
-  @media (hover: hover) { #senses:hover { background: var(--line); } }
-  #senses:active { background: var(--line); }
   .sense { width: 40px; height: 36px; display: grid; place-items: center; border-radius: var(--r-pill); transition: background-color 120ms var(--ease-out); }
   .sense svg { width: 20px; height: 20px; }
   .sense.off { color: var(--muted); opacity: .4; }
@@ -151,8 +167,7 @@
   /* a small old phone: fewer lines, no hint */
   @media (orientation: portrait) and (max-height: 560px) {
     #below { padding-top: 16px; }
-    #heard { -webkit-line-clamp: 1; line-clamp: 1; }
-    #said { font-size: 20px; -webkit-line-clamp: 2; line-clamp: 2; }
+    #said, .ex .said { font-size: 21px; }
   }
 
   /* a phone on its side: the button stays at the centre, the words on its left, status and inputs on its right */
@@ -164,7 +179,6 @@
       grid-template-areas: "above . below" "above talk below" "above . below";
     }
     #above, #below { padding: 56px 0 0; justify-content: center; }
-    #said { margin-bottom: auto; -webkit-line-clamp: 2; line-clamp: 2; }
     #dock { margin-top: 12px; }
     /* the inputs run down the side, not along it: there is height here and little width */
     #senses { flex-direction: column; gap: 2px; }
@@ -185,26 +199,6 @@
   .text-btn:active { background: var(--surface); }
   .sheet .note { text-align: left; }
 
-  /* inputs and outputs: one card each, in two sections. They show how things are; what is open to
-     Kkachi and what is joined to what is chosen in Kkachi Home, not here */
-  #caps { margin-top: 12px; display: grid; gap: 16px; text-align: left; }
-  #caps h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px; text-wrap: balance; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-  .cap {
-    display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; width: 100%; margin: 0;
-    padding: 12px; border-radius: var(--r-md); border: 1px solid transparent; background: var(--surface); color: var(--text);
-    text-align: left; transition: background-color 120ms var(--ease-out);
-  }
-  .cap svg { width: 22px; height: 22px; grid-row: span 2; }
-  .cap .n { font-size: 15px; font-weight: 600; }
-  .cap .s { font-size: 13px; color: var(--muted); grid-column: 2; }
-  .cap[data-on=false] svg, .cap[data-on=false] .n { opacity: .45; }
-  .cap.none { background: transparent; border-color: var(--line); color: var(--muted); } /* cannot be used on this device */
-  .cap.busy { background: var(--line); }
-  .cap.busy .s { color: var(--text); font-weight: 600; }
-  .cap.listening { background: var(--accent-soft); } /* teal: listening, as on the talk button */
-  .cap.listening svg, .cap.listening .s { color: var(--accent); }
-
   /* lamp: the whole screen in one color (device_light, or a preset here); a tap turns it off */
   #lamp { position: fixed; inset: 0; z-index: 10; }
   #lamp-dim { position: absolute; inset: 0; background: var(--dim); }
@@ -215,20 +209,18 @@
 <body>
 <header class="top">
   <div class="brand"><img src="/api/device/icon.png" alt="까치" /><span id="name">새 기기</span></div>
-  <button type="button" class="icon-btn" id="open-settings" aria-label="설정" hidden>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
-  </button>
+  <span id="conn" class="dot off" role="img" aria-label="연결하는 중…"></span>
 </header>
 <main>
   <div id="above">
-    <p id="heard"></p>
-    <p id="said" aria-live="polite"></p>
+    <div id="lines">
+      <div class="ex" id="now"><p id="heard"></p><p id="said" aria-live="polite"></p></div>
+    </div>
   </div>
   <section id="talk-area" hidden aria-label="이 기기의 입력">
     <div id="pads">
       <button type="button" class="pad" id="talk" aria-label="음성: 누르고 있는 동안 말하고, 떼면 보내요">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-        <span class="t" aria-hidden="true">음성</span>
       </button>
     </div>
   </section>
@@ -249,7 +241,7 @@
       </div>
     </div>
     <div id="dock">
-      <button type="button" id="senses" hidden></button>
+      <div id="senses" role="img" hidden></div>
     </div>
   </div>
 </main>
@@ -264,16 +256,6 @@
     <p class="note">이 기기에서 있었던 일 최근 50개예요. 페이지를 새로 열면 비워져요.</p>
   </form>
 </dialog>
-<dialog id="settings" aria-labelledby="settings-title">
-  <form class="sheet" method="dialog">
-    <div class="sheet-head"><h2 id="settings-title">이 기기</h2><button class="text-btn" value="close">완료</button></div>
-    <section id="caps" aria-label="이 기기로 할 수 있는 것">
-      <div><h2>출력</h2><div class="grid" id="caps-in"></div></div>
-      <div><h2>입력</h2><div class="grid" id="caps-out"></div></div>
-    </section>
-    <p class="note">까치가 무엇을 쓸지는 까치 홈에서 정해요. 여기는 지금 상태만 보여 줘요. 음성이 까치에게 열려 있으면 화면 가운데에 누르고 말하는 버튼이 나와요.</p>
-  </form>
-</dialog>
 <div id="lamp" hidden><div id="lamp-dim"></div></div>
 <video id="cam" playsinline muted></video>
 <script>
@@ -282,11 +264,11 @@
 // and answered is not translated. (Kkachi Home does the same in src/web/i18n.js.)
 const LANG = localStorage.getItem("kkachi.lang") || (/^ko\b/i.test(navigator.language || "") ? "ko" : "en");
 document.documentElement.lang = LANG;
-const EN = {"연결됨":"Connected", "연결됨. 화면을 한 번 눌러 주세요":"Connected. Tap the screen once", "스피커":"Speaker", "조명":"Lamp", "비추는 중":"Lit", "켜짐":"On", "음성":"Voice", "카메라":"Camera", "소리 크기":"Sound level", "움직임 센서":"Motion sensors", "위치":"Location", "탭 필요":"Needs a tap", "권한 없음":"Not allowed", "지원 안 함":"Not supported", "듣는 중":"Listening", "에이전트에게 닫힘":"Closed to Kkachi", "닫힘":"Closed", "입력 상태: {list}. 눌러서 설정 열기":"Inputs: {list}. Tap for settings", "아직 없어요":"Nothing yet", "다시 연결하는 중":"Reconnecting", "까치에 다시 연결하는 중…":"Reconnecting to Kkachi…", "휴대폰 까치 앱의 설정 → 기기에서 이 기기를 허용해 주세요.":"Allow this device in Kkachi Home on your phone: the menu, Devices.", "이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.":"This device was removed. Reload to use it again.", "이 기기를 다른 창에서 열었어요. 여기서 쓰려면 새로고침하세요.":"This device was opened in another window. Reload to use it here.", "말하는 중":"Speaking", "까치가 말했어요":"Kkachi spoke", "찍는 중":"Taking a photo", "까치 홈에서 사진을 찍었어요 (저장 안 함)":"Kkachi Home took a photo (not kept)", "까치가 사진을 찍었어요 (저장 안 함)":"Kkachi took a photo (not kept)", "재는 중":"Measuring", "까치 홈에서 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi Home measured the sound level (not recorded)", "까치가 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi measured the sound level (not recorded)", "읽는 중":"Reading", "까치 홈에서 센서를 읽었어요":"Kkachi Home read the sensors", "까치가 센서를 읽었어요":"Kkachi read the sensors", "까치 홈에서 밝기를 쟀어요 (사진 안 남김)":"Kkachi Home measured the light (no photo kept)", "까치가 밝기를 쟀어요 (사진 안 남김)":"Kkachi measured the light (no photo kept)", "켜는 중":"Turning on", "끄는 중":"Turning off", "까치가 조명을 켰어요":"Kkachi turned the lamp on", "까치가 조명을 껐어요":"Kkachi turned the lamp off", "전했어요":"Sent", "잘 못 들었어요":"Didn't catch that", "누른 채로 말하고, 떼면 보내요":"Hold to talk, let go to send", "듣고 있어요. 떼면 보내요":"Listening. Let go to send", "보내는 중…":"Sending…", "마이크를 쓸 수 없어요. 브라우저 설정에서 허용해 주세요.":"The microphone is not allowed. Allow it in the browser's settings.", "마이크 준비됐어요. 다시 누른 채로 말하세요":"The microphone is ready. Hold again to talk", "까치에 전하지 못했어요. 다시 말해 주세요":"Could not reach Kkachi. Please say it again", "음성이 꺼져 있어요":"Voice is closed", "너무 늦게 도착해서 버렸어요. 다시 말해 주세요":"It arrived too late and was dropped. Please say it again", "들을 까치가 연결돼 있지 않아요":"No Kkachi is connected to hear it", "까치가 받지 못했어요":"Kkachi did not get it", "잘 못 들었어요. 다시 말해 주세요":"Didn't catch that. Please say it again", "연결하는 중…":"Connecting…", "이 기기를 어디에 둘지 이름을 붙여 주세요.":"Name this device after where it will be.", "까치 기기":"Kkachi Device", "새 기기":"New device", "이 기기의 음성이 까치에게 닫혀 있어요. 까치 홈의 기기에서 열 수 있어요.":"This device's voice is closed to Kkachi. Open it in Kkachi Home, Devices.", "새 버전이 있어요. 눌러서 새로고침":"A new version is here. Tap to reload", "이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.":"This device cannot keep its screen on. Turn off auto-lock in its settings.", "시작":"Start", "탭해서 시작":"Tap to start", "소리와 마이크를 쓰려면 화면을 한 번 눌러야 해요.":"Tap the screen once for sound and the microphone.", "기록":"Log", "완료":"Done", "이 기기에서 있었던 일 최근 50개예요. 페이지를 새로 열면 비워져요.":"The last 50 things that happened on this device. Opening the page again clears it.", "이 기기":"This device", "출력":"Outputs", "입력":"Inputs", "까치가 무엇을 쓸지는 까치 홈에서 정해요. 여기는 지금 상태만 보여 줘요. 음성이 까치에게 열려 있으면 화면 가운데에 누르고 말하는 버튼이 나와요.":"What Kkachi may use is chosen in Kkachi Home; this shows how things are. With Voice open to Kkachi, a hold-to-talk button sits in the middle of the screen.", "까치":"Kkachi", "설정":"Settings", "이 기기의 입력":"This device's inputs", "음성: 누르고 있는 동안 말하고, 떼면 보내요":"Voice: talk while you hold, let go to send", "이 기기 이름 (예: 거실)":"This device's name (e.g. Living room)", "이 기기 이름":"This device's name", "이 기기로 할 수 있는 것":"What this device can do", "불 꺼줘":"Turn off the light", "생각하는 중":"Thinking"};
+const EN = {"연결됨":"Connected", "연결됨. 화면을 한 번 눌러 주세요":"Connected. Tap the screen once", "스피커":"Speaker", "조명":"Lamp", "비추는 중":"Lit", "켜짐":"On", "음성":"Voice", "카메라":"Camera", "소리 크기":"Sound level", "움직임 센서":"Motion sensors", "위치":"Location", "탭 필요":"Needs a tap", "권한 없음":"Not allowed", "지원 안 함":"Not supported", "듣는 중":"Listening", "에이전트에게 닫힘":"Closed to Kkachi", "닫힘":"Closed", "입력 상태: {list}. 눌러서 설정 열기":"Inputs: {list}. Tap for settings", "아직 없어요":"Nothing yet", "다시 연결하는 중":"Reconnecting", "까치에 다시 연결하는 중…":"Reconnecting to Kkachi…", "휴대폰 까치 앱의 설정 → 기기에서 이 기기를 허용해 주세요.":"Allow this device in Kkachi Home on your phone: the menu, Devices.", "이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.":"This device was removed. Reload to use it again.", "이 기기를 다른 창에서 열었어요. 여기서 쓰려면 새로고침하세요.":"This device was opened in another window. Reload to use it here.", "말하는 중":"Speaking", "까치가 말했어요":"Kkachi spoke", "찍는 중":"Taking a photo", "까치 홈에서 사진을 찍었어요 (저장 안 함)":"Kkachi Home took a photo (not kept)", "까치가 사진을 찍었어요 (저장 안 함)":"Kkachi took a photo (not kept)", "재는 중":"Measuring", "까치 홈에서 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi Home measured the sound level (not recorded)", "까치가 소리 크기를 쟀어요 (녹음 안 함)":"Kkachi measured the sound level (not recorded)", "읽는 중":"Reading", "까치 홈에서 센서를 읽었어요":"Kkachi Home read the sensors", "까치가 센서를 읽었어요":"Kkachi read the sensors", "까치 홈에서 밝기를 쟀어요 (사진 안 남김)":"Kkachi Home measured the light (no photo kept)", "까치가 밝기를 쟀어요 (사진 안 남김)":"Kkachi measured the light (no photo kept)", "켜는 중":"Turning on", "끄는 중":"Turning off", "까치가 조명을 켰어요":"Kkachi turned the lamp on", "까치가 조명을 껐어요":"Kkachi turned the lamp off", "전했어요":"Sent", "잘 못 들었어요":"Didn't catch that", "누른 채로 말하고, 떼면 보내요":"Hold to talk, let go to send", "듣고 있어요. 떼면 보내요":"Listening. Let go to send", "보내는 중…":"Sending…", "마이크를 쓸 수 없어요. 브라우저 설정에서 허용해 주세요.":"The microphone is not allowed. Allow it in the browser's settings.", "마이크 준비됐어요. 다시 누른 채로 말하세요":"The microphone is ready. Hold again to talk", "까치에 전하지 못했어요. 다시 말해 주세요":"Could not reach Kkachi. Please say it again", "음성이 꺼져 있어요":"Voice is closed", "너무 늦게 도착해서 버렸어요. 다시 말해 주세요":"It arrived too late and was dropped. Please say it again", "들을 까치가 연결돼 있지 않아요":"No Kkachi is connected to hear it", "까치가 받지 못했어요":"Kkachi did not get it", "잘 못 들었어요. 다시 말해 주세요":"Didn't catch that. Please say it again", "연결하는 중…":"Connecting…", "이 기기를 어디에 둘지 이름을 붙여 주세요.":"Name this device after where it will be.", "까치 기기":"Kkachi Device", "새 기기":"New device", "이 기기의 음성이 까치에게 닫혀 있어요. 까치 홈의 기기에서 열 수 있어요.":"This device's voice is closed to Kkachi. Open it in Kkachi Home, Devices.", "새 버전이 있어요. 눌러서 새로고침":"A new version is here. Tap to reload", "이 기기는 화면 꺼짐을 막을 수 없어요. 설정에서 자동 잠금을 꺼 두세요.":"This device cannot keep its screen on. Turn off auto-lock in its settings.", "시작":"Start", "탭해서 시작":"Tap to start", "소리와 마이크를 쓰려면 화면을 한 번 눌러야 해요.":"Tap the screen once for sound and the microphone.", "기록":"Log", "완료":"Done", "이 기기에서 있었던 일 최근 50개예요. 페이지를 새로 열면 비워져요.":"The last 50 things that happened on this device. Opening the page again clears it.", "이 기기":"This device", "출력":"Outputs", "입력":"Inputs", "까치가 무엇을 쓸지는 까치 홈에서 정해요. 여기는 지금 상태만 보여 줘요. 음성이 까치에게 열려 있으면 화면 가운데에 누르고 말하는 버튼이 나와요.":"What Kkachi may use is chosen in Kkachi Home; this shows how things are. With Voice open to Kkachi, a hold-to-talk button sits in the middle of the screen.", "까치":"Kkachi", "설정":"Settings", "이 기기의 입력":"This device's inputs", "음성: 누르고 있는 동안 말하고, 떼면 보내요":"Voice: talk while you hold, let go to send", "이 기기 이름 (예: 거실)":"This device's name (e.g. Living room)", "이 기기 이름":"This device's name", "이 기기로 할 수 있는 것":"What this device can do", "불 꺼줘":"Turn off the light", "생각하는 중":"Thinking", "허용을 기다려요":"Waiting to be allowed", "연결 끊김":"Disconnected", "입력 상태: {list}":"Inputs: {list}"};
 const t = (ko, vars) => { let s = LANG === "en" ? EN[ko] ?? ko : ko; if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v)); return s; };
 fetch("/api/lang").then((r) => r.json()).then(({ lang }) => { if (lang && lang !== LANG) { localStorage.setItem("kkachi.lang", lang); location.reload(); } }).catch(() => {});
 if (LANG === "en") {
-  const SKIP = "#heard, #said, #answer, [translate=no]", ATTRS = ["aria-label", "placeholder", "title", "alt"];
+  const SKIP = "#lines, #answer, [translate=no]", ATTRS = ["aria-label", "placeholder", "title", "alt"];
   const swap = (v) => { const k = v.trim(); return k && EN[k] !== undefined ? v.replace(k, EN[k]) : null; };
   const doText = (n) => { const p = n.parentElement; if (p && !p.closest(SKIP)) { const v = swap(n.data); if (v !== null) n.data = v; } };
   const doAttrs = (el) => { if (!el.closest(SKIP)) for (const a of ATTRS) { const v = el.getAttribute(a); if (v) { const r = swap(v); if (r !== null) el.setAttribute(a, r); } } };
@@ -316,16 +298,18 @@ const features = () => ({
 });
 
 function status(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
+// The connection at the top right (DESIGN.md): ok, wait (its screen needs a tap), no, off (not allowed yet).
+function conn(level, words) { $("conn").className = `dot ${level}`; $("conn").setAttribute("aria-label", t(words)); $("conn").title = t(words); }
 const armed = () => audio?.state === "running";
 function showReady() {
   const ready = allowed && armed();
   document.body.classList.toggle("ready", ready);
   $("talk-area").hidden = !(ready && isOn("talk") && !lampOn); // a lit lamp is only light: no button on it
   $("talk-off").hidden = !(ready && !isOn("talk"));
-  $("open-settings").hidden = !allowed;
   $("open-log").hidden = !allowed;
   $("senses").hidden = !allowed;
-  if (allowed) status(armed() ? "연결됨" : "연결됨. 화면을 한 번 눌러 주세요", "ok");
+  if (allowed) { status(""); conn(armed() ? "ok" : "wait", armed() ? "연결됨" : "연결됨. 화면을 한 번 눌러 주세요"); }
+  else if (joined) conn("off", "허용을 기다려요");
   renderCaps();
 }
 
@@ -357,32 +341,11 @@ try { use = { ...use, ...JSON.parse(store.get("use") || "{}") }; } catch {}
 const CAP = { speak: "speak", light: "lamp", talk: "talk", camera: "photo", sound: "sound level", sensors: "motion sensors", location: "location" }; // this page's keys, as the service names them
 const isOn = (key) => (key === "talk" ? use.pads.includes("talk") : use.agent[CAP[key]] !== false);
 
-const cards = {};
-function renderCaps() {
-  $("caps").hidden = !allowed;
-  for (const c of CAPS) {
-    let b = cards[c.key];
-    if (!b) { // built once, then updated in place (keeps keyboard focus)
-      b = cards[c.key] = document.createElement("div");
-      b.className = "cap";
-      b.innerHTML = `${icon(c.icon)}<span class="n"></span><span class="s"></span>`;
-      b.querySelector(".n").textContent = c.name;
-      $(`caps-${c.to}`).append(b);
-    }
-    const st = c.state(), on = isOn(c.key), doing = inUse.get(c.key);
-    const usable = st !== "none" && st !== "denied";
-    b.classList.toggle("none", !usable);
-    b.dataset.on = String(on && usable);
-    const listening = !!doing && (c.key === "sound" || doing === "듣는 중");
-    b.classList.toggle("busy", !!doing && !listening);
-    b.classList.toggle("listening", listening);
-    b.querySelector(".s").textContent = doing ?? (!usable ? STATE[st] : !on ? "에이전트에게 닫힘" : st === "ok" && c.ok ? c.ok() : STATE[st]);
-  }
-  renderSenses();
-}
+function renderCaps() { renderSenses(); } // the strip under the talk pad shows each input's state
+
 
 // The input environment at a glance on the main screen: an icon per input, dim when off, marked
-// while Kkachi uses it (teal while listening). A tap opens the switches.
+// while Kkachi uses it (teal while listening).
 const SENSES = ["talk", "camera", "sound", "sensors", "location"];
 function renderSenses() {
   const strip = $("senses");
@@ -402,7 +365,7 @@ function renderSenses() {
     s.className = "sense" + (on ? "" : " off") + (doing ? (listening ? " listening" : " busy") : "");
     words.push(`${t(c.name)} ${t(doing ?? (on ? "켜짐" : usable ? "닫힘" : STATE[st]))}`);
   }
-  strip.setAttribute("aria-label", t("입력 상태: {list}. 눌러서 설정 열기", { list: words.join(", ") }));
+  strip.setAttribute("aria-label", t("입력 상태: {list}", { list: words.join(", ") }));
 }
 
 // ---- the lamp: Kkachi's device_light picks the colour and brightness; the whole screen becomes that
@@ -417,9 +380,6 @@ function lamp(on, color, brightness) {
   }
   showReady();
 }
-const openSettings = () => { if (!$("settings").open) $("settings").showModal(); };
-$("open-settings").addEventListener("click", openSettings);
-$("senses").addEventListener("click", openSettings);
 const setBusy = (key, label) => { if (label) inUse.set(key, label); else inUse.delete(key); renderCaps(); };
 // What happened on this device, with the time, newest first: what Kkachi did through it and how each
 // thing said went. Kept behind the log button (in memory, the last 50), so nobody nearby is left guessing.
@@ -447,8 +407,15 @@ function sendState() {
 
 // Say {text, audio?, rate?} and show the words while they are spoken: the server's audio (a server
 // voice), or this device's own voice when none came (기기 목소리: the words never leave the house).
+// The answer so far, the sentence being spoken bright and the ones before it dim.
+function showSaid(all, now = "") {
+  const said = $("said"), before = now && all.endsWith(now) ? all.slice(0, all.length - now.length).trim() : "";
+  if (!now || !before) said.textContent = all;
+  else { const a = document.createElement("span"), b = document.createElement("span"); a.className = "done"; a.textContent = before + " "; b.textContent = now; said.replaceChildren(a, b); }
+  follow();
+}
 async function speakOut(m) {
-  $("said").textContent = m.text; $("said").className = "speaking";
+  showSaid(m.text, m.say); $("said").className = "speaking";
   try { if (m.audio) await play(m.audio); else await say(m.say ?? m.text, m.rate); } finally { $("said").className = ""; } // say: the part to speak, when text is all the words so far
 }
 
@@ -519,7 +486,7 @@ function connect() {
     if (!joined || sock !== ws) return; // told to stop, or an older connection that a newer one has replaced
     if (openedAt && Date.now() - openedAt > 5000) retry = 0; // it held: try again at once. One that opens and closes right away is waited out
     openedAt = 0;
-    away ??= setTimeout(() => status("까치에 다시 연결하는 중…"), AWAY_MS);
+    away ??= setTimeout(() => { status("까치에 다시 연결하는 중…"); conn("no", "다시 연결하는 중"); }, AWAY_MS);
     setTimeout(connect, retry ? Math.min(10_000, 1000 * 2 ** (retry - 1)) : 0);
     retry++;
   };
@@ -535,11 +502,11 @@ async function onMessage(m) {
   }
   if (m.type === "forgotten") {
     joined = false; allowed = false; store.del("token"); ws.close();
-    status("이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.", "err");
+    status("이 기기는 연결이 해제됐어요. 다시 쓰려면 새로고침하세요.", "err"); conn("no", "연결 끊김");
   }
   if (m.type === "replaced") { // this device was opened in another tab or window: that one has it now, and this one stops
     joined = false; allowed = false; showReady();
-    status("이 기기를 다른 창에서 열었어요. 여기서 쓰려면 새로고침하세요.", "err");
+    status("이 기기를 다른 창에서 열었어요. 여기서 쓰려면 새로고침하세요.", "err"); conn("no", "연결 끊김");
     return;
   }
   if (m.type === "pong") return;
@@ -825,20 +792,44 @@ let answer = { id: null, next: 0, parts: new Map(), saying: false, words: "" };
 // A new answer: what was heard, under the talk pad. False: nothing was heard.
 function startAnswer(m) {
   if (m.inputId === answer.id) return true;
+  keepExchange();
   answer = { id: m.inputId, next: 0, parts: new Map(), saying: false, words: "" };
   hint("누른 채로 말하고, 떼면 보내요");
   timed(m.inputId, "heardMs");
   if (!m.heard) { $("heard").textContent = ""; hint("잘 못 들었어요. 다시 말해 주세요"); return false; }
   $("heard").textContent = `“${m.heard}”`;
   $("said").textContent = ""; $("said").className = "";
+  follow(true);
   return true;
 }
+// The exchange on screen goes up the list, dimmed, when the next one starts; the last 30 are kept on
+// this device, so a reload still has them to scroll back to.
+const PAST = 30;
+let pinned = true; // at the bottom of the list: new words keep it there; scrolled up to read, it stays
+$("lines").addEventListener("scroll", () => { const l = $("lines"); pinned = l.scrollHeight - l.scrollTop - l.clientHeight < 60; }, { passive: true });
+function follow(force = false) { const l = $("lines"); if (force) pinned = true; if (pinned) l.scrollTop = l.scrollHeight; }
+function pastLine(heard, said) {
+  const ex = document.createElement("div"), h = document.createElement("p"), s = document.createElement("p");
+  ex.className = "ex past"; h.className = "heard"; s.className = "said";
+  h.textContent = heard; s.textContent = said;
+  ex.append(h, s);
+  $("lines").insertBefore(ex, $("now"));
+  while ($("lines").querySelectorAll(".past").length > PAST) $("lines").querySelector(".past").remove();
+}
+function keepExchange() {
+  const heard = $("heard").textContent, said = $("said").className === "working" ? "" : $("said").textContent;
+  if (!heard && !said) return;
+  pastLine(heard, said);
+  const kept = [...$("lines").querySelectorAll(".past")].map((x) => [x.firstChild.textContent, x.lastChild.textContent]);
+  store.set("lines", JSON.stringify(kept.slice(-PAST)));
+}
+try { for (const [h, s] of JSON.parse(store.get("lines") || "[]")) pastLine(h, s); } catch {}
 // While the answer is made (core's progress): what Kkachi is doing, then the words as they are written.
 // The spoken parts take over the screen once they start.
 function onProgress(m) {
   if (!startAnswer(m) || answer.words) return;
-  if (m.draft) { $("said").textContent = m.draft; $("said").className = "draft"; }
-  else if (m.working) { $("said").textContent = m.working; $("said").className = "working"; }
+  if (m.draft) { showSaid(m.draft); $("said").className = "draft"; }
+  else if (m.working) { $("said").textContent = m.working; $("said").className = "working"; follow(); }
 }
 function onReply(m) {
   const part = Number.isInteger(m.part) ? m.part : 0, whole = !Number.isInteger(m.part);
@@ -858,10 +849,10 @@ async function sayParts(a) {
         setBusy("speak", "말하는 중");
         if (a.next === 0) { timed(a.id, "soundMs"); sendTiming(a.id); }
         try { await speakOut({ ...m, text: a.words, say: m.text }); } catch {} finally { setBusy("speak", null); } // the words stay on screen
-      } else { $("said").textContent = a.words; $("said").className = ""; }
+      } else { showSaid(a.words); $("said").className = ""; }
     }
     if (m.last) sendTiming(a.id); // no sound came (its speaker is closed): the timings go now
-    if (m.last && m.show && a === answer) { $("said").textContent = m.show; $("said").className = ""; } // the answer, without what was said on the way to it
+    if (m.last && m.show && a === answer) { showSaid(m.show); $("said").className = ""; } // the answer, without what was said on the way to it
   }
   a.saying = false;
 }
