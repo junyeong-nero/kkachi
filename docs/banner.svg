@@ -14,5 +14,5 @@
   <!-- the logo, large; the name; one line -->
   <image href="../src/web/icon.png" x="568" y="48" width="144" height="144" clip-path="url(#icon)"/>
   <text x="640" y="272" text-anchor="middle" font-size="60" font-weight="800" class="text">Kkachi<tspan dx="16" font-size="30" font-weight="600" class="muted">까치</tspan></text>
-  <text x="640" y="330" text-anchor="middle" font-size="27" font-weight="600" class="text">A home assistant that is easy to install and light to run.</text>
+  <text x="640" y="330" text-anchor="middle" font-size="27" font-weight="600" class="text">An agent that stays home: call it from anywhere.</text>
 </svg>

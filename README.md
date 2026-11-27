@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banner.png" alt="Kkachi (까치): a home assistant that is easy to install and light to run" width="820">
+  <img src="docs/banner.png" alt="Kkachi (까치): an agent that stays home. Call it from anywhere." width="820">
 </p>
 
 # Kkachi
