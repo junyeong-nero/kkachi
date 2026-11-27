@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="까치 홈" />
@@ -35,6 +35,8 @@
     --button: var(--text);
     --button-ink: var(--bg);
     --shadow: 0 1px 2px oklch(0.2 0.02 250 / .12);
+    --raised: var(--bg); /* the chosen part of a segmented control: above its track */
+    --scrim: oklch(0.15 0.01 250 / .36);
 
     --font: "SUIT Variable", "Apple SD Gothic Neo", sans-serif;
     --scale: 1; /* text size setting (per device): body font size / 16px */
@@ -58,10 +60,31 @@
       --danger: oklch(0.74 0.13 40);
       --ok: oklch(0.76 0.16 150);
       --shadow: none;
+      --raised: oklch(0.34 0.01 250);
+      --scrim: oklch(0.05 0 0 / .55);
     }
+  }
+  /* dark chosen in 외형, whatever the phone says: the same tokens */
+  :root[data-theme=dark] {
+    --bg: oklch(0.185 0.006 250);
+    --surface: oklch(0.235 0.008 250);
+    --line: oklch(0.31 0.01 250);
+    --text: oklch(0.94 0.005 250);
+    --muted: oklch(0.71 0.012 250);
+    --accent: oklch(0.76 0.095 190);
+    --accent-soft: oklch(0.3 0.045 192);
+    --accent-ring: oklch(0.76 0.095 190 / .4);
+    --accent-ink: oklch(0.2 0.03 192); /* the dark accent is light: ink on it is dark */
+    --danger: oklch(0.74 0.13 40);
+    --ok: oklch(0.76 0.16 150);
+    --shadow: none;
+    --raised: oklch(0.34 0.01 250);
+    --scrim: oklch(0.05 0 0 / .55);
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
+  html { touch-action: manipulation; } /* no double-tap zoom; pinching still zooms */
   html, body { margin: 0; height: 100%; }
   html { overflow-x: clip; overscroll-behavior: none; }
   body {
@@ -108,6 +131,21 @@
      swipe from the left edge (app.js), and it follows the finger. It is `bg` with a shadow on its edge
      (a hairline in dark mode), over a scrim; open, the rest of the app is inert */
   #top { width: 100%; max-width: 640px; margin: 0 auto; padding: 0 8px; display: flex; align-items: center; }
+  #home {
+    margin-left: auto; min-height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 8px;
+    border: 0; border-radius: var(--r-pill); background: transparent; color: var(--muted); font: inherit; font-size: var(--t-sm); cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+  #home:empty { display: none; }
+  #home.down { color: var(--danger); }
+  @media (hover: hover) { #home:hover { background: var(--surface); } }
+  #home:active { background: var(--line); }
+  /* the empty conversation: who is there, and what it can do */
+  .hello { margin: auto; padding: 0 12px 24px; max-width: 320px; text-align: center; word-break: keep-all; }
+  .hello img { width: 56px; height: 56px; border-radius: 14px; }
+  .hello p { margin: 6px 0 0; color: var(--muted); font-size: var(--t-base); line-height: 1.55; }
+  .hello .name { display: block; margin-top: 12px; font-size: var(--t-md); font-weight: 700; }
+  .kkachi .retry { align-self: flex-start; }
   #menu {
     position: fixed; z-index: 30; top: 0; bottom: 0; left: 0; width: min(86%, 340px);
     display: flex; flex-direction: column; background: var(--bg);
@@ -118,8 +156,10 @@
   }
   body.menu #menu { transform: none; visibility: visible; transition: transform 280ms cubic-bezier(.32, .72, 0, 1); }
   @media (prefers-color-scheme: dark) { :root:not([data-theme=light]) #menu { box-shadow: 1px 0 0 var(--line); } }
+  :root[data-theme=dark] #menu { box-shadow: 1px 0 0 var(--line); }
+  #menu { word-break: keep-all; overflow-wrap: anywhere; } /* names break between words, also at 320px */
   #scrim {
-    position: fixed; z-index: 29; inset: 0; background: oklch(0.15 0.01 250 / .36);
+    position: fixed; z-index: 29; inset: 0; background: var(--scrim);
     opacity: 0; pointer-events: none; transition: opacity 280ms var(--ease-out);
   }
   body.menu #scrim { opacity: 1; pointer-events: auto; }
@@ -139,6 +179,8 @@
   .menu-tabs { margin: 0 0 12px; }
   #menu[data-tab=chat] .menu-pane[data-tab=devices], #menu[data-tab=devices] .menu-pane[data-tab=chat] { display: none; }
   .menu-pane > .group { margin-top: 8px; }
+  .menu-pane > .group + .menu-row { margin-top: 12px; }
+  .conv.current .name { font-weight: 600; }
   #menu .menu-pane h2 { margin-top: 20px; }
   #menu:focus { box-shadow: none; } /* focus is put on the menu when it opens: no ring round all of it */
   #menu .device { padding: 10px 12px; gap: 10px; }
@@ -155,7 +197,7 @@
   .pane { word-break: keep-all; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px calc(24px + var(--nav-space)); scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
   .pane-in { max-width: 640px; margin: 0 auto; }
   body:not([data-view=chat]) :is(#top, #log, #dock), body:not([data-view=device]):not([data-view=add]) #devices, body:not([data-view=settings]) #settings { display: none; }
-  .use .name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 400; overflow-wrap: anywhere; }
+  .conv .name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 400; overflow-wrap: anywhere; }
 
   /* transcript */
   #log {
@@ -270,6 +312,8 @@
   .dot { flex: none; display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
   .dot.ok { background: var(--ok); }
   .dot.no { background: var(--danger); }
+  .dot.wait { background: transparent; box-shadow: inset 0 0 0 2px var(--ok); }
+  .cap.idle .switch[aria-checked=true] i { background: color-mix(in oklch, var(--text) 35%, var(--line)); }
   .dot.off { background: color-mix(in oklch, var(--muted) 45%, transparent); }
 
   /* composer: one text box for typing and dictation (the mic drops words into it to check first).
@@ -314,11 +358,12 @@
   #photo { position: relative; }
   #photo input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; } /* focusable, not visible */
   @media (hover: hover) { #photo:hover { background: var(--surface); } }
-  #photo:focus-within { outline: 3px solid var(--accent-soft); }
+  #photo:focus-within { box-shadow: 0 0 0 3px var(--accent-ring); }
   #attachments { display: flex; gap: 8px; margin: 0 0 8px; padding: 6px 6px 0 0; overflow-x: auto; } /* room for the remove buttons */
   #attachments:empty { display: none; }
   .thumb { position: relative; flex: none; }
   .thumb img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); }
+  .thumb button::before { content: ""; position: absolute; inset: -11px; } /* 44px to tap, 22px to see */
   .thumb button {
     position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: var(--r-pill); border: 0; cursor: pointer;
     background: var(--button); color: var(--button-ink); font-size: 14px; line-height: 22px; padding: 0;
@@ -379,10 +424,12 @@
   .segment.two { grid-template-columns: repeat(2, 1fr); }
   .segment.four { grid-template-columns: repeat(4, 1fr); }
   .opt + .opt { margin-top: 12px; }
+  .opt-note { margin: 6px 0 0; } /* what the choice does, under it */
+  .opt-note + .opt, .opt-note + #device-own-session { margin-top: 20px; }
   .opt-name { display: block; font-size: var(--t-sm); color: var(--muted); margin: 0 0 6px; }
-  .segment label { text-align: center; padding: 10px 0; border-radius: 11px; font-size: var(--t-base); cursor: pointer; color: var(--muted); }
+  .segment label { min-height: 44px; display: grid; place-items: center; padding: 4px 2px; border-radius: 11px; font-size: var(--t-base); cursor: pointer; color: var(--muted); }
   .segment input { position: absolute; opacity: 0; pointer-events: none; }
-  .segment label:has(input:checked) { background: var(--bg); color: var(--text); box-shadow: var(--shadow); }
+  .segment label:has(input:checked) { background: var(--raised); color: var(--text); box-shadow: var(--shadow); }
   .segment label:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--accent-ring); }
   select { width: 100%; font: inherit; font-size: var(--t-base); padding: 12px 14px; border-radius: var(--r-md); border: 0; background: var(--surface); color: var(--text); }
   .plain-btn {
@@ -420,6 +467,7 @@
   <button type="button" class="icon-btn" id="open-menu" aria-label="메뉴 열기">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
   </button>
+  <button type="button" id="home"></button>
 </header>
 <main id="log" aria-live="polite"></main>
 
@@ -435,7 +483,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
     </label>
     <textarea id="say" rows="1" placeholder="메시지를 입력하세요" enterkeyhint="send" aria-label="메시지"></textarea>
-    <button id="mic" type="button" aria-label="말하기: 눌러서 시작하고 다시 눌러 멈춰요. 받아적은 말은 입력창에 들어가요 (Space를 누른 채로 말해도 돼요)">
+    <button id="mic" type="button" aria-label="말하기" title="눌러서 말하고 다시 눌러 멈춰요. 받아적은 말은 입력창에 들어가요. Space 를 누른 채로 말해도 돼요">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
     </button>
     <button id="send" type="submit" aria-label="보내기" disabled>
@@ -454,39 +502,40 @@
       <button type="button" class="back" id="settings-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>메뉴</button>
       <div class="title-row">
         <h1>설정</h1>
-        <button type="button" class="icon-btn" id="refresh" aria-label="새로고침">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
-        </button>
       </div>
       <div class="group cats">
         <button type="button" class="device item cat-row" data-cat="look"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19l5-14 5 14M6 14h6M15 19l3-8 3 8M16 16h4"/></svg></span><span><span class="name">외형</span><span class="sub" id="sum-look"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="voice"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4zM16.5 8.5a5 5 0 0 1 0 7"/></svg></span><span><span class="name">소리</span><span class="sub" id="sum-voice"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="model"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h8v10H8zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h5M3 14h5M16 10h5M16 14h5"/></svg></span><span><span class="name">모델</span><span class="sub" id="sum-model"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
-        <button type="button" class="device item cat-row" data-cat="devices"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2"/></svg></span><span><span class="name">공기계</span><span class="sub" id="sum-devices"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="mcp"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5"/></svg></span><span><span class="name">도구 (MCP)</span><span class="sub" id="sum-mcp"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+      </div>
+      <div class="group cats">
+        <button type="button" class="device item" id="refresh"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></span><span><span class="name">앱 다시 불러오기</span><span class="sub">새 버전이 있으면 받아요</span></span></button>
       </div>
     </div>
 
     <div class="cat" data-cat="look">
       <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
       <h1>외형</h1>
+      <h2>화면</h2>
+      <div class="segment" role="radiogroup" aria-label="화면">
+        <label><input type="radio" name="theme" value="auto">폰 설정대로</label>
+        <label><input type="radio" name="theme" value="light">밝게</label>
+        <label><input type="radio" name="theme" value="dark">어둡게</label>
+      </div>
       <h2>글자 크기</h2>
       <div class="row">
         <input type="range" id="text-size" min="14" max="24" step="1" aria-label="글자 크기 (px)" />
         <output id="text-size-out"></output>
       </div>
-      <p class="note">본문 글자 크기예요. 다른 글자도 같은 비율로 바뀌고, 이 기기에만 적용돼요. 밝은 화면과 어두운 화면은 폰 설정을 따라요.</p>
+      <p class="note">본문 글자 크기예요. 다른 글자도 같은 비율로 바뀌고, 화면과 글자 크기는 이 기기에만 적용돼요.</p>
     </div>
 
     <div class="cat" data-cat="voice">
       <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
       <h1>소리</h1>
-      <h2>읽어 주기</h2>
-      <div class="segment two" role="radiogroup" aria-label="읽어 주기">
-        <label><input type="radio" name="speak" value="off">끄기</label>
-        <label><input type="radio" name="speak" value="on">켜기</label>
-      </div>
-      <p class="note">켜면 답의 첫 두 문장을 소리로 읽어 줘요. 이 기기에만 적용돼요.</p>
+      <div class="group" id="speak-group"></div>
+      <p class="note">답의 첫 두 문장을 소리로 읽어 줘요. 이 기기에만 적용돼요.</p>
       <div id="voice-settings" hidden>
         <h2>목소리</h2>
         <div class="group" id="voices"><div class="loading">불러오는 중…</div></div>
@@ -511,27 +560,27 @@
 
     <div class="cat" data-cat="devices">
       <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
-      <h1>공기계</h1>
-      <p class="lede">공기계에 대고 한 말을 까치가 어떻게 다룰지예요.</p>
-      <div class="opt"><span class="opt-name" id="device-session-label">대화</span><div class="segment" id="deviceSession" role="radiogroup" aria-labelledby="device-session-label"></div></div>
-      <div class="opt"><span class="opt-name" id="device-reply-label">답하는 곳</span><div class="segment" id="deviceReply" role="radiogroup" aria-labelledby="device-reply-label"></div></div>
-      <div class="opt"><span class="opt-name" id="device-privacy-label">개인적인 내용</span><div class="segment" id="devicePrivacy" role="radiogroup" aria-labelledby="device-privacy-label"></div></div>
-      <div class="opt"><span class="opt-name" id="device-mcp-label">내 MCP</span><div class="segment two" id="deviceMcp" role="radiogroup" aria-labelledby="device-mcp-label"></div></div>
+      <h1>기기에 한 말</h1>
+      <p class="lede">기기에 대고 한 말을 까치가 어떻게 다룰지예요. 모든 기기에 같이 적용돼요.</p>
+      <div class="opt"><span class="opt-name" id="device-session-label">대화</span><div class="segment" id="deviceSession" role="radiogroup" aria-labelledby="device-session-label"></div></div><p class="note opt-note" id="note-deviceSession"></p>
+      <div class="opt"><span class="opt-name" id="device-reply-label">답하는 곳</span><div class="segment" id="deviceReply" role="radiogroup" aria-labelledby="device-reply-label"></div></div><p class="note opt-note" id="note-deviceReply"></p>
+      <div class="opt"><span class="opt-name" id="device-privacy-label">개인적인 내용</span><div class="segment" id="devicePrivacy" role="radiogroup" aria-labelledby="device-privacy-label"></div></div><p class="note opt-note" id="note-devicePrivacy"></p>
+      <div class="opt"><span class="opt-name" id="device-mcp-label">내 도구</span><div class="segment two" id="deviceMcp" role="radiogroup" aria-labelledby="device-mcp-label"></div></div><p class="note opt-note" id="note-deviceMcp"></p>
       <div id="device-own-session">
-        <div class="opt"><span class="opt-name" id="device-tools-label">도구</span><div class="segment two" id="deviceTools" role="radiogroup" aria-labelledby="device-tools-label"></div></div>
-        <div class="opt"><span class="opt-name" id="device-idle-label">조용하면 새 대화</span><div class="segment four" id="deviceIdleMin" role="radiogroup" aria-labelledby="device-idle-label"></div></div>
+        <div class="opt"><span class="opt-name" id="device-tools-label">도구</span><div class="segment two" id="deviceTools" role="radiogroup" aria-labelledby="device-tools-label"></div></div><p class="note opt-note" id="note-deviceTools"></p>
+        <div class="opt"><span class="opt-name" id="device-idle-label">조용하면 새 대화</span><div class="segment four" id="deviceIdleMin" role="radiogroup" aria-labelledby="device-idle-label"></div></div><p class="note opt-note" id="note-deviceIdleMin"></p>
       </div>
-      <p class="note" id="device-talk-note"></p>
     </div>
 
     <div class="cat" data-cat="mcp">
       <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
       <h1>도구 (MCP)</h1>
+      <p class="lede">까치가 쓰는 도구 서버예요. MCP 라고 불러요. 까치는 Pi 라는 에이전트 위에서 돌아서, Pi 에 등록한 서버도 써요.</p>
       <h2>까치의 MCP 서버</h2>
       <div class="group" id="mcp-kkachi"><div class="loading">불러오는 중…</div></div>
       <h2>Pi 에 등록한 MCP 서버</h2>
       <div class="group" id="mcp-pi"><div class="loading">불러오는 중…</div></div>
-      <p class="note">도구가 필요할 때 Pi 가 연결해서, 지금 연결돼 있는지는 여기서 알 수 없어요.</p>
+      <p class="note">이 서버들은 쓸 때 연결해서, 지금 연결돼 있는지는 여기서 알 수 없어요.</p>
     </div>
   </div>
 </section>
@@ -548,12 +597,15 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>기기 추가
       </button>
       <div class="group" id="menu-devices"><div class="loading">불러오는 중…</div></div>
+      <button type="button" class="menu-row" id="device-rules">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14v10H9l-4 4z"/></svg>기기에 한 말
+      </button>
     </div>
     <div class="menu-pane" data-tab="chat">
       <button type="button" class="menu-row" id="new-conversation">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6M17 3l4 4-8 8H9v-4z"/></svg>새 대화
       </button>
-      <h2>최근 기록</h2>
+      <h2>지난 대화</h2>
       <div class="group" id="menu-history"><div class="loading">불러오는 중…</div></div>
     </div>
   </div>

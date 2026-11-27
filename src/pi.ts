@@ -161,6 +161,11 @@ export class Pi {
 
   newSession() { return this.command({ type: "new_session" }); }
 
+  /** The session file Pi writes to now (it may not exist until the first message). */
+  sessionFile(): Promise<string | null> { return this.command({ type: "get_state" }).then((d) => d?.sessionFile ?? null); }
+
+  switchSession(sessionPath: string) { return this.command({ type: "switch_session", sessionPath }); }
+
   abort() { return this.command({ type: "abort" }).catch(() => {}); }
 
   async availableModels(): Promise<{ provider: string; id: string; name?: string }[]> {

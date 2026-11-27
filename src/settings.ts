@@ -58,7 +58,7 @@ export function updateSettings(patch: Partial<Settings>): Settings {
 // the server makes: with KKACHI_TTS_PROVIDER=supertonic, Supertonic 3's ten, made on this computer;
 // otherwise Edge TTS voices that speak Korean (made online; the multilingual ones read English terms
 // more naturally).
-const DEVICE_VOICE = { id: "device", name: "기기 목소리", note: "폰과 공기계에 들어 있는 목소리. 까치 서버에서 만들지 않아요" };
+const DEVICE_VOICE = { id: "device", name: "기기 목소리", note: "이 폰과 각 기기에 들어 있는 목소리. 까치 서버에서 만들지 않아요" };
 const SUPERTONIC_VOICES = ["F", "M"].flatMap((g) => [1, 2, 3, 4, 5].map((n) => ({ id: `${g}${n}`, name: `${g === "F" ? "여성" : "남성"} ${n}`, note: "이 컴퓨터에서 만드는 목소리 (Supertonic 3)" })));
 const EDGE_VOICES = [
   { id: "ko-KR-SunHiNeural", name: "선희", note: "여성, 차분한 한국어" },
@@ -78,11 +78,11 @@ export const THINKING = [
 
 // How Kkachi handles what is said to a spare device (docs/bus.md), as the settings sheet offers them.
 export const DEVICE_OPTIONS: Record<string, { id: string | number; name: string }[]> = {
-  deviceSession: [{ id: "all", name: "폰과 함께" }, { id: "home", name: "공기계끼리" }, { id: "device", name: "기기마다" }],
+  deviceSession: [{ id: "all", name: "폰과 함께" }, { id: "home", name: "기기끼리" }, { id: "device", name: "기기마다" }],
   deviceReply: [{ id: "source", name: "들은 기기" }, { id: "phone", name: "폰" }, { id: "both", name: "둘 다" }],
   devicePrivacy: [{ id: "open", name: "그대로" }, { id: "guarded", name: "말하지 않기" }, { id: "phone", name: "폰으로" }],
   deviceTools: [{ id: "full", name: "전체" }, { id: "limited", name: "제한" }],
-  deviceMcp: [{ id: "phone", name: "까치 홈만" }, { id: "all", name: "공기계도" }],
+  deviceMcp: [{ id: "phone", name: "까치 홈만" }, { id: "all", name: "기기도" }],
   deviceIdleMin: [{ id: 5, name: "5분" }, { id: 10, name: "10분" }, { id: 30, name: "30분" }, { id: 0, name: "끄기" }],
 };
 

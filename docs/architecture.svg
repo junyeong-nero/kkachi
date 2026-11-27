@@ -37,7 +37,7 @@
   <rect x="432" y="116" width="114" height="22" rx="11" fill="#1f8a80"/><text x="489" y="131" class="badge" fill="#fff" text-anchor="middle">개인 · 전체 권한</text>
   <text x="48" y="158" class="t">글 · 받아쓰기 · 사진 첨부 → 답 스트리밍 · 출처 칩 · 소리로 읽기</text>
   <text x="48" y="180" class="t"><tspan font-weight="700">대화</tspan> 집 밖에서도 · <tspan font-weight="700">기기</tspan> 방을 들여다보기 · 까치에게 열기</text>
-  <text x="48" y="202" class="t"><tspan font-weight="700">설정</tspan> 모델 · 목소리 · 공기계에 한 말 · MCP · 기록</text>
+  <text x="48" y="202" class="t"><tspan font-weight="700">설정</tspan> 외형 · 소리 · 모델 · MCP</text>
   <text x="48" y="226" class="m">core 에 붙음 · chat 에이전트</text>
 
   <rect x="600" y="106" width="540" height="134" rx="14" fill="#eef5fa" stroke="#3d7fae" stroke-width="1.2"/>

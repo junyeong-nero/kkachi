@@ -23,8 +23,8 @@
 | `speech.ts`, `polish.ts`, `vocabulary.ts` | 받아쓰기, 받아쓴 말 다듬기, 다듬기에 넣는 용어 목록(memory 레포의 `vocabulary.md`, 노트 제목, 기본 용어). [design.md](design.md) "음성 처리" |
 | `replay.ts` | 턴의 이벤트를 id 로 보관한다. 폰에서 연결이 끊겨도 앱이 받은 데서부터 이어 받는다 |
 | `bus.ts`, `inbox.ts`, `feed.ts` | 입력 버스. 공기계의 입력을 id 하나당 한 번, 60초 안에만 접수하고, 설정대로 세션을 골라 답을 기기나 폰 피드로 보낸다. [bus.md](bus.md) |
-| `activity.ts` | 설정의 "까치를 쓴 기록". 로그에서 최근 턴을 읽는다 |
-| `port.ts` | "공기계끼리"와 "기기마다" 세션의 Pi. 도구는 설정대로 전체(까치 홈과 같고 턴마다 커밋) 또는 제한(`port` 에이전트 도구와 `send_to_phone`) |
+| `conversations.ts` | 까치 홈의 대화들. Pi 세션 파일(`data/pi-sessions`)에서 목록과 내용을 읽는다. 메뉴의 지난 대화, 앱을 다시 열 때의 대화 |
+| `port.ts` | "기기끼리"와 "기기마다" 세션의 Pi. 도구는 설정대로 전체(까치 홈과 같고 턴마다 커밋) 또는 제한(`port` 에이전트 도구와 `send_to_phone`) |
 | `mcp-bridge.ts`, `services.ts` | `kkachi.mcp.json` 을 읽어 서버 목록과 에이전트별 허용 도구를 정한다. Pi 를 띄울 때 `tools/list` 로 도구를 받아 넘긴다. `command` 가 있는 서버는 core 가 띄우고 멈추면 다시 띄우며, `routes` 는 core 주소에서 중계한다 |
 | `memory.ts` | memory 서비스의 `git_*` 도구를 부른다. 턴 전 sync, 턴 끝 checkpoint, 사서와 대화 정리의 작업 사본 |
 | `review.ts` | 30분 조용하면 대화를 노트와 견줘 빠진 것을 채운다 |

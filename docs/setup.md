@@ -76,10 +76,12 @@ The conversation is the screen. Everything else is in a menu that slides in from
 
 At its top are two tabs.
 
-- Chat (대화): New chat (새 대화), and under it what Kkachi was used for lately, from here and from the devices.
-- Devices (기기): your spare phones and tablets. Open one to see what is happening in that room now (how loud it is, when it last moved, how it lies, where it is; a photo when you ask) and to choose what Kkachi may use there: its voice, speaker, lamp, camera, sound level, motion sensors and location. 기기 추가 shows how to add one, with the address to copy. Waiting devices are allowed here.
+- Chat (대화): New chat (새 대화), and under it your earlier conversations. Tap one to go back to it and carry on. The conversation going on is shown again when you reopen the app.
+- Devices (기기): your spare phones and tablets. Open one to see what is happening in that room now (how loud it is, when it last moved, how it lies, where it is; a photo when you ask) and to choose what Kkachi may use there: its voice, speaker, lamp, camera, sound level, motion sensors and location. 기기 추가 shows how to add one, with the address to copy. Waiting devices are allowed here. 기기에 한 말 sets how Kkachi treats what is said to the devices (one conversation with your phone or their own, where the answer goes, private details, your own MCP tools).
 
-Settings (설정), at the bottom, is in five parts: 외형 (text size), 소리 (read-aloud and voice), 모델 (model and thinking), 공기계 (how Kkachi answers what is said to a device) and 도구 (its MCP servers).
+Settings (설정), at the bottom, is in four parts: 외형 (light or dark, text size), 소리 (read-aloud and voice), 모델 (model and thinking) and 도구 (its MCP servers).
+
+The top bar shows whether home answers (집, 기기 2대 켜짐); tap it to see the devices.
 
 ### Spare devices
 

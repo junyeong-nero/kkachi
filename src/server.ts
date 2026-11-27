@@ -6,8 +6,8 @@ import { polish } from "./polish";
 import { modelOrder } from "./models";
 import { DEVICE_OPTIONS, settings, THINKING, updateSettings, VOICES } from "./settings";
 import { synthesize, transcribe } from "./speech";
-import { agentState, applyThinking, modelChoices, newConversation, runTurn, startConversation } from "./turn";
-import { recentUses } from "./activity";
+import { applyThinking, currentSession, modelChoices, newConversation, openConversation, runTurn, startConversation } from "./turn";
+import { conversations, fileOf, idOf, newestId, transcript } from "./conversations";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
 import { accept, parseInput, warm } from "./bus";
@@ -19,6 +19,8 @@ import { BUILT_IN } from "../lib/tts";
 import type { ServerWebSocket } from "bun";
 
 const web = join(import.meta.dir, "web");
+const SESSIONS = join(config.dataDir, "pi-sessions"); // Kkachi Home's conversations, one file each (src/pi.ts)
+const currentId = async () => { const f = await currentSession(); return f ? idOf(f) : newestId(SESSIONS); };
 
 // A service's own socket (the devices page's), forwarded both ways from core's address.
 type Relay = { target: string; up?: WebSocket; queue: (string | Buffer)[] };
@@ -89,10 +91,12 @@ Bun.serve({
           return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1), deviceOptions: DEVICE_OPTIONS });
         }
         if (pathname === "/api/mcp") return Response.json({ servers: await connections() }); // Settings' list of MCP servers
-        if (pathname === "/api/agent") { // the status screen and the agent screen's 기록: the end of the log is enough
-          const file = Bun.file(join(config.dataDir, "kkachi.log"));
-          const tail = (await file.exists()) ? await file.slice(Math.max(0, file.size - 512_000)).text() : "";
-          return Response.json({ ...agentState(), uses: recentUses(tail) });
+        // Kkachi Home's conversations (Pi's session files): the menu lists them, and the app shows the
+        // open one again when it is reopened. ?id= reads another.
+        if (pathname === "/api/conversations") return Response.json({ current: await currentId(), list: conversations(SESSIONS) });
+        if (pathname === "/api/conversation") {
+          const id = new URL(req.url).searchParams.get("id") ?? await currentId();
+          return Response.json({ id, turns: transcript(SESSIONS, id) });
         }
       }
 
@@ -122,6 +126,14 @@ Bun.serve({
         const { text } = await req.json();
         if (typeof text !== "string" || !text.trim()) return new Response("empty message", { status: 400 });
         pushFeed({ kind: "message", from: "까치", text: text.slice(0, 4000), speak: true });
+        return new Response(null, { status: 204 });
+      }
+
+      if (req.method === "POST" && pathname === "/api/conversation/open") {
+        const file = fileOf(SESSIONS, String((await req.json().catch(() => ({})))?.id ?? ""));
+        if (!file) return new Response("no such conversation", { status: 404 });
+        await openConversation(file);
+        log("open_conversation", { id: idOf(file) });
         return new Response(null, { status: 204 });
       }
 

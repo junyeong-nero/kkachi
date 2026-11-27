@@ -207,6 +207,8 @@ function sendMessage(text, images = []) {
   runTurn(my, addTurn(text, images), images.length ? { text, images } : { text }, performance.now());
 }
 
+// Sending it again: the failed turn goes, and the same words (and photos) are sent as a new one.
+const retry = (view, body) => () => { view.remove(); sendMessage(body.text ?? "", body.images ?? []); };
 async function runTurn(my, view, body, t0) {
   const speak = readAloud();
   const queue = [];       // Promise<AudioBuffer|null>, in play order
@@ -237,13 +239,13 @@ async function runTurn(my, view, body, t0) {
       else if (e.type === "activity") view.working(activityLabel(e.tool, e.path));
       else if (e.type === "photo") view.photo(e);
       else if (e.type === "done") { view.finish(); showChips(view.chips, e.sources, e.changed, e.titles); }
-      else if (e.type === "error") { view.fail(e.message); if (speak) queue.push(spoken(e.message)); earcon.error(); }
+      else if (e.type === "error") { view.fail(e.message, retry(view, body)); if (speak) queue.push(spoken(e.message)); earcon.error(); }
     });
     view.finish();
   } catch (e) {
     streamDone = true;
     diag("turn error", { err: String(e) });
-    if (my === turnId) { view.fail("연결이 끊겼어요. 다시 보내 주세요."); earcon.error(); }
+    if (my === turnId) { view.fail("연결이 끊겼어요.", retry(view, body)); earcon.error(); }
     return;
   }
   streamDone = true;
@@ -295,6 +297,7 @@ function renderMarkdown(target, text) {
 const dataUrl = (img) => `data:${img.mimeType};base64,${img.data}`;
 // from: where it came from when not this app ("거실에서", a device conversation), shown above it.
 function addTurn(text, images = [], from = null, fromKkachi = false) {
+  $("log").querySelector(".hello")?.remove();
   const turn = el("article", "turn");
   if (from) { const label = el("div", fromKkachi ? "from left" : "from"); label.textContent = from; turn.append(label); }
   const you = el("div", "you");
@@ -333,11 +336,24 @@ function addTurn(text, images = [], from = null, fromKkachi = false) {
       if (!reply.querySelector(".md, .err, .photos")) reply.hidden = true; // only actions, no words: no empty bubble
     },
     photo(img) { const p = el("div", "photos"); const im = new Image(); im.src = dataUrl(img); im.alt = "기기가 찍은 사진"; p.append(im); reply.insertBefore(p, work); scrollDown(); },
-    fail(message) { if (frame) render(); work.hidden = true; reply.hidden = false; reply.append(el("p", "err")); reply.lastChild.textContent = message; scrollDown(); },
+    fail(message, again) {
+      if (frame) render(); work.hidden = true; reply.hidden = false; reply.append(el("p", "err")); reply.lastChild.textContent = message;
+      if (again) { const b = el("button", "play retry"); b.type = "button"; b.textContent = "다시 보내기"; b.addEventListener("click", again); reply.append(b); }
+      scrollDown();
+    },
+    remove() { turn.remove(); showHello(); },
   };
 }
 
-function clearTranscript() { $("log").replaceChildren(); }
+function clearTranscript() { $("log").replaceChildren(); showHello(); }
+// Nothing said yet: who is there and what it can do, in the middle of the screen.
+function showHello() {
+  const log = $("log");
+  if (log.querySelector(".turn, .hello")) return;
+  const hello = el("div", "hello", '<img src="/icon.png" alt=""><span class="name">집에 있는 까치예요</span>');
+  hello.append(text("p", "", "물어보거나 시켜 보세요. 기억해 둘 것도 말해 주세요. 기기를 둔 방은 보고 들을 수 있어요."));
+  log.append(hello);
+}
 
 // Notes used for the answer; remembered ones (changed this turn) are highlighted.
 function showChips(container, sources, changed, titles = {}) {
@@ -495,7 +511,7 @@ function encodeWav(frames, inRate, outRate) {
   return new Blob([buf], { type: "audio/wav" });
 }
 
-// ---- settings, and refresh beside its heading (a home-screen web app has no reload button) ----
+// ---- settings, and 앱 다시 불러오기 under them (a home-screen web app has no reload button) ----
 $("refresh").addEventListener("click", () => location.reload());
 
 function toast(text) {
@@ -515,6 +531,14 @@ const providerLabel = { openai: "OpenAI", anthropic: "Anthropic", "claude-pro-ma
 
 // Text size is a per-device preference (a phone and a laptop want different sizes), kept in
 // localStorage as the body font size in px; every other size scales with it.
+const theme = () => localStorage.getItem("kkachi.theme") || "auto";
+const THEME_COLOR = { light: "#fcfcfd", dark: "#16181c" };
+function applyTheme() {
+  const t = theme(), root = document.documentElement;
+  if (t === "auto") delete root.dataset.theme; else root.dataset.theme = t;
+  for (const m of document.querySelectorAll("meta[name=theme-color]")) m.content = THEME_COLOR[t] ?? (m.media.includes("dark") ? THEME_COLOR.dark : THEME_COLOR.light);
+}
+applyTheme();
 const BASE_PX = 16;
 const textSize = () => Number(localStorage.getItem("kkachi.fontSize")) || BASE_PX;
 const applyTextSize = (px) => document.documentElement.style.setProperty("--scale", String(px / BASE_PX));
@@ -529,11 +553,16 @@ function renderTextSize() {
 
 // Read-aloud: a radio group in the sheet, stored on this device.
 function renderDevicePrefs() {
-  for (const input of document.querySelectorAll("input[name=speak]")) {
-    input.checked = input.value === (readAloud() ? "on" : "off");
-    input.onchange = () => { localStorage.setItem("kkachi.speak", input.value); applySpeak(); toast("저장했어요"); };
-  }
+  const r = row("읽어 주기", "");
+  r.classList.add("cap"); r.prepend(picture("speak"));
+  r.append(switchFor(readAloud(), "읽어 주기", (on) => { localStorage.setItem("kkachi.speak", on ? "on" : "off"); applySpeak(); }));
+  $("speak-group").replaceChildren(r);
   applySpeak();
+  // 외형's 화면: the phone's setting, or always light or dark
+  for (const input of document.querySelectorAll("input[name=theme]")) {
+    input.checked = input.value === theme();
+    input.onchange = () => { localStorage.setItem("kkachi.theme", input.value); applyTheme(); };
+  }
 }
 
 function applySpeak() {
@@ -542,10 +571,15 @@ function applySpeak() {
 }
 
 // What is said to a spare device (docs/bus.md): one segmented control per option.
-const DEVICE_TALK_NOTE = {
-  all: "공기계에서 한 말이 이 대화에 이어지고, 여기와 같은 도구를 써요. 내 MCP(Claude Code 등에서 가져온 서버)는 공기계도일 때만 써요.",
-  own: "도구가 전체면 공기계에 말하는 누구나 명령을 실행시킬 수 있어요. 내 MCP 는 공기계도일 때만 써요. 제한이면 노트, 말하기, 조명만 써요.",
+const DEVICE_NOTES = {
+  deviceSession: { all: "기기에서 한 말이 이 대화에 이어지고, 여기와 같은 도구를 써요.", home: "기기들이 이 대화와 따로, 대화 하나를 함께 써요.", device: "기기마다 따로 대화해요." },
+  deviceReply: { source: "말을 들은 기기가 소리로 답해요.", phone: "답은 이 폰으로만 와요. 기기는 조용해요.", both: "들은 기기가 답하고, 이 폰에도 와요." },
+  devicePrivacy: { open: "일정이나 메모 같은 개인적인 내용도 기기에서 소리로 말해요.", guarded: "개인적인 내용은 기기에서 소리로 말하지 않아요.", phone: "개인적인 내용은 기기에서 말하지 않고 이 폰으로 보내요." },
+  deviceMcp: { phone: "Claude Code 등에서 가져온 내 도구(메일, 저장소, 브라우저 같은 것)는 이 앱에서만 써요.", all: "기기에 대고 말해도 내 도구를 써요. 그 방에 있는 누구나 쓸 수 있어요." },
+  deviceTools: { full: "이 앱과 같은 도구를 써요. 기기에 말하는 누구나 명령을 실행시킬 수 있어요.", limited: "노트, 말하기, 조명만 써요." },
+  deviceIdleMin: { 0: "기기 대화를 새로 시작하지 않고 이어 가요." },
 };
+const deviceNote = (key, v) => DEVICE_NOTES[key]?.[v] ?? (key === "deviceIdleMin" ? `${v}분 동안 조용하면 다음 말부터 새 대화예요.` : "");
 function renderDeviceTalk(options, s) {
   for (const [key, choices] of Object.entries(options)) {
     $(key).replaceChildren(...choices.map((c) => {
@@ -564,19 +598,17 @@ function renderDeviceTalk(options, s) {
   showDeviceTalk(s);
 }
 function showDeviceTalk(s) {
-  const shared = s.deviceSession === "all"; // Kkachi Home's session: its tools, and it never starts over
-  $("device-own-session").hidden = shared;
-  $("device-talk-note").textContent = shared ? DEVICE_TALK_NOTE.all : DEVICE_TALK_NOTE.own;
+  $("device-own-session").hidden = s.deviceSession === "all"; // Kkachi Home's session: its tools, and it never starts over
+  for (const key of Object.keys(DEVICE_NOTES)) $(`note-${key}`).textContent = deviceNote(key, s[key]);
 }
 
 let catalog = null, mcpCount = ""; // what /api/settings offers, for the summaries
 function renderSums() {
-  $("sum-look").textContent = `글자 ${textSize()}px`;
+  $("sum-look").textContent = `${{ auto: "폰 설정대로", light: "밝게", dark: "어둡게" }[theme()]}. 글자 ${textSize()}px`;
   if (!catalog || !saved) return;
   const name = (list, id) => list.find((x) => x.id === id)?.name ?? "";
   $("sum-voice").textContent = readAloud() ? `읽어 주기 켜짐. ${name(catalog.voices, saved.voice)}` : "읽어 주기 꺼짐";
   $("sum-model").textContent = [name(catalog.models, saved.model) || saved.model?.split("/").pop(), name(catalog.thinking, saved.thinking)].filter(Boolean).join(", ");
-  $("sum-devices").textContent = `${name(catalog.deviceOptions.deviceSession ?? [], saved.deviceSession)} 대화`;
   $("sum-mcp").textContent = mcpCount;
 }
 async function openSettings() {
@@ -684,14 +716,23 @@ function setMenu(open, focus = true) {
   menu.style.transform = ""; scrim.style.opacity = "";
   menu.inert = !open;
   for (const id of ["top", "log", "dock", "devices", "settings"]) $(id).inert = open;
-  if (open) { loadDevices(); loadHistory(); if (focus) menu.focus({ preventScroll: true }); } // the menu itself: Tab goes on to its first row
+  if (open) { loadDevices(); loadConversations(); if (focus) menu.focus({ preventScroll: true }); } // the menu itself: Tab goes on to its first row
   else if (focus && page() === "chat") $("open-menu").focus({ preventScroll: true });
 }
 setMenu(false, false);
 $("open-menu").addEventListener("click", () => setMenu(true));
 scrim.addEventListener("click", () => setMenu(false));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menuOpen) { e.preventDefault(); setMenu(false); } });
-setInterval(() => { if ((menuOpen || page() === "device") && document.visibilityState === "visible") loadDevices(); }, 5000);
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (menuOpen) { e.preventDefault(); setMenu(false); return; }
+  if (page() === "chat" || typing(e.target)) return;
+  e.preventDefault();
+  const inCat = $("settings-body").querySelector(".cat-home").hidden; // a category of settings is open
+  if (page() === "settings" && inCat && !catFromMenu) showCat(""); else closePage();
+});
+let ticks = 0; // the menu and a device's page every 5 seconds; the top bar's 집 every 30
+setInterval(() => { if (document.visibilityState === "visible" && (menuOpen || page() === "device" || ++ticks % 6 === 0)) loadDevices(); }, 5000);
+loadDevices();
 {
   const EDGE = 24; // a swipe that starts this close to the left edge opens the menu
   let drag = null; // { x0, y0, t0, open, width, dx, sideways }
@@ -740,7 +781,7 @@ const clock = (t) => {
 const text = (tag, cls, s) => { const n = el(tag, cls); n.textContent = s; return n; }; // names come from devices: never as HTML
 const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
 // What a device has, by the service's names, as the app says them.
-const CAN = { speak: "스피커", lamp: "조명", talk: "음성", photo: "카메라", "sound level": "소리 크기", "motion sensors": "가속도 센서", location: "위치" };
+const CAN = { speak: "스피커", lamp: "조명", talk: "음성", photo: "카메라", "sound level": "소리 크기", "motion sensors": "움직임 센서", location: "위치" };
 // The round picture of a thing: what kind of device it is (a phone, a tablet), or what one of its parts is.
 const PIC = {
   phone: "M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2",
@@ -765,7 +806,10 @@ function backToMenu() {
 $("settings-back").addEventListener("click", closePage);
 // The settings page: its categories first, and one opened shows only its own settings; back shows the
 // categories again, each with what it is set to now.
-function showCat(cat) {
+let catFromMenu = false; // 기기에 한 말, opened from the menu: back goes to the menu
+function showCat(cat, fromMenu = false) {
+  catFromMenu = fromMenu;
+  for (const b of document.querySelectorAll("#settings .cat-back")) b.lastChild.textContent = fromMenu ? "메뉴" : "설정";
   $("settings-body").querySelector(".cat-home").hidden = !!cat;
   for (const n of document.querySelectorAll("#settings .cat")) n.hidden = n.dataset.cat !== cat;
   if (!cat) renderSums();
@@ -773,21 +817,16 @@ function showCat(cat) {
   enter($("settings-body"), "forward");
 }
 for (const b of document.querySelectorAll("#settings .cat-row")) b.addEventListener("click", () => showCat(b.dataset.cat));
-for (const b of document.querySelectorAll("#settings .cat-back")) b.addEventListener("click", () => showCat(""));
+for (const b of document.querySelectorAll("#settings .cat-back")) b.addEventListener("click", () => (catFromMenu ? closePage() : showCat("")));
+$("device-rules").addEventListener("click", () => { openPage("settings"); showCat("devices", true); });
 // The menu's tabs, remembered on this device.
 const menuTab = (tab) => { menu.dataset.tab = tab; localStorage.setItem("kkachi.menuTab", tab); };
+const pickMenuTab = (tab) => { menuTab(tab); for (const i of document.querySelectorAll("input[name=menu-tab]")) i.checked = i.value === tab; };
 for (const input of document.querySelectorAll("input[name=menu-tab]")) {
   input.checked = input.value === (localStorage.getItem("kkachi.menuTab") || "chat");
   input.addEventListener("change", () => menuTab(input.value));
 }
 menu.dataset.tab = localStorage.getItem("kkachi.menuTab") || "chat";
-// One light for whether something can be used: green (ok) it can, grey (off) the device is off. The
-// words are for screen readers and a long press.
-function light(level, words) {
-  const s = el("span", `dot ${level}`);
-  s.setAttribute("role", "img"); s.setAttribute("aria-label", words); s.title = words;
-  return s;
-}
 const iconButton = (path, label, click) => { const b = el("button", "icon-btn", icon(path)); b.type = "button"; b.setAttribute("aria-label", label); b.addEventListener("click", click); return b; };
 const switchFor = (on, label, flip) => {
   const sw = el("button", "switch", "<i></i>");
@@ -799,14 +838,29 @@ const switchFor = (on, label, flip) => {
 // ---- the devices: listed in the menu; one opened is a page with its room and what Kkachi may use ----
 let devices = [], listed = true, opened = null; // as last read; listed: the list came; opened: the device on its page
 const reading = new Map(); // device id → { sensors, sound, photo }: each null (reading), an object, or { error }
+let reach = null; // the last answer from home: "ok", "devices" (home answers, its device list did not) or "down"
 async function loadDevices() {
-  const r = await fetch("/api/device/list").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  const res = await fetch("/api/device/list").catch(() => null);
+  const r = res?.ok ? await res.json().catch(() => null) : null;
   listed = !!r;
+  reach = r ? "ok" : res ? "devices" : "down";
   if (r) devices = r.devices;
+  renderHome();
   renderMenuDevices();
   renderPage();
 }
+function renderHome() {
+  const b = $("home"), on = devices.filter((d) => d.allowed && d.online).length;
+  const [cls, words] = reach === "down" ? ["no", "집에 연결할 수 없어요"] : reach === "devices" ? ["off", "집, 기기 목록을 못 읽었어요"]
+    : ["ok", devices.length ? `집, 기기 ${on}대 켜짐` : "집"];
+  b.classList.toggle("down", reach === "down");
+  b.replaceChildren(el("span", `dot ${cls}`), words);
+  b.setAttribute("aria-label", `${words}. 기기 보기`);
+}
+$("home").addEventListener("click", () => { pickMenuTab("devices"); setMenu(true); });
 const stateOf = (d) => (!d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있어요" : !d.armed ? "켜져 있어요. 화면을 한 번 눌러야 소리를 써요" : "켜져 있어요");
+const shortState = (d) => (!d.allowed ? "허용을 기다려요" : !d.online ? "꺼져 있어요" : !d.armed ? "화면을 한 번 눌러야 해요" : "켜져 있어요");
+const CHEV = '<span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>';
 let menuDrawn = "";
 function renderMenuDevices() {
   const key = JSON.stringify([devices, listed]);
@@ -815,12 +869,14 @@ function renderMenuDevices() {
   const rows = devices.map((d) => {
     const r = el(d.allowed ? "button" : "div", "device item", '<span><span class="name"></span><span class="sub"></span></span>');
     r.querySelector(".name").textContent = d.name;
-    r.querySelector(".sub").textContent = d.allowed ? (d.online ? "켜져 있어요" : "꺼져 있어요") : "허용을 기다려요";
+    r.querySelector(".sub").textContent = shortState(d);
     r.prepend(picture(d.kind));
     if (!d.online || !d.allowed) r.classList.add("off");
     if (d.allowed) {
       r.type = "button";
-      r.append(light(d.online ? "ok" : "off", stateOf(d)));
+      const dot = el("span", `dot ${!d.online ? "off" : d.armed ? "ok" : "wait"}`); dot.setAttribute("aria-hidden", "true"); // the words say it
+      r.append(dot);
+      r.insertAdjacentHTML("beforeend", CHEV);
       r.addEventListener("click", () => openPage("device", d.id));
     } else {
       const allow = text("button", "play allow", "허용");
@@ -831,7 +887,7 @@ function renderMenuDevices() {
     return r;
   });
   $("menu-devices").replaceChildren(...(!listed ? [el("div", "loading", "기기 목록을 불러오지 못했어요")]
-    : rows.length ? rows : [el("div", "loading", "아직 없어요. + 로 추가해요")]));
+    : rows.length ? rows : [el("div", "loading", "아직 없어요. 기기 추가에서 붙여요")]));
 }
 $("add-device").addEventListener("click", () => openPage("add"));
 $("open-settings").addEventListener("click", () => openPage("settings"));
@@ -889,15 +945,19 @@ function readRoom(id, whats = ["sensors", "sound"]) {
 const why = (reason = "") => (/tap|armed|탭/i.test(reason) ? "기기 화면을 한 번 눌러야 해요" : /denied|not allowed|권한/i.test(reason) ? "권한이 없어요" : /offline/i.test(reason) ? "기기가 꺼져 있어요" : "읽을 수 없어요");
 const POSE = { "flat, screen up": "화면이 위로 누워 있어요", "flat, screen down": "화면이 아래로 엎어져 있어요", "standing upright": "세워져 있어요", "on its side": "옆으로 누워 있어요", tilted: "기울어져 있어요" };
 const compass = (deg) => ["북", "북동", "동", "남동", "남", "남서", "서", "북서"][Math.round(deg / 45) % 8];
-function roomRows(r = {}) {
+function roomRows(r = {}, name = "") {
   const s = r.sensors, sound = r.sound, rows = [];
   const add = (pic, name, words, down = false) => { const x = row(name, words); x.classList.add("cap"); x.prepend(picture(pic)); if (down) x.querySelector(".sub").classList.add("down"); rows.push(x); };
-  add("sound level", "소리", sound === null ? "재는 중…" : sound?.error ? why(sound.error) : sound ? `${sound.avg < -55 ? "조용해요" : sound.avg < -35 ? "보통이에요" : "시끄러워요"}. 평균 ${sound.avg} dB, 가장 클 때 ${sound.peak} dB` : "", !!sound?.error);
+  add("sound level", "소리", sound === null ? "재는 중…" : sound?.error ? why(sound.error) : sound ? `${sound.avg < -55 ? "조용해요" : sound.avg < -35 ? "보통이에요" : "시끄러워요"}${sound.peak > -25 && sound.avg < -35 ? ". 가끔 큰 소리가 나요" : ""}` : "", !!sound?.error);
   const motionWords = s === null ? "읽는 중…" : s?.error ? why(s.error) : s?.lastMovedAgoSec != null ? (s.lastMovedAgoSec < 5 ? "지금 움직이고 있어요" : `${s.lastMovedAgoSec < 90 ? `${s.lastMovedAgoSec}초` : `${Math.round(s.lastMovedAgoSec / 60)}분`} 전에 움직였어요`) : s?.motion ? "페이지를 연 뒤로 움직이지 않았어요" : why(s?.unavailable?.motion);
   add("motion", "움직임", motionWords, !!s?.error);
   if (s && !s.error) {
     add("pose", "놓인 자세", s.pose ? `${POSE[s.pose] ?? s.pose}${s.heading != null ? `. ${compass(s.heading)}쪽을 봐요` : ""}` : why(s.unavailable?.orientation));
-    add("location", "위치", s.location ? `${s.location.lat.toFixed(4)}, ${s.location.lon.toFixed(4)} (오차 ${Math.round(s.location.accuracy)} m)` : why(s.unavailable?.location));
+    if (s.location) { // a place on a map says more than numbers
+      const { lat, lon, accuracy } = s.location;
+      const x = row("위치", `알아요. 오차 ${Math.round(accuracy)} m`, { label: "지도", click: () => open(`https://maps.apple.com/?ll=${lat},${lon}&q=${encodeURIComponent(name)}`, "_blank", "noopener") });
+      x.classList.add("cap"); x.prepend(picture("location")); rows.push(x);
+    } else add("location", "위치", why(s.unavailable?.location));
   }
   return rows;
 }
@@ -908,7 +968,7 @@ function renderDevice(d) {
     const head = el("div", "title-row sub-head");
     head.append(text("h2", "", "지금 이 방"), iconButton("M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7", "다시 읽기", () => readRoom(d.id, ["sensors", "sound", ...(r.photo ? ["photo"] : [])])));
     const room = el("div", "group");
-    room.append(...roomRows(r));
+    room.append(...roomRows(r, d.name));
     const shot = row("사진", r.photo === null ? "찍는 중…" : r.photo?.error ? why(r.photo.error) : r.photo ? `방금 찍었어요. 밝기 ${r.photo.brightness}` : "뒤쪽 카메라로 한 장 찍어요. 저장하지 않아요", r.photo === null ? null : { label: r.photo ? "다시 찍기" : "찍기", click: () => readRoom(d.id, ["photo"]) });
     shot.classList.add("cap"); shot.prepend(picture("photo"));
     if (r.photo?.error) shot.querySelector(".sub").classList.add("down");
@@ -924,6 +984,7 @@ function renderDevice(d) {
     const works = d.can.includes(c), x = row(CAN[c] ?? c, !d.online ? "" : works ? "" : !d.armed && ["speak", "talk", "sound level"].includes(c) ? "기기 화면을 한 번 눌러야 써요" : "이 기기에서 쓸 수 없어요");
     x.classList.add("cap"); x.prepend(picture(c));
     if (!d.agent?.[c]) x.classList.add("off");
+    else if (d.online && !works) x.classList.add("idle");
     x.append(switchFor(!!d.agent?.[c], `까치가 ${d.name} ${CAN[c] ?? c}을(를) 쓰기`, async (on) => {
       x.classList.toggle("off", !on);
       const res = await fetch(`/api/device/${d.id}/agent`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cap: c, open: on }) });
@@ -944,25 +1005,6 @@ function renderDevice(d) {
   });
   parts.push(forget);
   $("devices-body").replaceChildren(...parts);
-}
-
-// What the agent was used for (GET /api/agent): the latest turns, from this app and the spare devices,
-// in the menu as a list of what was said, newest first.
-async function loadHistory() {
-  try {
-    const r = await fetch("/api/agent");
-    if (!r.ok) throw new Error("agent " + r.status);
-    const { uses } = await r.json();
-    $("menu-history").replaceChildren(...(uses.length ? uses.map((u) => {
-      const how = u.error ? "답하지 못했어요" : u.aborted ? "중간에 멈췄어요" : `${(u.ms / 1000).toFixed(1)}초`;
-      const r = row(u.text || "(말 없이 사진만)", `${clock(u.t)}, ${u.from ?? "까치 홈"}. ${how}`);
-      r.classList.add("use");
-      if (u.error) r.querySelector(".sub").classList.add("down");
-      return r;
-    }) : [el("div", "loading", "아직 없어요")]));
-  } catch {
-    $("menu-history").replaceChildren(el("div", "loading", "불러오지 못했어요"));
-  }
 }
 
 // The MCP servers Kkachi can use (GET /api/mcp): its own, with whether each answers now, and the ones
@@ -992,8 +1034,8 @@ $("new-conversation").addEventListener("click", async () => {
   const r = await fetch("/api/new-conversation", { method: "POST" });
   if (!r.ok) { toast("새 대화를 시작하지 못했어요"); return; }
   turnId++; stopPlayback();
-  clearTranscript();
-  document.body.dataset.view = "chat"; setMenu(false);
+  clearTranscript(); shownConversation = null;
+  document.body.dataset.view = "chat"; setMenu(false, false);
   ready();
   toast("새 대화를 시작했어요");
 });
@@ -1199,6 +1241,46 @@ else if (demo) {
   }
 }
 
+// ---- conversations (Pi's sessions, src/conversations.ts): the one going on is shown again when the
+// app opens (iOS often closes a home-screen app), and the menu's 대화 tab lists them to go back to ----
+let shownConversation = null;
+const restored = new Set(); // device turns shown from the conversation: not again from the feed
+async function restoreConversation(id = null) {
+  const r = await fetch(`/api/conversation${id ? `?id=${encodeURIComponent(id)}` : ""}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  if (!r) return;
+  shownConversation = r.id;
+  clearTranscript();
+  for (const t of r.turns.slice(-MAX_TURNS)) {
+    const v = addTurn(t.text + (t.photos ? `${t.text ? " " : ""}(사진 ${t.photos}장)` : ""), [], t.from ? `${t.from}에서` : null);
+    if (t.reply) { v.stream(t.reply); v.finish(); } else if (t.failed) v.fail("답하지 못했어요"); else v.finish();
+    if (t.from) restored.add(`${t.from}|${t.text}`);
+  }
+  scrollDown(true);
+}
+async function loadConversations() {
+  const r = await fetch("/api/conversations").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  if (!r) { $("menu-history").replaceChildren(el("div", "loading", "불러오지 못했어요")); return; }
+  $("menu-history").replaceChildren(...(r.list.length ? r.list.map((c) => {
+    const now = c.id === r.current;
+    const b = el("button", "device conv" + (now ? " current" : ""), '<span><span class="name"></span><span class="sub"></span></span>');
+    b.type = "button";
+    b.querySelector(".name").textContent = c.title;
+    b.querySelector(".sub").textContent = now ? `지금 대화. ${clock(c.t)}` : clock(c.t);
+    if (now) b.setAttribute("aria-current", "true");
+    b.addEventListener("click", () => openConversation(c.id, now));
+    return b;
+  }) : [el("div", "loading", "아직 없어요")]));
+}
+async function openConversation(id, now) {
+  if (!now) {
+    const res = await fetch("/api/conversation/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => null);
+    if (!res?.ok) { toast("대화를 열지 못했어요"); return; }
+    turnId++; stopPlayback();
+  }
+  if (!now || shownConversation !== id) await restoreConversation(id);
+  document.body.dataset.view = "chat"; setMenu(false, false); ready();
+}
+
 // ---- the feed (docs/bus.md): conversations on spare devices and messages sent to the phone ----
 // Listened to while the app is open. The last event id is kept, so reopening shows what came
 // meanwhile; only fresh items are read aloud.
@@ -1215,13 +1297,14 @@ function openFeed() {
 }
 function closeFeed() { feed?.close(); feed = null; }
 function showFeedItem(item) {
+  if (item.kind === "turn" && restored.has(`${item.from}|${item.heard}`)) return; // already shown with the conversation
   const v = item.kind === "turn" ? addTurn(item.heard, [], `${item.from}에서`) : addTurn("", [], "까치가 보냈어요", true);
   v.stream(item.text || "");
   v.finish();
   const fresh = Date.now() - Date.parse(item.at) < 15_000;
   if (item.speak && fresh && readAloud() && ctx && item.text) spoken(item.text).then((buf) => buf && (buf.say ? sayBuiltIn(buf.say) : play(buf)));
 }
-openFeed();
+restoreConversation().finally(openFeed); // the conversation first, then what came meanwhile
 // The voice setting decides how replies are read aloud, so it is needed before the first one.
 fetch("/api/settings").then((r) => r.json()).then((j) => { saved ??= j.settings; }).catch(() => {});
 
@@ -1230,5 +1313,5 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") { stopRecording(); resetAudio(); closeFeed(); } // iOS will cut the mic anyway; keep what was said
   // Back in the app: the turn stream may be dead without having errored yet. Restart it now; it
   // resumes from the last event received (see followTurn).
-  else { liveStream?.abort(); openFeed(); }
+  else { liveStream?.abort(); openFeed(); loadDevices(); }
 });

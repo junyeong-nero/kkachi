@@ -47,8 +47,6 @@ async function conversation(): Promise<Pi> {
   return agent;
 }
 
-/** For Kkachi Home's status screen: whether a turn is running now, and on which model. */
-export const agentState = () => ({ busy: !!currentTurn, model: agentModel || currentModel() });
 
 // ---- settings sheet hooks ----
 export async function applyThinking() { await agent?.setThinking(); }
@@ -58,6 +56,18 @@ export async function newConversation() {
   if (currentTurn) await agent?.abort();
   await queue;
   await (await conversation()).newSession();
+}
+
+/** The conversation going on now: Pi's session file, or, before Pi has started, the one it will continue. */
+export async function currentSession(): Promise<string | null> {
+  return agent ? await agent.sessionFile().catch(() => null) : null;
+}
+
+/** Go back to an earlier conversation (a Pi session file); the next turn continues it. */
+export async function openConversation(sessionFile: string) {
+  if (currentTurn) await agent?.abort();
+  await queue;
+  await (await conversation()).switchSession(sessionFile);
 }
 
 /** Models the user can pick: providers they are signed in to; OpenRouter only its free models. */
