@@ -135,8 +135,11 @@
   .menu-row svg { width: 22px; height: 22px; color: var(--muted); }
   @media (hover: hover) { .menu-row:hover { background: var(--surface); } }
   .menu-row:active { background: var(--line); }
-  .menu-head { display: flex; align-items: center; justify-content: space-between; margin: 20px -10px 6px 0; }
-  #menu .menu-head h2 { margin: 0; }
+  /* two tabs at the top of the menu: 기기 (기기 추가, then the devices) and 대화 (새 대화, then the history) */
+  .menu-tabs { margin: 0 0 12px; }
+  #menu[data-tab=chat] .menu-pane[data-tab=devices], #menu[data-tab=devices] .menu-pane[data-tab=chat] { display: none; }
+  .menu-pane > .group { margin-top: 8px; }
+  #menu .menu-pane h2 { margin-top: 20px; }
   #menu:focus { box-shadow: none; } /* focus is put on the menu when it opens: no ring round all of it */
   #menu .device { padding: 10px 12px; gap: 10px; }
   #menu .pic { width: 32px; height: 32px; }
@@ -350,6 +353,10 @@
   }
 
   /* grouped lists under small headings: the settings page */
+  /* settings: a list of categories first; one opened shows only its own (app.js, showCat) */
+  .cats { margin-top: 20px; }
+  .cat h1 { margin: 14px 0 0; }
+  .cat .lede { margin-top: 6px; }
   #settings h2, #menu h2 { letter-spacing: 0; line-height: inherit; font-size: var(--t-sm); font-weight: 600; color: var(--muted); margin: 24px 0 8px; }
   .note { font-size: var(--t-sm); color: var(--muted); margin: 8px 0 0; line-height: 1.5; }
   .group { background: var(--surface); border-radius: var(--r-md); overflow: hidden; }
@@ -442,85 +449,117 @@
 <!-- 설정, opened from the menu -->
 <section id="settings" class="pane">
   <div class="pane-in" id="settings-body">
-    <button type="button" class="back" id="settings-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>메뉴</button>
-    <div class="title-row">
-      <h1>설정</h1>
-      <button type="button" class="icon-btn" id="refresh" aria-label="새로고침">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
-      </button>
-    </div>
-
-    <h2>읽어 주기</h2>
-    <div class="segment two" role="radiogroup" aria-label="읽어 주기">
-      <label><input type="radio" name="speak" value="off">끄기</label>
-      <label><input type="radio" name="speak" value="on">켜기</label>
-    </div>
-    <p class="note">켜면 답의 첫 두 문장을 소리로 읽어 줘요. 이 기기에만 적용돼요.</p>
-
-    <div id="voice-settings" hidden>
-      <h2>목소리</h2>
-      <div class="group" id="voices"><div class="loading">불러오는 중…</div></div>
-
-      <h2>말 빠르기</h2>
-      <div class="row">
-        <input type="range" id="rate" min="-30" max="60" step="10" aria-label="말 빠르기" />
-        <output id="rate-out"></output>
+    <!-- the categories; one opened shows only its own settings (app.js: #settings[data-cat]) -->
+    <div class="cat-home">
+      <button type="button" class="back" id="settings-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>메뉴</button>
+      <div class="title-row">
+        <h1>설정</h1>
+        <button type="button" class="icon-btn" id="refresh" aria-label="새로고침">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        </button>
+      </div>
+      <div class="group cats">
+        <button type="button" class="device item cat-row" data-cat="look"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19l5-14 5 14M6 14h6M15 19l3-8 3 8M16 16h4"/></svg></span><span><span class="name">외형</span><span class="sub" id="sum-look"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="device item cat-row" data-cat="voice"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4zM16.5 8.5a5 5 0 0 1 0 7"/></svg></span><span><span class="name">소리</span><span class="sub" id="sum-voice"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="device item cat-row" data-cat="model"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h8v10H8zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h5M3 14h5M16 10h5M16 14h5"/></svg></span><span><span class="name">모델</span><span class="sub" id="sum-model"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="device item cat-row" data-cat="devices"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2"/></svg></span><span><span class="name">공기계</span><span class="sub" id="sum-devices"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="device item cat-row" data-cat="mcp"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5"/></svg></span><span><span class="name">도구 (MCP)</span><span class="sub" id="sum-mcp"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
       </div>
     </div>
 
-    <h2>글자 크기</h2>
-    <div class="row">
-      <input type="range" id="text-size" min="14" max="24" step="1" aria-label="글자 크기 (px)" />
-      <output id="text-size-out"></output>
+    <div class="cat" data-cat="look">
+      <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
+      <h1>외형</h1>
+      <h2>글자 크기</h2>
+      <div class="row">
+        <input type="range" id="text-size" min="14" max="24" step="1" aria-label="글자 크기 (px)" />
+        <output id="text-size-out"></output>
+      </div>
+      <p class="note">본문 글자 크기예요. 다른 글자도 같은 비율로 바뀌고, 이 기기에만 적용돼요. 밝은 화면과 어두운 화면은 폰 설정을 따라요.</p>
     </div>
-    <p class="note">본문 글자 크기예요. 다른 글자도 같은 비율로 바뀌고, 이 기기에만 적용돼요.</p>
 
-    <h2>생각 깊이</h2>
-    <div class="segment" id="thinking" role="radiogroup" aria-label="생각 깊이"></div>
-    <p class="note">빠르게는 답이 일찍 오고, 꼼꼼하게는 어려운 일을 더 잘해요.</p>
-
-    <h2>모델</h2>
-    <select id="model" aria-label="모델"><option>불러오는 중…</option></select>
-    <p class="note" id="fallbacks"></p>
-
-    <h2>공기계에 한 말</h2>
-    <div class="opt"><span class="opt-name" id="device-session-label">대화</span><div class="segment" id="deviceSession" role="radiogroup" aria-labelledby="device-session-label"></div></div>
-    <div class="opt"><span class="opt-name" id="device-reply-label">답하는 곳</span><div class="segment" id="deviceReply" role="radiogroup" aria-labelledby="device-reply-label"></div></div>
-    <div class="opt"><span class="opt-name" id="device-privacy-label">개인적인 내용</span><div class="segment" id="devicePrivacy" role="radiogroup" aria-labelledby="device-privacy-label"></div></div>
-    <div class="opt"><span class="opt-name" id="device-mcp-label">내 MCP</span><div class="segment two" id="deviceMcp" role="radiogroup" aria-labelledby="device-mcp-label"></div></div>
-    <div id="device-own-session">
-      <div class="opt"><span class="opt-name" id="device-tools-label">도구</span><div class="segment two" id="deviceTools" role="radiogroup" aria-labelledby="device-tools-label"></div></div>
-      <div class="opt"><span class="opt-name" id="device-idle-label">조용하면 새 대화</span><div class="segment four" id="deviceIdleMin" role="radiogroup" aria-labelledby="device-idle-label"></div></div>
+    <div class="cat" data-cat="voice">
+      <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
+      <h1>소리</h1>
+      <h2>읽어 주기</h2>
+      <div class="segment two" role="radiogroup" aria-label="읽어 주기">
+        <label><input type="radio" name="speak" value="off">끄기</label>
+        <label><input type="radio" name="speak" value="on">켜기</label>
+      </div>
+      <p class="note">켜면 답의 첫 두 문장을 소리로 읽어 줘요. 이 기기에만 적용돼요.</p>
+      <div id="voice-settings" hidden>
+        <h2>목소리</h2>
+        <div class="group" id="voices"><div class="loading">불러오는 중…</div></div>
+        <h2>말 빠르기</h2>
+        <div class="row">
+          <input type="range" id="rate" min="-30" max="60" step="10" aria-label="말 빠르기" />
+          <output id="rate-out"></output>
+        </div>
+      </div>
     </div>
-    <p class="note" id="device-talk-note"></p>
 
-    <h2>까치의 MCP 서버</h2>
-    <div class="group" id="mcp-kkachi"><div class="loading">불러오는 중…</div></div>
+    <div class="cat" data-cat="model">
+      <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
+      <h1>모델</h1>
+      <h2>쓰는 모델</h2>
+      <select id="model" aria-label="모델"><option>불러오는 중…</option></select>
+      <p class="note" id="fallbacks"></p>
+      <h2>생각 깊이</h2>
+      <div class="segment" id="thinking" role="radiogroup" aria-label="생각 깊이"></div>
+      <p class="note">빠르게는 답이 일찍 오고, 꼼꼼하게는 어려운 일을 더 잘해요.</p>
+    </div>
 
-    <h2>Pi 에 등록한 MCP 서버</h2>
-    <div class="group" id="mcp-pi"><div class="loading">불러오는 중…</div></div>
-    <p class="note">도구가 필요할 때 Pi 가 연결해서, 지금 연결돼 있는지는 여기서 알 수 없어요.</p>
+    <div class="cat" data-cat="devices">
+      <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
+      <h1>공기계</h1>
+      <p class="lede">공기계에 대고 한 말을 까치가 어떻게 다룰지예요.</p>
+      <div class="opt"><span class="opt-name" id="device-session-label">대화</span><div class="segment" id="deviceSession" role="radiogroup" aria-labelledby="device-session-label"></div></div>
+      <div class="opt"><span class="opt-name" id="device-reply-label">답하는 곳</span><div class="segment" id="deviceReply" role="radiogroup" aria-labelledby="device-reply-label"></div></div>
+      <div class="opt"><span class="opt-name" id="device-privacy-label">개인적인 내용</span><div class="segment" id="devicePrivacy" role="radiogroup" aria-labelledby="device-privacy-label"></div></div>
+      <div class="opt"><span class="opt-name" id="device-mcp-label">내 MCP</span><div class="segment two" id="deviceMcp" role="radiogroup" aria-labelledby="device-mcp-label"></div></div>
+      <div id="device-own-session">
+        <div class="opt"><span class="opt-name" id="device-tools-label">도구</span><div class="segment two" id="deviceTools" role="radiogroup" aria-labelledby="device-tools-label"></div></div>
+        <div class="opt"><span class="opt-name" id="device-idle-label">조용하면 새 대화</span><div class="segment four" id="deviceIdleMin" role="radiogroup" aria-labelledby="device-idle-label"></div></div>
+      </div>
+      <p class="note" id="device-talk-note"></p>
+    </div>
 
+    <div class="cat" data-cat="mcp">
+      <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
+      <h1>도구 (MCP)</h1>
+      <h2>까치의 MCP 서버</h2>
+      <div class="group" id="mcp-kkachi"><div class="loading">불러오는 중…</div></div>
+      <h2>Pi 에 등록한 MCP 서버</h2>
+      <div class="group" id="mcp-pi"><div class="loading">불러오는 중…</div></div>
+      <p class="note">도구가 필요할 때 Pi 가 연결해서, 지금 연결돼 있는지는 여기서 알 수 없어요.</p>
+    </div>
   </div>
 </section>
 
 <div id="scrim" aria-hidden="true"></div>
-<aside id="menu" aria-label="메뉴" tabindex="-1">
+<aside id="menu" aria-label="메뉴" tabindex="-1" data-tab="chat">
   <div class="menu-in">
-    <button type="button" class="menu-row" id="new-conversation">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6M17 3l4 4-8 8H9v-4z"/></svg>새 대화
-    </button>
-    <div class="menu-head">
-      <h2>기기</h2>
-      <button type="button" class="icon-btn" id="add-device" aria-label="기기 추가"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <div class="segment two menu-tabs" role="radiogroup" aria-label="메뉴">
+      <label><input type="radio" name="menu-tab" value="devices">기기</label>
+      <label><input type="radio" name="menu-tab" value="chat">대화</label>
     </div>
-    <div class="group" id="menu-devices"><div class="loading">불러오는 중…</div></div>
-    <h2>최근 기록</h2>
-    <div class="group" id="menu-history"><div class="loading">불러오는 중…</div></div>
+    <div class="menu-pane" data-tab="devices">
+      <button type="button" class="menu-row" id="add-device">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>기기 추가
+      </button>
+      <div class="group" id="menu-devices"><div class="loading">불러오는 중…</div></div>
+    </div>
+    <div class="menu-pane" data-tab="chat">
+      <button type="button" class="menu-row" id="new-conversation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6M17 3l4 4-8 8H9v-4z"/></svg>새 대화
+      </button>
+      <h2>최근 기록</h2>
+      <div class="group" id="menu-history"><div class="loading">불러오는 중…</div></div>
+    </div>
   </div>
   <div class="menu-foot">
     <button type="button" class="menu-row" id="open-settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>설정
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>설정
     </button>
   </div>
 </aside>

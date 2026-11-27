@@ -66,7 +66,7 @@ The app on your phone: where you talk to Kkachi and look after the devices.
 A spare phone or tablet becomes a Kkachi Device: Kkachi's eyes, ears and voice in that room. It has a speaker, a microphone, a camera, a sound meter, motion sensors, and on a tablet a lamp.
 
 1. Open `/device` at the same address on the spare phone, name it ("living room") and tap once.
-2. Allow it in Kkachi Home's menu, under 기기. The menu's + (기기 추가) shows these steps with the address to copy.
+2. Allow it in Kkachi Home's menu, under 기기. 기기 추가 in the same menu shows these steps with the address to copy.
 3. Keep its screen on.
 
 Then "tell the living room dinner is ready" plays there, "how is the living room?" gets a photo and an answer, and holding the talk pad on its screen asks Kkachi something from that room. In Kkachi Home's menu, open a device to see what is happening there now (how loud it is, when it last moved, a photo when you ask) and to choose what Kkachi may use there.

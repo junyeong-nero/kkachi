@@ -74,10 +74,12 @@ The interface is in Korean.
 
 The conversation is the screen. Everything else is in a menu that slides in from the left: tap the button at the top left, or swipe in from the left edge.
 
-- New chat (새 대화).
-- Devices (기기): your spare phones and tablets. Open one to see what is happening in that room now (how loud it is, when it last moved, how it lies, where it is; a photo when you ask) and to choose what Kkachi may use there: its voice, speaker, lamp, camera, sound level, motion sensors and location. The + shows how to add one, with the address to copy. Waiting devices are allowed here.
-- Recent (최근 기록): what Kkachi was used for lately, from here and from the devices.
-- Settings (설정): read-aloud and voice, text size, model, how Kkachi answers what is said to a device, and its MCP servers.
+At its top are two tabs.
+
+- Chat (대화): New chat (새 대화), and under it what Kkachi was used for lately, from here and from the devices.
+- Devices (기기): your spare phones and tablets. Open one to see what is happening in that room now (how loud it is, when it last moved, how it lies, where it is; a photo when you ask) and to choose what Kkachi may use there: its voice, speaker, lamp, camera, sound level, motion sensors and location. 기기 추가 shows how to add one, with the address to copy. Waiting devices are allowed here.
+
+Settings (설정), at the bottom, is in five parts: 외형 (text size), 소리 (read-aloud and voice), 모델 (model and thinking), 공기계 (how Kkachi answers what is said to a device) and 도구 (its MCP servers).
 
 ### Spare devices
 

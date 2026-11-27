@@ -569,13 +569,23 @@ function showDeviceTalk(s) {
   $("device-talk-note").textContent = shared ? DEVICE_TALK_NOTE.all : DEVICE_TALK_NOTE.own;
 }
 
+let catalog = null, mcpCount = ""; // what /api/settings offers, for the summaries
+function renderSums() {
+  $("sum-look").textContent = `글자 ${textSize()}px`;
+  if (!catalog || !saved) return;
+  const name = (list, id) => list.find((x) => x.id === id)?.name ?? "";
+  $("sum-voice").textContent = readAloud() ? `읽어 주기 켜짐. ${name(catalog.voices, saved.voice)}` : "읽어 주기 꺼짐";
+  $("sum-model").textContent = [name(catalog.models, saved.model) || saved.model?.split("/").pop(), name(catalog.thinking, saved.thinking)].filter(Boolean).join(", ");
+  $("sum-devices").textContent = `${name(catalog.deviceOptions.deviceSession ?? [], saved.deviceSession)} 대화`;
+  $("sum-mcp").textContent = mcpCount;
+}
 async function openSettings() {
   renderTextSize();
   renderDevicePrefs();
   const r = await fetch("/api/settings");
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
   const { settings: s, voices, thinking, models, fallbacks, deviceOptions } = await r.json();
-  saved = s;
+  saved = s; catalog = { voices, thinking, models, deviceOptions };
 
   $("voices").replaceChildren(...voices.map((v) => {
     const row = document.createElement("label");
@@ -621,6 +631,7 @@ async function openSettings() {
   select.replaceChildren(...groups.values());
   select.onchange = () => saveSettings({ model: select.value });
   const others = fallbacks.filter((m) => m !== s.model);
+  renderSums();
   $("fallbacks").textContent = others.length ? `이 모델이 막히면 ${others.map((m) => m.split("/").pop()).join(", ")} 순서로 넘어가요.` : "";
 }
 
@@ -653,7 +664,7 @@ function openPage(view, deviceId = null) {
   setMenu(false, false);
   opened = deviceId;
   document.body.dataset.view = view;
-  if (view === "settings") { openSettings(); loadMcp(); }
+  if (view === "settings") { showCat(""); openSettings(); loadMcp(); }
   if (view === "device") readRoom(deviceId);
   drawn = ""; renderPage();
   const pane = view === "settings" ? $("settings") : $("devices");
@@ -752,6 +763,24 @@ function backToMenu() {
   return b;
 }
 $("settings-back").addEventListener("click", closePage);
+// The settings page: its categories first, and one opened shows only its own settings; back shows the
+// categories again, each with what it is set to now.
+function showCat(cat) {
+  $("settings-body").querySelector(".cat-home").hidden = !!cat;
+  for (const n of document.querySelectorAll("#settings .cat")) n.hidden = n.dataset.cat !== cat;
+  if (!cat) renderSums();
+  $("settings").scrollTop = 0;
+  enter($("settings-body"), "forward");
+}
+for (const b of document.querySelectorAll("#settings .cat-row")) b.addEventListener("click", () => showCat(b.dataset.cat));
+for (const b of document.querySelectorAll("#settings .cat-back")) b.addEventListener("click", () => showCat(""));
+// The menu's tabs, remembered on this device.
+const menuTab = (tab) => { menu.dataset.tab = tab; localStorage.setItem("kkachi.menuTab", tab); };
+for (const input of document.querySelectorAll("input[name=menu-tab]")) {
+  input.checked = input.value === (localStorage.getItem("kkachi.menuTab") || "chat");
+  input.addEventListener("change", () => menuTab(input.value));
+}
+menu.dataset.tab = localStorage.getItem("kkachi.menuTab") || "chat";
 // One light for whether something can be used: green (ok) it can, grey (off) the device is off. The
 // words are for screen readers and a long press.
 function light(level, words) {
@@ -835,7 +864,7 @@ function renderAdd() {
   for (const [title, words] of [
     ["이 주소를 여세요", "안 쓰는 폰이나 태블릿의 Safari 나 Chrome 에서요. 그 기기도 이 폰과 같은 Tailscale 계정에 로그인해 있어야 열려요."],
     ["이름을 붙이고 화면을 한 번 누르세요", "거실, 주방처럼 둔 곳의 이름이 좋아요. 그때 마이크, 카메라, 움직임, 위치 권한을 한꺼번에 물어요."],
-    ["여기서 허용하세요", "메뉴의 기기 목록에 허용을 기다리는 기기로 나타나요."],
+    ["여기서 허용하세요", "메뉴의 기기 탭에 허용을 기다리는 기기로 나타나요."],
     ["화면을 켜 두세요", "자동 잠금을 꺼 두고 충전기에 꽂아 두면 좋아요."],
   ]) { const li = el("li"); li.append(text("span", "name", title), text("span", "sub", words)); steps.append(li); }
   $("devices-body").replaceChildren(backToMenu(), text("h1", "", "기기 추가"), text("p", "lede", "안 쓰는 폰이나 태블릿이 그 방에서 까치의 눈과 귀와 입이 돼요. 앱은 깔지 않아요."), address, steps);
@@ -951,6 +980,9 @@ async function loadMcp() {
     const { servers } = await r.json();
     $("mcp-kkachi").replaceChildren(...rows(servers.filter((s) => s.source === "kkachi"), (s) => (s.ok ? `연결됨. 도구 ${s.tools}개` : "응답이 없어요")));
     $("mcp-pi").replaceChildren(...rows(servers.filter((s) => s.source === "pi"), () => "등록됨"));
+    const own = servers.filter((s) => s.source === "kkachi");
+    mcpCount = `까치 ${own.length}개${own.some((s) => s.ok === false) ? " (응답 없는 것 있음)" : ""}, Pi ${servers.length - own.length}개`;
+    $("sum-mcp").textContent = mcpCount;
   } catch {
     for (const id of ["mcp-kkachi", "mcp-pi"]) $(id).replaceChildren(el("div", "loading", "불러오지 못했어요"));
   }
