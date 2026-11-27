@@ -570,38 +570,6 @@ function applySpeak() {
   if (!readAloud() && !recording) { stopPlayback(); resetAudio(); setSession("auto"); } // nothing holds audio now
 }
 
-// What is said to a spare device (docs/bus.md): one segmented control per option.
-const DEVICE_NOTES = {
-  deviceSession: { all: "기기에서 한 말이 이 대화에 이어지고, 여기와 같은 도구를 써요.", home: "기기들이 이 대화와 따로, 대화 하나를 함께 써요.", device: "기기마다 따로 대화해요." },
-  deviceReply: { source: "말을 들은 기기가 소리로 답해요.", phone: "답은 이 폰으로만 와요. 기기는 조용해요.", both: "들은 기기가 답하고, 이 폰에도 와요." },
-  devicePrivacy: { open: "일정이나 메모 같은 개인적인 내용도 기기에서 소리로 말해요.", guarded: "개인적인 내용은 기기에서 소리로 말하지 않아요.", phone: "개인적인 내용은 기기에서 말하지 않고 이 폰으로 보내요." },
-  deviceMcp: { phone: "Claude Code 등에서 가져온 내 도구(메일, 저장소, 브라우저 같은 것)는 이 앱에서만 써요.", all: "기기에 대고 말해도 내 도구를 써요. 그 방에 있는 누구나 쓸 수 있어요." },
-  deviceTools: { full: "이 앱과 같은 도구를 써요. 기기에 말하는 누구나 명령을 실행시킬 수 있어요.", limited: "노트, 말하기, 조명만 써요." },
-  deviceIdleMin: { 0: "기기 대화를 새로 시작하지 않고 이어 가요." },
-};
-const deviceNote = (key, v) => DEVICE_NOTES[key]?.[v] ?? (key === "deviceIdleMin" ? `${v}분 동안 조용하면 다음 말부터 새 대화예요.` : "");
-function renderDeviceTalk(options, s) {
-  for (const [key, choices] of Object.entries(options)) {
-    $(key).replaceChildren(...choices.map((c) => {
-      const l = document.createElement("label");
-      l.innerHTML = `<input type="radio" name="${key}">`;
-      l.append(c.name);
-      const input = l.querySelector("input");
-      input.checked = c.id === s[key];
-      input.addEventListener("change", async () => {
-        await saveSettings({ [key]: c.id });
-        showDeviceTalk(saved);
-      });
-      return l;
-    }));
-  }
-  showDeviceTalk(s);
-}
-function showDeviceTalk(s) {
-  $("device-own-session").hidden = s.deviceSession === "all"; // Kkachi Home's session: its tools, and it never starts over
-  for (const key of Object.keys(DEVICE_NOTES)) $(`note-${key}`).textContent = deviceNote(key, s[key]);
-}
-
 let catalog = null, mcpCount = ""; // what /api/settings offers, for the summaries
 function renderSums() {
   $("sum-look").textContent = `${{ auto: "폰 설정대로", light: "밝게", dark: "어둡게" }[theme()]}. 글자 ${textSize()}px`;
@@ -616,8 +584,8 @@ async function openSettings() {
   renderDevicePrefs();
   const r = await fetch("/api/settings");
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
-  const { settings: s, voices, thinking, models, fallbacks, deviceOptions } = await r.json();
-  saved = s; catalog = { voices, thinking, models, deviceOptions };
+  const { settings: s, voices, thinking, models, fallbacks } = await r.json();
+  saved = s; catalog = { voices, thinking, models };
 
   $("voices").replaceChildren(...voices.map((v) => {
     const row = document.createElement("label");
@@ -637,7 +605,6 @@ async function openSettings() {
   rate.oninput = () => ($("rate-out").textContent = rateLabel(Number(rate.value)));
   rate.onchange = () => saveSettings({ rate: Number(rate.value) });
 
-  renderDeviceTalk(deviceOptions, s);
 
   $("thinking").replaceChildren(...thinking.map((t) => {
     const l = document.createElement("label");
@@ -728,7 +695,7 @@ document.addEventListener("keydown", (e) => {
   if (page() === "chat" || typing(e.target)) return;
   e.preventDefault();
   const inCat = $("settings-body").querySelector(".cat-home").hidden; // a category of settings is open
-  if (page() === "settings" && inCat && !catFromMenu) showCat(""); else closePage();
+  if (page() === "settings" && inCat) showCat(""); else closePage();
 });
 let ticks = 0; // the menu and a device's page every 5 seconds; the top bar's 집 every 30
 setInterval(() => { if (document.visibilityState === "visible" && (menuOpen || page() === "device" || ++ticks % 6 === 0)) loadDevices(); }, 5000);
@@ -806,10 +773,7 @@ function backToMenu() {
 $("settings-back").addEventListener("click", closePage);
 // The settings page: its categories first, and one opened shows only its own settings; back shows the
 // categories again, each with what it is set to now.
-let catFromMenu = false; // 기기에 한 말, opened from the menu: back goes to the menu
-function showCat(cat, fromMenu = false) {
-  catFromMenu = fromMenu;
-  for (const b of document.querySelectorAll("#settings .cat-back")) b.lastChild.textContent = fromMenu ? "메뉴" : "설정";
+function showCat(cat) {
   $("settings-body").querySelector(".cat-home").hidden = !!cat;
   for (const n of document.querySelectorAll("#settings .cat")) n.hidden = n.dataset.cat !== cat;
   if (!cat) renderSums();
@@ -817,8 +781,7 @@ function showCat(cat, fromMenu = false) {
   enter($("settings-body"), "forward");
 }
 for (const b of document.querySelectorAll("#settings .cat-row")) b.addEventListener("click", () => showCat(b.dataset.cat));
-for (const b of document.querySelectorAll("#settings .cat-back")) b.addEventListener("click", () => (catFromMenu ? closePage() : showCat("")));
-$("device-rules").addEventListener("click", () => { openPage("settings"); showCat("devices", true); });
+for (const b of document.querySelectorAll("#settings .cat-back")) b.addEventListener("click", () => showCat(""));
 // The menu's tabs, remembered on this device.
 const menuTab = (tab) => { menu.dataset.tab = tab; localStorage.setItem("kkachi.menuTab", tab); };
 const pickMenuTab = (tab) => { menuTab(tab); for (const i of document.querySelectorAll("input[name=menu-tab]")) i.checked = i.value === tab; };

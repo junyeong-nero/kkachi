@@ -17,11 +17,6 @@ export interface PiOptions {
   session: "continue" | "none";
   reviewWorktree?: string; // isolated checkout; reviews need only the built-in note tools
   mcp?: Agent; // which MCP tools it gets from kkachi.mcp.json (src/mcp-bridge.ts), as which agent
-  // A device session (src/port.ts): its own session directory. With portTools "limited", only its MCP
-  // tools (the memory tools cannot leave the memory repo) and send_to_phone: no shell, file tools,
-  // web, subagents or the user's MCP. With "full", Kkachi Home's tools.
-  port?: string; // session key: "home" or a device id
-  portTools?: "full" | "limited";
 }
 
 // Dialog requests block Pi until answered. A voice UI cannot show them, so they are cancelled.
@@ -53,9 +48,8 @@ export class Pi {
       "--model", model,
       ...promptArgs,
       ...(this.opts.reviewWorktree ? ["--tools", "read,ls,find,grep,edit,write"] : ["-e", join(config.root, "pi", "kkachi.ts")]),
-      ...(this.opts.port && this.opts.portTools !== "full" ? ["--no-mcp", "--tools", [...(mcp?.names ?? []), "send_to_phone"].join(",")] : []),
       ...(this.opts.session === "continue"
-        ? ["--session-dir", this.opts.port ? join(config.dataDir, "pi-sessions-ports", this.opts.port) : join(config.dataDir, "pi-sessions"), "--continue"]
+        ? ["--session-dir", join(config.dataDir, "pi-sessions"), "--continue"]
         : ["--no-session"]),
     ];
     if (this.stopped) throw new Error("pi was stopped before it started");

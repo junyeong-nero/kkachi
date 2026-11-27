@@ -22,9 +22,8 @@
 | `models.ts` | `KKACHI_MODEL` 의 모델 목록. 한도(429)에 걸리면 같은 턴을 다음 모델로 다시 보낸다 |
 | `speech.ts`, `polish.ts`, `vocabulary.ts` | 받아쓰기, 받아쓴 말 다듬기, 다듬기에 넣는 용어 목록(memory 레포의 `vocabulary.md`, 노트 제목, 기본 용어). [design.md](design.md) "음성 처리" |
 | `replay.ts` | 턴의 이벤트를 id 로 보관한다. 폰에서 연결이 끊겨도 앱이 받은 데서부터 이어 받는다 |
-| `bus.ts`, `inbox.ts`, `feed.ts` | 입력 버스. 공기계의 입력을 id 하나당 한 번, 60초 안에만 접수하고, 설정대로 세션을 골라 답을 기기나 폰 피드로 보낸다. [bus.md](bus.md) |
+| `bus.ts`, `inbox.ts`, `feed.ts` | 입력 버스. 공기계의 입력을 id 하나당 한 번, 60초 안에만 접수하고, 까치 홈 대화의 한 턴으로 답해 그 기기로 보내고 폰 피드에도 올린다. [bus.md](bus.md) |
 | `conversations.ts` | 까치 홈의 대화들. Pi 세션 파일(`data/pi-sessions`)에서 목록과 내용을 읽는다. 메뉴의 지난 대화, 앱을 다시 열 때의 대화 |
-| `port.ts` | "기기끼리"와 "기기마다" 세션의 Pi. 도구는 설정대로 전체(까치 홈과 같고 턴마다 커밋) 또는 제한(`port` 에이전트 도구와 `send_to_phone`) |
 | `mcp-bridge.ts`, `services.ts` | `kkachi.mcp.json` 을 읽어 서버 목록과 에이전트별 허용 도구를 정한다. Pi 를 띄울 때 `tools/list` 로 도구를 받아 넘긴다. `command` 가 있는 서버는 core 가 띄우고 멈추면 다시 띄우며, `routes` 는 core 주소에서 중계한다 |
 | `memory.ts` | memory 서비스의 `git_*` 도구를 부른다. 턴 전 sync, 턴 끝 checkpoint, 사서와 대화 정리의 작업 사본 |
 | `review.ts` | 30분 조용하면 대화를 노트와 견줘 빠진 것을 채운다 |
@@ -62,7 +61,7 @@
 |---|---|
 | `lib/` | core 와 서비스가 같이 쓰는 코드. MCP 서버와 클라이언트, 입구 검사(Host 와 Origin)와 내부 토큰, TTS, 로그, 경로. 서비스 폴더의 `lib/` 는 복사본이고 테스트가 같게 유지한다 |
 | `pi/kkachi.ts` | 까치의 Pi 확장. `end_conversation`, `handoff`, `tidy_notes`, `send_to_phone` 을 더하고, core 가 고른 MCP 도구를 그대로 등록한다 |
-| `prompts/` | `kkachi.md` 는 Pi 기본 프롬프트와 사용자 전역, memory 레포의 `AGENTS.md` 뒤에 덧붙인다. `librarian.md` 는 기본 프롬프트를 대신하고 memory 레포의 `AGENTS.md` 만 붙인다. `device.md` 는 공기계 세션, `review.md` 는 대화 정리에 쓴다 |
+| `prompts/` | `kkachi.md` 는 Pi 기본 프롬프트와 사용자 전역, memory 레포의 `AGENTS.md` 뒤에 덧붙인다. `librarian.md` 는 기본 프롬프트를 대신하고 memory 레포의 `AGENTS.md` 만 붙인다. `review.md` 는 대화 정리에 쓴다 |
 | `kkachi.mcp.json` | core 가 직접 붙는 MCP 서버와, 에이전트(`chat`, `port`, `librarian`)마다 허용할 도구. Home Assistant 도 여기에 붙는다([ha.md](ha.md)). 더 붙일 만한 서버는 [extensions.md](extensions.md) |
 | `templates/memory/` | 새 memory 레포의 틀. `AGENTS.md` 에 구조, 이름, 형식, 민감 정보, 목록, 정리 규칙이 있다 |
 | `scripts/` | `init.ts` (설정), `service.ts` (자동 시작), `import-notes.ts` (기존 노트 가져오기) |
@@ -100,5 +99,5 @@ memory 레포를 도서관처럼 유지한다. 레포를 열면 `README.md` 목�
 
 - core 는 127.0.0.1 에만 열리고, 밖에서는 Tailscale Serve 로만 들어온다. 앱 로그인은 없고 tailnet 이 경계다. Tailscale Funnel 은 쓰지 않는다.
 - 까치 홈 대화의 Pi 는 shell, 파일, 웹, MCP 를 확인 없이 쓴다. tailnet 에 들어올 수 있는 기기는 말로 명령을 실행시킬 수 있고, 웹 페이지에 숨은 지시(prompt injection)가 실행될 수도 있다. 혼자 쓰는 것을 전제로 받아들인 위험이다.
-- 공기계에는 방에 있는 누구나 말할 수 있다. 공기계 대화의 도구를 "노트·말하기·조명만"으로 제한할 수 있고, 사용자의 MCP 는 기본으로 까치 홈에서만 쓴다([bus.md](bus.md)).
+- 공기계에는 방에 있는 누구나 말할 수 있다. 혼자 쓰는 집이라는 가정으로 공기계도 까치 홈과 같은 도구를 쓴다. 손님이 오는 곳의 기기는 음성을 닫는다([bus.md](bus.md)).
 - 턴마다 커밋 하나가 바로 남는다. "방금 거 취소해"로 되돌린다.

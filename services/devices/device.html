@@ -667,7 +667,7 @@ async function askCamera() {
   catch { perm.camera = "denied"; }
 }
 
-// ---- hold to talk: record while the button is held, send when it is let go (src/port.ts) ----
+// ---- hold to talk: record while the button is held, send when it is let go (src/bus.ts) ----
 const MIN_MS = 300, MAX_MS = 30_000, RATE = 16000;
 let mic = null, frames = [], recording = false, recordStart = 0, maxTimer = null, meter = null;
 // How something said here went ("전했어요", "잘 못 들었어요"): into the log. The pad itself shows that it is
@@ -707,7 +707,6 @@ async function openMic() {
 async function startTalking() {
   if (recording) return;
   recording = true; frames = [];
-  ws?.readyState === 1 && ws.send(JSON.stringify({ type: "warm" })); // Kkachi gets ready while you speak
   await audio.resume().catch(() => {});
   const m = await openMic();
   if (m === "denied") { recording = false; return; }
@@ -780,7 +779,6 @@ async function sayParts(a) {
   a.saying = true;
   for (let m; a === answer && (m = a.parts.get(a.next)); a.next++) { // a newer answer takes over
     a.parts.delete(a.next);
-    if (m.elsewhere) { $("said").textContent = m.elsewhere; $("said").className = ""; continue; }
     if (m.text) {
       a.words = a.words ? `${a.words} ${m.text}` : m.text;
       if (armed() && !m.quiet) { // quiet: this device's speaker is not open to Kkachi, the words only show

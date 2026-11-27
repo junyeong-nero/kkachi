@@ -1,5 +1,5 @@
 // Calls to Kkachi core, when core started this service (KKACHI_CORE_URL, and the shared
-// KKACHI_INTERNAL_TOKEN). The devices service hands core what someone said to a device (a "port"),
+// KKACHI_INTERNAL_TOKEN). The devices service hands core what someone said to a device,
 // and asks it how to speak. On its own there is no core: talk is refused and devices speak with
 // their own voice. The contract is in PROTOCOL.md.
 import { INTERNAL_HEADER } from "./lib/trust";

@@ -25,10 +25,8 @@
       "tools": ["memory:memory_move", "memory:memory_delete"],
       "meta": { "commit": "later" }
     },
-    "port": ["memory:*", "devices:list_devices", "devices:device_speak", "devices:device_light"],
     "_chat": "Kkachi Home's conversation: edits notes as files; core commits each turn, so its note tools commit later",
     "_librarian": "tidies the notes in place; core commits the whole tidy as one commit",
-    "_port": "a device someone talks to (hold to talk): anyone nearby can use it, so it must not look or listen through the devices",
-    "_ha": "Home Assistant through ha-mcp (docs/ha.md), left out while KKACHI_HA_MCP_URL is unset. The chat gets the everyday tools only: all 77 are about 70k tokens every turn. A device on the 전체 setting gets the chat's tools, the 제한 setting none of these"
+    "_ha": "Home Assistant through ha-mcp (docs/ha.md), left out while KKACHI_HA_MCP_URL is unset. The chat gets the everyday tools only: all 77 are about 70k tokens every turn. What is said to a device is a turn of the chat, with its tools"
   }
 }

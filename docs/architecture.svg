@@ -87,7 +87,7 @@
   <rect x="308" y="370" width="238" height="112" rx="10" class="box"/>
   <text x="322" y="394" class="h">입력 버스 /api/bus/*</text>
   <text x="322" y="418" class="t">사건 접수 (id 한 번, 60초 안)</text>
-  <text x="322" y="440" class="t">세션 → 답하는 곳 · 피드 /api/feed</text>
+  <text x="322" y="440" class="t">까치 홈 대화의 턴 · 피드 /api/feed</text>
   <text x="322" y="460" class="t">답은 한 문장씩 기기로 (device_reply)</text>
 
   <rect x="308" y="494" width="238" height="138" rx="10" class="box"/>

@@ -15,8 +15,9 @@ export type ConversationSummary = { id: string; title: string; t: string; turns:
 
 const ID = /^[\w.-]+$/; // a session file name without .jsonl: nothing that walks out of the folder
 
-// Every message Kkachi sends Pi starts "[지금: <time>]", then " [기기: <name>, 개인 정보: …]" when it
-// was said to a device (src/turn.ts, src/bus.ts), then a new line and the words.
+// Every message Kkachi sends Pi starts "[지금: <time>]", then " [기기: <name>]" when it
+// was said to a device (src/turn.ts, src/bus.ts), then a new line and the words. Older sessions also
+// have ", 개인 정보: …" in the device mark.
 const HEADER = /^\[지금: [^\]\n]*\](?: \[기기: (.+?)(?:, 개인 정보: [^\]\n]*)?\])?[^\n]*\n?/;
 
 export function turnsOf(jsonl: string): PastTurn[] {

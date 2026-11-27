@@ -6,12 +6,12 @@
 //
 // Device → server: {type:"hello", name, token?, armed, features, version},
 //   {type:"state", armed, perms} (sound unlocked, permissions granted),
-//   {type:"result", id, ok, data?|error?}, {type:"warm"} (talk button went down: core gets ready),
+//   {type:"result", id, ok, data?|error?},
 //   {type:"input", id, kind:"talk", age, audio, mime} (something said; acked once core has it, docs/bus.md),
 //   {type:"done"|"failed", id, error?} (pages from before "result")
 // Server → device: {type:"pending"|"ready", name, token}, {type:"forgotten"}, {type:"update"},
 //   {type:"use", pads, agent} (whether the talk pad shows, and what is open to the agent: set in Kkachi Home),
-//   {type:"ack", id, ok, error?}, {type:"reply", inputId, heard, text?, elsewhere?, audio?, mime?},
+//   {type:"ack", id, ok, error?}, {type:"reply", inputId, heard, text?, audio?, mime?},
 //   requests with an id: {type:"speak", text, audio, mime}, {type:"snapshot", camera},
 //   {type:"sound", seconds}, {type:"sensors"}, {type:"light", on, color, brightness}
 //   (by: "home" on a request from Kkachi Home, not the agent: the page's log says so)
@@ -150,7 +150,6 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
       d.armed = !!msg.armed;
       if (msg.perms) d.perms = bools(msg.perms);
     }
-    if (msg.type === "warm" && d.allowed && opened(d, "talk")) core("/api/bus/warm", { source: { id: d.id, name: d.name } }).catch(() => {});
     if (msg.type === "input") receive(d, msg);
     if (typeof msg.id === "string") {
       if (msg.type === "result") waiting.get(msg.id)?.({ ok: !!msg.ok, data: msg.data, error: msg.error });
@@ -202,7 +201,7 @@ const replies = new Map<string, { inputId: string; msgs: object[]; at: number }>
 // of order: the page plays them by number. A voice the server is slow to make (Edge TTS sometimes takes
 // 20 s) is not waited for past SPEECH_WAIT_MS: the device says that part with its own voice.
 const SPEECH_WAIT_MS = 6000;
-export async function replyOn(target: string, a: { inputId: string; heard: string; text?: string; elsewhere?: string; part?: number; last?: boolean; show?: string }): Promise<string> {
+export async function replyOn(target: string, a: { inputId: string; heard: string; text?: string; part?: number; last?: boolean; show?: string }): Promise<string> {
   const d = find(target);
   if (!d) throw new Error(`No device named "${target}".`);
   // Without audio the device says the text with its own voice, at this rate.
@@ -213,7 +212,7 @@ export async function replyOn(target: string, a: { inputId: string; heard: strin
   if (kept?.inputId === a.inputId) { kept.msgs.push(msg); kept.at = Date.now(); }
   else replies.set(d.id, { inputId: a.inputId, msgs: [msg], at: Date.now() });
   send(d, msg);
-  log("device_reply", { name: d.name, heard: !!a.heard, audio: "audio" in said, elsewhere: !!a.elsewhere, online: !!d.socket });
+  log("device_reply", { name: d.name, heard: !!a.heard, audio: "audio" in said, online: !!d.socket });
   return d.socket ? "delivered" : "device offline; kept for two minutes";
 }
 

@@ -179,7 +179,6 @@
   .menu-tabs { margin: 0 0 12px; }
   #menu[data-tab=chat] .menu-pane[data-tab=devices], #menu[data-tab=devices] .menu-pane[data-tab=chat] { display: none; }
   .menu-pane > .group { margin-top: 8px; }
-  .menu-pane > .group + .menu-row { margin-top: 12px; }
   .conv.current .name { font-weight: 600; }
   #menu .menu-pane h2 { margin-top: 20px; }
   #menu:focus { box-shadow: none; } /* focus is put on the menu when it opens: no ring round all of it */
@@ -422,11 +421,6 @@
   output { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: var(--t-sm); }
   .segment { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border-radius: var(--r-md); padding: 3px; }
   .segment.two { grid-template-columns: repeat(2, 1fr); }
-  .segment.four { grid-template-columns: repeat(4, 1fr); }
-  .opt + .opt { margin-top: 12px; }
-  .opt-note { margin: 6px 0 0; } /* what the choice does, under it */
-  .opt-note + .opt, .opt-note + #device-own-session { margin-top: 20px; }
-  .opt-name { display: block; font-size: var(--t-sm); color: var(--muted); margin: 0 0 6px; }
   .segment label { min-height: 44px; display: grid; place-items: center; padding: 4px 2px; border-radius: 11px; font-size: var(--t-base); cursor: pointer; color: var(--muted); }
   .segment input { position: absolute; opacity: 0; pointer-events: none; }
   .segment label:has(input:checked) { background: var(--raised); color: var(--text); box-shadow: var(--shadow); }
@@ -558,20 +552,6 @@
       <p class="note">빠르게는 답이 일찍 오고, 꼼꼼하게는 어려운 일을 더 잘해요.</p>
     </div>
 
-    <div class="cat" data-cat="devices">
-      <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
-      <h1>기기에 한 말</h1>
-      <p class="lede">기기에 대고 한 말을 까치가 어떻게 다룰지예요. 모든 기기에 같이 적용돼요.</p>
-      <div class="opt"><span class="opt-name" id="device-session-label">대화</span><div class="segment" id="deviceSession" role="radiogroup" aria-labelledby="device-session-label"></div></div><p class="note opt-note" id="note-deviceSession"></p>
-      <div class="opt"><span class="opt-name" id="device-reply-label">답하는 곳</span><div class="segment" id="deviceReply" role="radiogroup" aria-labelledby="device-reply-label"></div></div><p class="note opt-note" id="note-deviceReply"></p>
-      <div class="opt"><span class="opt-name" id="device-privacy-label">개인적인 내용</span><div class="segment" id="devicePrivacy" role="radiogroup" aria-labelledby="device-privacy-label"></div></div><p class="note opt-note" id="note-devicePrivacy"></p>
-      <div class="opt"><span class="opt-name" id="device-mcp-label">내 도구</span><div class="segment two" id="deviceMcp" role="radiogroup" aria-labelledby="device-mcp-label"></div></div><p class="note opt-note" id="note-deviceMcp"></p>
-      <div id="device-own-session">
-        <div class="opt"><span class="opt-name" id="device-tools-label">도구</span><div class="segment two" id="deviceTools" role="radiogroup" aria-labelledby="device-tools-label"></div></div><p class="note opt-note" id="note-deviceTools"></p>
-        <div class="opt"><span class="opt-name" id="device-idle-label">조용하면 새 대화</span><div class="segment four" id="deviceIdleMin" role="radiogroup" aria-labelledby="device-idle-label"></div></div><p class="note opt-note" id="note-deviceIdleMin"></p>
-      </div>
-    </div>
-
     <div class="cat" data-cat="mcp">
       <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
       <h1>도구 (MCP)</h1>
@@ -597,9 +577,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>기기 추가
       </button>
       <div class="group" id="menu-devices"><div class="loading">불러오는 중…</div></div>
-      <button type="button" class="menu-row" id="device-rules">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14v10H9l-4 4z"/></svg>기기에 한 말
-      </button>
     </div>
     <div class="menu-pane" data-tab="chat">
       <button type="button" class="menu-row" id="new-conversation">

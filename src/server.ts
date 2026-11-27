@@ -4,13 +4,13 @@ import { config } from "./config";
 import { log } from "./log";
 import { polish } from "./polish";
 import { modelOrder } from "./models";
-import { DEVICE_OPTIONS, settings, THINKING, updateSettings, VOICES } from "./settings";
+import { settings, THINKING, updateSettings, VOICES } from "./settings";
 import { synthesize, transcribe } from "./speech";
 import { applyThinking, currentSession, modelChoices, newConversation, openConversation, runTurn, startConversation } from "./turn";
 import { conversations, fileOf, idOf, newestId, transcript } from "./conversations";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
-import { accept, parseInput, warm } from "./bus";
+import { accept, parseInput } from "./bus";
 import { feedStream, pushFeed } from "./feed";
 import { routeFor, startServices } from "./services";
 import { connections } from "./mcp-bridge";
@@ -88,7 +88,7 @@ Bun.serve({
           return new Response(Bun.file(join(web, pathname.slice(1))), { headers: { "Content-Type": "image/png" } });
         }
         if (pathname === "/api/settings") {
-          return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1), deviceOptions: DEVICE_OPTIONS });
+          return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
         }
         if (pathname === "/api/mcp") return Response.json({ servers: await connections() }); // Settings' list of MCP servers
         // Kkachi Home's conversations (Pi's session files): the menu lists them, and the app shows the
@@ -112,7 +112,6 @@ Bun.serve({
       if (req.method === "POST" && pathname.startsWith("/api/bus/")) {
         if (!internal(req)) return new Response("forbidden", { status: 403 });
         const body = await req.json();
-        if (pathname === "/api/bus/warm" && typeof body?.source?.id === "string") { warm(body.source); return Response.json({}); }
         if (pathname === "/api/bus/voice") return Response.json({ voice: settings().voice, rate: settings().rate }); // how devices speak
         const input = pathname === "/api/bus/input" ? parseInput(body) : null;
         if (!input) return new Response("bad input", { status: 400 });

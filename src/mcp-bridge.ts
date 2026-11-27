@@ -5,7 +5,7 @@
 //                            "command": ["bun", "…"],         optional: core starts it (src/services.ts)
 //                            "routes": ["/device"] } }       optional: paths core forwards to it
 //   "agents":  { "chat": { "tools": ["devices:*"], "meta": { "commit": "later" } },
-//                "port": ["memory:*", "devices:device_speak"] }   a list is just the tools
+//                "<other>": ["memory:*"] }                       a list is just the tools
 //   meta goes with every call the agent makes (params._meta), e.g. telling the memory service that
 //   core commits that agent's changes at the end of its turn.
 // Before a Pi starts, its tools are listed from the servers and written to a file that
@@ -17,7 +17,7 @@ import { mcpPost } from "../lib/mcp-client";
 import { INTERNAL_HEADER } from "../lib/trust";
 import { config } from "./config";
 
-export type Agent = "chat" | "port" | "librarian";
+export type Agent = "chat" | "librarian";
 type ToolDef = { server: string; url: string; name: string; description?: string; inputSchema: object; meta: object };
 type AgentConfig = { tools: string[]; meta: object };
 

@@ -27,7 +27,6 @@ Every request must come from this computer or a `*.ts.net` name, and a browser's
 | `ping` | | every 25 s. With nothing heard from the service for 60 s the page takes the connection for dead and connects again |
 | `state` | `armed`, `perms` | sound unlocked, permissions given. The page has no switches: what is used is chosen in Kkachi Home (`use`, below) |
 | `result` | `id`, `ok`, `data?` or `error?` | the answer to a request |
-| `warm` | | the talk button went down: core gets an agent ready |
 | `input` | `id`, `kind: "talk"`, `age`, `audio`, `mime` | something said (16 kHz WAV, base64). Kept and sent again until acked; dropped after 60 s |
 
 ### Service to page
@@ -39,7 +38,7 @@ Every request must come from this computer or a `*.ts.net` name, and a browser's
 | `update` | | the page is older than the service: reload |
 | `ack` | `id`, `ok`, `error?` | an `input` reached core. Errors: `not allowed`, `unknown kind`, `switched off`, `bad audio`, `no agent` (no core), `expired` |
 | `use` | `pads`, `agent` | on connect and whenever Kkachi Home changes it. `pads`: `["talk"]` while this device's voice is open to the agent (the talk pad shows), else `[]`. `agent`: which of its parts are open to the agent, by `cap` |
-| `reply` | `inputId`, `heard`, `text?`, `elsewhere?`, `rate`, `quiet?`, `audio?`, `mime?`, `part?`, `last?`, `show?` | the answer to an input, possibly much later; kept two minutes for a page that is away. No `audio`: say `text` with the device's own voice at `rate` (percent). `elsewhere`: the answer went to the phone. An answer comes a sentence at a time while it is being written: `part` counts them from 0 and they may arrive out of order (each one's voice is made on its own, and one the server takes over 6 s to make comes without `audio`), so the page says them by number; `last` ends the answer and `show` is the whole of it, to leave on screen. Without `part` it is a whole answer |
+| `reply` | `inputId`, `heard`, `text?`, `rate`, `quiet?`, `audio?`, `mime?`, `part?`, `last?`, `show?` | the answer to an input, possibly much later; kept two minutes for a page that is away. No `audio`: say `text` with the device's own voice at `rate` (percent). An answer comes a sentence at a time while it is being written: `part` counts them from 0 and they may arrive out of order (each one's voice is made on its own, and one the server takes over 6 s to make comes without `audio`), so the page says them by number; `last` ends the answer and `show` is the whole of it, to leave on screen. Without `part` it is a whole answer |
 | `replaced` | | the same device connected from another page, which has it now. The service closes this one; the page does not come back |
 | `pong` | | the answer to a `ping` |
 
@@ -62,9 +61,8 @@ Only when core started the service. Core sets `KKACHI_CORE_URL`, `KKACHI_INTERNA
 | Call | Body | Answer |
 |---|---|---|
 | service → `POST /api/bus/input` | `{id, source: {id, name}, kind, age, audio, mime}` (only while this device's voice is open to the agent) | `{accepted, duplicate?, reason?}`. Each `id` is handled once; acked again if sent again |
-| service → `POST /api/bus/warm` | `{source: {id, name}}` | `{}` |
 | service → `POST /api/bus/voice` | `{}` | `{voice, rate}`. `voice: "device"`: the device speaks itself |
 | service → `POST /api/tts` | `{text}` | audio in core's voice, only when that is not `"device"` |
-| core → MCP `device_reply` (core only) | `{device, inputId, heard, text?, elsewhere?}` | sends `reply` to that device |
+| core → MCP `device_reply` (core only) | `{device, inputId, heard, text?, part?, last?, show?}` | sends `reply` to that device |
 
 An `ack` means core has the input, not that it has been answered.
