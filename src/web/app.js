@@ -237,6 +237,8 @@ async function runTurn(my, view, body, t0) {
       else if (e.type === "sentence") { if (speak && !e.silent) queue.push(spoken(e.text)); } // speak as soon as a sentence is complete
       else if (e.type === "aside") { view.aside(); if (speak) { skipBefore = queue.length; stopPlayback(); } }
       else if (e.type === "activity") view.working(activityLabel(e.tool, e.path));
+      else if (e.type === "thinking") view.thinking(e.text, e.start);
+      else if (e.type === "tool") view.tool(e);
       else if (e.type === "photo") view.photo(e);
       else if (e.type === "done") { view.finish(); showChips(view.chips, e.sources, e.changed, e.titles); }
       else if (e.type === "error") { view.fail(e.message, retry(view, body)); if (speak) queue.push(spoken(e.message)); earcon.error(); }
@@ -320,10 +322,42 @@ function addTurn(text, images = [], from = null, fromKkachi = false) {
   scrollDown(!from); // your own message: always; a device conversation arriving: only if at the bottom
   let raw = "", frame = 0;
   const render = () => { cancelAnimationFrame(frame); frame = 0; renderMarkdown(block, raw.trimStart()); scrollDown(); };
+  // What came before the words now being written (thinking, tool calls) goes above them.
+  const place = (node) => { reply.insertBefore(node, raw ? work : block); reply.hidden = false; scrollDown(); };
+  let think = null, thought = "";
+  const fold = () => { for (const t of reply.querySelectorAll("details.think")) t.open = false; }; // the answer has begun
   return {
     chips,
+    thinking(delta, start) {
+      if (!showThinking()) return;
+      if (start || !think) {
+        think = el("details", "think"); think.open = true; thought = "";
+        const s = el("summary"); s.textContent = "생각";
+        think.append(s, el("div", "think-text"));
+        place(think);
+      }
+      thought += delta;
+      think.lastChild.textContent = thought.trimStart();
+      scrollDown();
+    },
+    tool(e) {
+      if (!showTools()) return;
+      let line = [...reply.querySelectorAll(".tool-line")].find((x) => x.dataset.id === e.id);
+      if (!line) {
+        line = el("div", "tool-line", '<span class="tool-state" aria-hidden="true"></span><span class="tool-name"></span><code class="tool-args"></code>');
+        line.dataset.id = e.id;
+        line.querySelector(".tool-name").textContent = e.name;
+        line.querySelector(".tool-args").textContent = e.args ?? "";
+        line.title = e.args ?? "";
+        place(line);
+      }
+      think = null; // thinking after a tool is a block of its own
+      line.dataset.state = e.state;
+      line.querySelector(".tool-state").textContent = e.state === "start" ? "…" : e.state === "ok" ? "✓" : "✕";
+      if (e.ms != null) line.querySelector(".tool-state").title = `${(e.ms / 1000).toFixed(1)}초`;
+    },
     working(label) { work.hidden = false; work.querySelector(".label").textContent = label; scrollDown(); },
-    stream(delta) { work.hidden = true; raw += delta; if (!frame) frame = requestAnimationFrame(render); }, // one render per frame
+    stream(delta) { if (!raw) fold(); work.hidden = true; raw += delta; if (!frame) frame = requestAnimationFrame(render); }, // one render per frame
     aside() {
       render();
       if (raw.trim()) { block.classList.add("aside"); block = el("div", "md"); reply.insertBefore(block, work); }
@@ -333,7 +367,8 @@ function addTurn(text, images = [], from = null, fromKkachi = false) {
       if (frame) render();
       work.hidden = true;
       if (!raw.trim()) block.remove();
-      if (!reply.querySelector(".md, .err, .photos")) reply.hidden = true; // only actions, no words: no empty bubble
+      fold(); think = null;
+      if (!reply.querySelector(".md, .err, .photos, .think, .tool-line")) reply.hidden = true; // only actions, no words: no empty bubble
     },
     photo(img) { const p = el("div", "photos"); const im = new Image(); im.src = dataUrl(img); im.alt = "기기가 찍은 사진"; p.append(im); reply.insertBefore(p, work); scrollDown(); },
     fail(message, again) {
@@ -532,6 +567,9 @@ const providerLabel = { anthropic: "Claude", "openai-codex": "ChatGPT", openai: 
 // Text size is a per-device preference (a phone and a laptop want different sizes), kept in
 // localStorage as the body font size in px; every other size scales with it.
 const theme = () => localStorage.getItem("kkachi.theme") || "auto";
+// 외형, 대화: whether this phone shows the model's thinking and the tools it used, in each reply.
+const showThinking = () => localStorage.getItem("kkachi.showThinking") === "on";
+const showTools = () => localStorage.getItem("kkachi.showTools") === "on";
 const THEME_COLOR = { light: "#fcfcfd", dark: "#16181c" };
 function applyTheme() {
   const t = theme(), root = document.documentElement;
@@ -558,6 +596,11 @@ function renderDevicePrefs() {
   r.append(switchFor(readAloud(), "이 폰에서 읽어 주기", (on) => { localStorage.setItem("kkachi.speak", on ? "on" : "off"); applySpeak(); renderSums(); }));
   $("speak-row").replaceWith(r);
   applySpeak();
+  $("trace-group").replaceChildren(...[["showThinking", "생각 과정 보기", "답하기 전에 모델이 생각한 것", showThinking], ["showTools", "도구 사용 보기", "까치가 쓴 도구와 그 결과", showTools]].map(([key, name, sub, on]) => {
+    const r = row(name, sub);
+    r.append(switchFor(on(), name, (v) => { localStorage.setItem(`kkachi.${key}`, v ? "on" : "off"); renderSums(); }));
+    return r;
+  }));
   // 외형's 화면: the phone's setting, or always light or dark
   for (const input of document.querySelectorAll("input[name=theme]")) {
     input.checked = input.value === theme();
@@ -571,7 +614,7 @@ function applySpeak() {
 
 let catalog = null; // what /api/settings offers, for the summaries
 function renderSums() {
-  $("sum-look").textContent = `${{ auto: "폰 설정대로", light: "밝게", dark: "어둡게" }[theme()]}. 글자 ${textSize()}px`;
+  $("sum-look").textContent = [{ auto: "폰 설정대로", light: "밝게", dark: "어둡게" }[theme()], `글자 ${textSize()}px`, ...(showThinking() || showTools() ? [[showThinking() && "생각", showTools() && "도구"].filter(Boolean).join("과 ") + " 보기"] : [])].join(", ");
   if (mcp) $("sum-mcp").textContent = `기본 ${mcp.builtin.length}개, 추가 ${mcp.added.length}개`;
   if (accountList.length) $("sum-account").textContent = accountList.filter((a) => a.connected).map((a) => a.name).join(", ") || "연결된 계정 없음";
   if (!catalog || !saved) return;

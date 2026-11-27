@@ -219,6 +219,16 @@
   .kkachi { display: flex; flex-direction: column; gap: 10px; }
   .kkachi .md:empty { display: none; }
   .kkachi .err { color: var(--danger); margin: 0; }
+  /* 외형, 대화: the model's thinking (folded once the answer begins) and the tools it used, muted, in order */
+  .think { font-size: var(--t-sm); color: var(--muted); }
+  .think summary { cursor: pointer; font-weight: 600; width: fit-content; }
+  .think-text { margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--line); white-space: pre-wrap; line-height: 1.5; max-height: 240px; overflow-y: auto; overflow-wrap: anywhere; }
+  .tool-line { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: var(--t-sm); color: var(--muted); }
+  .tool-line + .tool-line { margin-top: -6px; }
+  .tool-state { flex: none; width: 1em; text-align: center; }
+  .tool-line[data-state=error] .tool-state { color: var(--danger); }
+  .tool-name { flex: none; font-weight: 600; }
+  .tool-args { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: ui-monospace, monospace; font-size: .92em; }
   /* Markdown replies */
   .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
   .md p, .md ul, .md ol, .md pre, .md table, .md blockquote { margin: 0 0 .7em; }
@@ -567,6 +577,9 @@
         <output id="text-size-out"></output>
       </div>
       <p class="note">본문 글자 크기예요. 다른 글자도 같은 비율로 바뀌고, 화면과 글자 크기는 이 기기에만 적용돼요.</p>
+      <h2>대화</h2>
+      <div class="group" id="trace-group"></div>
+      <p class="note">답 말풍선 안에 흐리게 보여요. 이 폰에만 적용돼요.</p>
     </div>
 
     <div class="cat" data-cat="voice">

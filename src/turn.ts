@@ -16,6 +16,8 @@ export type TurnEvent =
   | { type: "aside" }                                       // the text so far was narration before a tool call: keep it, muted, and stop speaking it
   | { type: "sentence"; text: string; silent?: boolean }    // a finished sentence to speak (silent: too long, screen only)
   | { type: "activity"; tool: string; path?: string }
+  | { type: "thinking"; text: string; start?: boolean }    // the model's reasoning, as it streams (shown if the app asks)
+  | { type: "tool"; id: string; name: string; args?: string; state: "start" | "ok" | "error"; ms?: number } // a tool call and how it ended
   | { type: "photo"; data: string; mimeType: string }      // an image a tool returned (a device photo), shown under the reply, not kept
   | { type: "end"; reason: "done" | "handoff" } // stop listening after speaking
   | { type: "done"; sources: string[]; changed: string[]; titles: Record<string, string>; commit: string | null }
@@ -211,6 +213,13 @@ async function doTurn(text: string, said: string, images: PiImage[], header: str
 }
 
 /** Runs one prompt. Returns the error message if the model was rate-limited before speaking. */
+// A tool's arguments in one short line, for the app's view of what was done.
+const brief = (args: unknown) => {
+  if (args == null || (typeof args === "object" && !Object.keys(args as object).length)) return undefined;
+  const line = typeof args === "string" ? args : JSON.stringify(args);
+  return line.length > 160 ? line.slice(0, 159) + "…" : line;
+};
+
 async function streamTurn(pi: Pi, message: string, text: string, images: PiImage[], emit: (e: TurnEvent) => void): Promise<string | null> {
   const t0 = performance.now();
   let firstSentenceMs = 0, tools = 0, aborted = false;
@@ -248,6 +257,8 @@ async function streamTurn(pi: Pi, message: string, text: string, images: PiImage
         break;
       case "message_update": {
         const u = e.assistantMessageEvent;
+        if (u?.type === "thinking_start") emit({ type: "thinking", text: "", start: true });
+        if (u?.type === "thinking_delta" && u.delta) emit({ type: "thinking", text: u.delta });
         if (u?.type === "toolcall_start" && !toolMessage) {
           toolMessage = true;
           if (shown.trim()) emit({ type: "aside" });
@@ -281,9 +292,11 @@ async function streamTurn(pi: Pi, message: string, text: string, images: PiImage
         const path = typeof e.args?.path === "string" ? relPath(e.args.path) : undefined;
         toolArgs.set(e.toolCallId, { name, path });
         emit({ type: "activity", tool: name, path: path || undefined });
+        emit({ type: "tool", id: e.toolCallId, name: name === "mcp" && e.args?.tool ? String(e.args.tool) : name, args: brief(name === "mcp" ? e.args?.args : e.args), state: "start" });
         break;
       }
       case "tool_execution_end": {
+        if (toolArgs.has(e.toolCallId)) emit({ type: "tool", id: e.toolCallId, name: e.toolName, state: e.isError ? "error" : "ok", ...(typeof e.durationMs === "number" ? { ms: Math.round(e.durationMs) } : {}) });
         // A photo a tool brought back (a device camera, say) is shown under the reply. Not kept.
         if (!e.isError) for (const c of e.result?.content ?? []) if (c.type === "image") emit({ type: "photo", data: c.data, mimeType: c.mimeType });
         const t = toolArgs.get(e.toolCallId);
