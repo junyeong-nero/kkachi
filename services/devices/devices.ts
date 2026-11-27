@@ -1,6 +1,6 @@
 // Spare phones and tablets joined to Kkachi as devices. A device opens /device, connects over a
 // WebSocket and does things for agents: speak, take a photo, measure sound, read its sensors, act
-// as a lamp. A new device waits until you allow it in the app's settings; allowed devices are
+// as a lamp. Kkachi Home can read its sensors too, to show what is happening in that room. A new device waits until you allow it in the app's settings; allowed devices are
 // remembered in data/devices.json with a secret token. Photos and readings pass through memory only.
 // The messages below are written up in PROTOCOL.md.
 //
@@ -8,15 +8,13 @@
 //   {type:"state", armed, perms} (sound unlocked, permissions granted),
 //   {type:"result", id, ok, data?|error?}, {type:"warm"} (talk button went down: core gets ready),
 //   {type:"input", id, kind:"talk", age, audio, mime} (something said; acked once core has it, docs/bus.md),
-//   {type:"value", kind:"dial"|"click", value} (its dial moved, 0 to 100, or its button was pressed; never acked or sent again),
 //   {type:"done"|"failed", id, error?} (pages from before "result")
 // Server → device: {type:"pending"|"ready", name, token}, {type:"forgotten"}, {type:"update"},
-//   {type:"use", pads, agent} (which pads to show, and what is open to the agent: set in Kkachi Home),
+//   {type:"use", pads, agent} (whether the talk pad shows, and what is open to the agent: set in Kkachi Home),
 //   {type:"ack", id, ok, error?}, {type:"reply", inputId, heard, text?, elsewhere?, audio?, mime?},
-//   requests with an id: {type:"speak", text, audio, mime, from?} (from: a recording from that device, not Kkachi's words), {type:"snapshot", camera},
-//   {type:"sound", seconds}, {type:"sensors"}, {type:"light", on, color, brightness},
-//   and without an id, nothing to answer: {type:"dim", brightness} (a dial joined to its lamp moved),
-//   {type:"dim", toggle:true} (a button joined to it was pressed)
+//   requests with an id: {type:"speak", text, audio, mime}, {type:"snapshot", camera},
+//   {type:"sound", seconds}, {type:"sensors"}, {type:"light", on, color, brightness}
+//   (by: "home" on a request from Kkachi Home, not the agent: the page's log says so)
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -53,46 +51,31 @@ const cleanName = (name: unknown) => String(name ?? "").replace(/\s+/g, " ").tri
 export const page = join(import.meta.dir, "device.html");
 export const pageVersion = () => createHash("sha1").update(readFileSync(page)).digest("hex").slice(0, 12);
 
-// What a device has to give, as inputs and outputs. Two questions are kept apart:
-// - can(): what works there right now (online, sound unlocked, permission given). Anything that works
-//   can be joined straight to another device (core's router), whatever the agent may use.
+// What a device has to give. Two questions are kept apart:
+// - can(): what works there right now (online, sound unlocked, permission given).
 // - opened(): what is open to the agent. Chosen in Kkachi Home and nowhere else, and everything is
-//   open on a new device: its voice reaches the agent (in the app, the link "음성 → 에이전트"), and the
-//   agent may use its speaker, lamp and sensors. A button and a dial never go to the agent: they are
-//   joined to outputs.
-const CAPS = ["talk", "click", "dial", "photo", "sound level", "motion sensors", "location", "speak", "lamp"] as const;
-const PADS = ["talk", "click", "dial"] as const; // the inputs that are something to touch on the device's screen
+//   open on a new device: its voice reaches the agent, and the agent may use its speaker, lamp,
+//   camera and sensors.
+const CAPS = ["talk", "photo", "sound level", "motion sensors", "location", "speak", "lamp"] as const;
 function can(d: Device): string[] {
   if (!d.socket) return [];
   return [
     d.armed && "speak",
-    d.form === "tablet" && "lamp", // a lit lamp is the whole screen: on a phone it lay over the pads and took their touches
+    d.form === "tablet" && "lamp", // a lit lamp is the whole screen: on a phone it lay over the talk pad and took its touches
     d.armed && d.perms.mic && "talk",
     d.perms.camera && "photo",
     d.armed && d.perms.mic && "sound level",
     d.perms.motion && "motion sensors",
     d.perms.location && "location",
-    "dial", "click",
   ].filter((x): x is string => !!x);
 }
-const opened = (d: Device, cap: string) => cap !== "dial" && cap !== "click" && d.agent?.[cap] !== false; // a button and a dial are for outputs only
-
-// Which inputs of each device are joined straight to an output: told by core whenever its links change.
-const joined = new Map<string, Set<string>>();
-/** A pad shows on a device's screen for each input that goes somewhere: to the agent, or to an output. */
-const pads = (d: Device) => PADS.filter((k) => opened(d, k) || joined.get(d.id)?.has(k));
-const tellUse = (d: Device) => send(d, { type: "use", pads: pads(d), agent: Object.fromEntries(CAPS.map((c) => [c, opened(d, c)])) });
-
-export function setJoined(links: unknown) {
-  joined.clear();
-  for (const [id, kinds] of Object.entries((links ?? {}) as Record<string, unknown>)) if (Array.isArray(kinds)) joined.set(id, new Set(kinds.map(String)));
-  for (const d of devices.values()) if (d.allowed) tellUse(d);
-  return "ok";
-}
+const opened = (d: Device, cap: string) => d.agent?.[cap] !== false;
+/** The talk pad shows on a device's screen while its voice is open to the agent: it goes nowhere else. */
+const tellUse = (d: Device) => send(d, { type: "use", pads: opened(d, "talk") ? ["talk"] : [], agent: Object.fromEntries(CAPS.map((c) => [c, opened(d, c)])) });
 /** Open one of a device's inputs or outputs to Kkachi, or close it (Kkachi Home's agent screen). */
 export function setAgent(id: string, cap: unknown, open: unknown): boolean {
   const d = devices.get(id);
-  if (!d?.allowed || !CAPS.includes(cap as (typeof CAPS)[number]) || cap === "dial" || cap === "click") return false;
+  if (!d?.allowed || !CAPS.includes(cap as (typeof CAPS)[number])) return false;
   d.agent = { ...d.agent, [cap as string]: !!open };
   save();
   tellUse(d);
@@ -169,9 +152,6 @@ export const deviceSocket: WebSocketHandler<{ id?: string }> = {
     }
     if (msg.type === "warm" && d.allowed && opened(d, "talk")) core("/api/bus/warm", { source: { id: d.id, name: d.name } }).catch(() => {});
     if (msg.type === "input") receive(d, msg);
-    if (msg.type === "value" && d.allowed && (msg.kind === "dial" || msg.kind === "click") && pads(d).includes(msg.kind) && Number.isFinite(msg.value)) {
-      core("/api/bus/value", { source: { id: d.id, name: d.name }, kind: msg.kind, value: msg.value }, 3000).catch(() => {}); // core away: it is lost; a dial's next value is newer anyway
-    }
     if (typeof msg.id === "string") {
       if (msg.type === "result") waiting.get(msg.id)?.({ ok: !!msg.ok, data: msg.data, error: msg.error });
       if (msg.type === "done") waiting.get(msg.id)?.({ ok: true });
@@ -196,7 +176,7 @@ async function receive(d: Device, msg: any) {
   const ack = (ok: boolean, error?: string) => send(d, { type: "ack", id, ok, ...(error && { error }) });
   if (!d.allowed) return ack(false, "not allowed");
   if (msg.kind !== "talk") return ack(false, "unknown kind");
-  if (!pads(d).includes("talk")) return ack(false, "switched off"); // it goes nowhere: not open to the agent, not joined to anything
+  if (!opened(d, "talk")) return ack(false, "switched off"); // its voice is closed to the agent: it goes nowhere
   if (typeof msg.audio !== "string" || msg.audio.length > MAX_AUDIO_CHARS) return ack(false, "bad audio");
   if (!process.env.KKACHI_CORE_URL) return ack(false, "no agent"); // running on its own: nobody to hear it
   for (const [k, v] of seen) if (Date.now() - v.at > 10 * 60_000) seen.delete(k);
@@ -204,7 +184,7 @@ async function receive(d: Device, msg: any) {
   if (prior) { if (prior.done) ack(true); return; } // a resend: already with core, or still on its way
   seen.set(id, { at: Date.now(), done: false });
   try {
-    const r = await core("/api/bus/input", { id, source: { id: d.id, name: d.name }, kind: msg.kind, age: Number(msg.age) || 0, audio: msg.audio, mime: String(msg.mime ?? "audio/wav"), agent: opened(d, "talk") }, 15_000);
+    const r = await core("/api/bus/input", { id, source: { id: d.id, name: d.name }, kind: msg.kind, age: Number(msg.age) || 0, audio: msg.audio, mime: String(msg.mime ?? "audio/wav") }, 15_000);
     if (r.accepted) { seen.set(id, { at: Date.now(), done: true }); ack(true); }
     else { seen.delete(id); ack(false, r.reason ?? "refused"); }
   } catch (err) {
@@ -252,14 +232,14 @@ export function describeDevices(): string {
   const allowed = listDevices().filter((d) => d.allowed);
   if (!allowed.length) return "No devices yet. The user can add one by opening /device on a spare phone or tablet and allowing it in Kkachi's settings.";
   return allowed.map((d) => {
-    const yours = d.can.filter((c) => d.agent[c]), closed = d.can.filter((c) => !d.agent[c] && c !== "dial" && c !== "click");
+    const yours = d.can.filter((c) => d.agent[c]), closed = d.can.filter((c) => !d.agent[c]);
     return `- ${d.name}: ${!d.online ? "offline" : `online; can: ${yours.join(", ") || "nothing right now"}${closed.length ? `; not open to you (the user closed them in Kkachi Home): ${closed.join(", ")}` : ""}${d.armed ? "" : " (needs a tap on its screen to make sound)"}`}`;
   }).join("\n");
 }
 
 /** Send a request to a device and wait for its result. */
 /** The device for a request, or why it cannot take it (offline, needs a tap, switched off, ...). */
-function ready(target: string, type: string, opts: { armed?: boolean; agent?: boolean } = {}): Device { // agent: asked by Kkachi, not by a link
+function ready(target: string, type: string, opts: { armed?: boolean; agent?: boolean } = {}): Device { // agent: asked by Kkachi, not by Kkachi Home
   const d = find(target);
   if (!d) throw new Error(`No device named "${target}".\n${describeDevices()}`);
   if (!d.socket) throw new Error(`${d.name} is offline: its /device page is closed or the screen is off.`);
@@ -328,21 +308,23 @@ export async function sensorsOn(target: string): Promise<string> {
   return lines.join("\n");
 }
 
-/** What was said on another device, played here as it was recorded (core's router: a walkie-talkie).
- * Resolves once it has been played. */
-export async function playOn(target: string, a: any): Promise<string> {
-  if (typeof a?.audio !== "string" || a.audio.length > MAX_AUDIO_CHARS) throw new Error("bad audio");
-  const from = cleanName(a.from);
-  const { name } = await ask(target, { type: "speak", text: `${from}에서 온 말`, from, audio: a.audio, mime: String(a.mime ?? "audio/wav"), rate: 0 }, 60_000, { armed: true });
-  return `Played it on ${name}.`;
-}
-
-/** For an input joined to a lamp (core's router), sent one way and not waited for: the brightness
- * alone from a dial, or a toggle from a button. */
-export function dimOn(target: string, a: any): string {
-  const d = ready(target, "light");
-  send(d, a?.toggle ? { type: "dim", toggle: true } : { type: "dim", brightness: Math.min(100, Math.max(0, Number(a?.brightness) || 0)) });
-  return "sent";
+/** What is happening in a device's room, for Kkachi Home: its sensors, how loud it is, or a photo, as
+ * the device gives them. Asked by the user, not the agent, so what is closed to the agent is read too;
+ * the device's own log says Kkachi Home asked. Nothing is kept. */
+export async function readOn(id: string, what: unknown): Promise<object> {
+  const d = devices.get(id);
+  if (!d?.allowed) throw new Error("no such device");
+  if (what === "sensors") return (await ask(d.id, { type: "sensors", skip: [], by: "home" }, 15_000)).data ?? {};
+  if (what === "sound") {
+    const { data } = await ask(d.id, { type: "sound", seconds: 2, by: "home" }, 12_000, { armed: true });
+    return { avg: Math.round(Number(data?.avg)), peak: Math.round(Number(data?.peak)) };
+  }
+  if (what === "photo") {
+    const { data } = await ask(d.id, { type: "snapshot", camera: "back", by: "home" }, 20_000);
+    if (typeof data?.data !== "string" || !/^[A-Za-z0-9+/]+=*$/.test(data.data)) throw new Error("no photo");
+    return { data: data.data, width: data.width, height: data.height, brightness: data.brightness };
+  }
+  throw new Error("read what?");
 }
 
 export async function lightOn(target: string, a: any): Promise<string> {

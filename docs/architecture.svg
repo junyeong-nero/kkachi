@@ -36,16 +36,16 @@
   <text x="48" y="132" class="h">까치 홈</text>
   <rect x="432" y="116" width="114" height="22" rx="11" fill="#1f8a80"/><text x="489" y="131" class="badge" fill="#fff" text-anchor="middle">개인 · 전체 권한</text>
   <text x="48" y="158" class="t">글 · 받아쓰기 · 사진 첨부 → 답 스트리밍 · 출처 칩 · 소리로 읽기</text>
-  <text x="48" y="180" class="t"><tspan font-weight="700">입력 · 출력 · 연결</tspan> 기기와 그 사이의 선을 보고 잇기</text>
-  <text x="48" y="202" class="t"><tspan font-weight="700">에이전트</tspan> 대화 · 기록 · 자원 · MCP    <tspan font-weight="700">설정</tspan> 모델 · 기기 허용</text>
+  <text x="48" y="180" class="t"><tspan font-weight="700">대화</tspan> 집 밖에서도 · <tspan font-weight="700">기기</tspan> 방을 들여다보기 · 까치에게 열기</text>
+  <text x="48" y="202" class="t"><tspan font-weight="700">설정</tspan> 모델 · 목소리 · 공기계에 한 말 · MCP · 기록</text>
   <text x="48" y="226" class="m">core 에 붙음 · chat 에이전트</text>
 
   <rect x="600" y="106" width="540" height="134" rx="14" fill="#eef5fa" stroke="#3d7fae" stroke-width="1.2"/>
   <text x="618" y="132" class="h">공기계 · 태블릿 (/device)</text>
   <rect x="1060" y="116" width="66" height="22" rx="11" fill="#dce9f3"/><text x="1093" y="131" class="badge" fill="#2a5f86" text-anchor="middle">설정대로</text>
   <text x="618" y="158" class="t">탭해서 시작(소리 · 화면 유지 · 권한) · 화면에는 상태와 기록만</text>
-  <text x="618" y="180" class="t"><tspan font-weight="700">출력</tspan> 스피커 · 조명    <tspan font-weight="700">입력</tspan> 음성 · 다이얼 · 버튼 · 카메라 · 소리 · 센서 · 위치</text>
-  <text x="618" y="202" class="t">누르고 말하기 → 에이전트나 이어진 스피커로 · 다이얼과 버튼 → 이어진 조명으로</text>
+  <text x="618" y="180" class="t"><tspan font-weight="700">출력</tspan> 스피커 · 조명    <tspan font-weight="700">입력</tspan> 음성 · 카메라 · 소리 · 센서 · 위치</text>
+  <text x="618" y="202" class="t">누르고 말하기 → 사건으로 내보냄, 답은 한 문장씩 설정한 곳으로</text>
   <text x="618" y="226" class="m">kkachi-devices 에 붙음 (WebSocket) · 기기 토큰</text>
 
   <rect x="1180" y="106" width="290" height="134" rx="14" class="box"/>
@@ -88,7 +88,7 @@
   <text x="322" y="394" class="h">입력 버스 /api/bus/*</text>
   <text x="322" y="418" class="t">사건 접수 (id 한 번, 60초 안)</text>
   <text x="322" y="440" class="t">세션 → 답하는 곳 · 피드 /api/feed</text>
-  <text x="322" y="460" class="t"><tspan font-weight="700">연결</tspan> 입력 → 출력 바로 (router)</text>
+  <text x="322" y="460" class="t">답은 한 문장씩 기기로 (device_reply)</text>
 
   <rect x="308" y="494" width="238" height="138" rx="10" class="box"/>
   <text x="322" y="518" class="h">MCP 브리지</text>
@@ -109,11 +109,11 @@
   <text x="600" y="346" class="col">MCP 서비스 · core 가 띄우는 독립 프로세스</text>
   <rect x="600" y="354" width="540" height="204" rx="14" class="svc"/>
   <text x="618" y="380" class="h">kkachi-devices · 127.0.0.1:4301</text>
-  <text x="618" y="404" class="t">/device 페이지 · WebSocket · 페어링(허용 → 토큰) · 에이전트에게 열기</text>
+  <text x="618" y="404" class="t">/device 페이지 · WebSocket · 페어링(허용 → 토큰) · 까치에게 열기 · 까치 홈의 읽기</text>
   <text x="618" y="430" class="t" font-weight="700">MCP 도구</text>
   <text x="618" y="452" class="t">list_devices · device_speak · device_snapshot</text>
   <text x="618" y="474" class="t">device_sound_level · device_sensors · device_light</text>
-  <text x="618" y="500" class="t">음성: input → core 버스 → ack, 답은 device_reply · 연결은 device_dim, device_play</text>
+  <text x="618" y="500" class="t">음성: input → core 버스 → ack, 답은 device_reply (core 전용)</text>
   <text x="618" y="524" class="t" font-weight="700" fill="#1f8a80">사진 · 측정값은 중계만 · 저장 안 함</text>
   <text x="618" y="546" class="m">services/devices/</text>
 

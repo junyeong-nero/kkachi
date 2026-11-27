@@ -92,13 +92,10 @@
   .note { font-size: 14px; color: var(--muted); margin: 16px 0 0; line-height: 1.5; }
   [hidden] { display: none !important; }
 
-  /* the device's own inputs, at the centre of the screen: square pads in two columns, one for each that
-     is switched on. 음성: hold to talk, teal only while it is listening (DESIGN.md). 버튼: press. 다이얼: a
-     round knob to turn, 0 to 100. What the last two send goes wherever Kkachi Home has joined it.
-     One pad alone sits in the middle. Gone while the screen is a lamp */
+  /* the talk pad, at the centre of the screen, while this device's voice is open to Kkachi: hold to
+     talk, teal only while it is listening (DESIGN.md). Gone while the screen is a lamp */
   #talk-area { grid-area: talk; position: relative; display: grid; place-items: center; }
-  #pads { display: grid; grid-template-columns: repeat(2, var(--pad)); gap: 12px; }
-  #pads[data-n="1"] { grid-template-columns: var(--pad); }
+  #pads { display: grid; grid-template-columns: var(--pad); }
   .pad {
     width: var(--pad); height: var(--pad); padding: 0 0 18%; margin: 0; border-radius: var(--r-md); display: grid; place-items: center;
     background: var(--surface); color: var(--text); border: 1px solid var(--line);
@@ -108,12 +105,6 @@
   .pad > svg { width: 30%; height: 30%; }
   .pad .t { position: absolute; left: 0; right: 0; bottom: 11%; font-size: 13px; line-height: 1.3; color: var(--muted); font-variant-numeric: tabular-nums; }
   button.pad:active { background: var(--line); }
-  #click:active { transform: scale(.96); }
-  #dial {
-    width: 52%; aspect-ratio: 1; padding: 0; margin: 0; border-radius: var(--r-pill); position: relative; cursor: grab;
-    background: var(--bg); border: 1px solid var(--line); touch-action: none; /* it follows the finger: no easing on the turn */
-  }
-  #dial::after { content: ""; position: absolute; top: 9%; left: 50%; width: 4px; height: 24%; margin-left: -2px; border-radius: 2px; background: var(--text); }
   /* the voice-level halo: a disc behind the button, scaled with transform (4 to 18px around it) */
   #talk::before {
     content: ""; position: absolute; inset: -5px; border-radius: inherit; background: var(--accent-soft);
@@ -235,17 +226,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
         <span class="t" aria-hidden="true">음성</span>
       </button>
-      <button type="button" class="pad" id="click" aria-label="버튼: 누르면 신호를 보내요">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>
-        <span class="t" aria-hidden="true">버튼</span>
-      </button>
-      <div class="pad" id="dial-pad">
-        <button type="button" id="dial" role="slider" aria-label="다이얼: 돌려서 0에서 100까지의 값을 보내요" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"></button>
-        <span class="t" aria-hidden="true">다이얼 <span id="dial-value">50</span></span>
-      </div>
     </div>
   </section>
-  <p class="note" id="talk-off" hidden>이 기기의 음성, 버튼, 다이얼을 쓰는 곳이 없어요. 까치 홈의 연결에서 에이전트나 다른 기기에 이을 수 있어요.</p>
+  <p class="note" id="talk-off" hidden>이 기기의 음성이 까치에게 닫혀 있어요. 까치 홈의 기기에서 열 수 있어요.</p>
 
   <div id="below">
     <div id="msg">
@@ -284,7 +267,7 @@
       <div><h2>출력</h2><div class="grid" id="caps-in"></div></div>
       <div><h2>입력</h2><div class="grid" id="caps-out"></div></div>
     </section>
-    <p class="note">무엇을 어디에 이을지와 에이전트가 무엇을 쓸지는 까치 홈에서 정해요. 여기는 지금 상태만 보여 줘요. 음성, 버튼, 다이얼은 어딘가에 이어져 있으면 화면 가운데에 나와요.</p>
+    <p class="note">까치가 무엇을 쓸지는 까치 홈에서 정해요. 여기는 지금 상태만 보여 줘요. 음성이 까치에게 열려 있으면 화면 가운데에 누르고 말하는 버튼이 나와요.</p>
   </form>
 </dialog>
 <div id="lamp" hidden><div id="lamp-dim"></div></div>
@@ -309,11 +292,8 @@ const armed = () => audio?.state === "running";
 function showReady() {
   const ready = allowed && armed();
   document.body.classList.toggle("ready", ready);
-  const pads = { talk: $("talk"), click: $("click"), dial: $("dial-pad") };
-  for (const m of MODES) pads[m].hidden = !isOn(m);
-  $("pads").dataset.n = String(MODES.filter(isOn).length);
-  $("talk-area").hidden = !(ready && MODES.some(isOn) && !lampOn); // a lit lamp is only light: no button on it
-  $("talk-off").hidden = !(ready && !MODES.some(isOn));
+  $("talk-area").hidden = !(ready && isOn("talk") && !lampOn); // a lit lamp is only light: no button on it
+  $("talk-off").hidden = !(ready && !isOn("talk"));
   $("open-settings").hidden = !allowed;
   $("open-log").hidden = !allowed;
   $("senses").hidden = !allowed;
@@ -325,7 +305,7 @@ function showReady() {
 // Permission per sense: ok | tap (ask with the start tap) | denied | none (this browser cannot).
 const f0 = features();
 // A phone or a tablet, by its screen. Only a tablet can be a lamp: the lamp is the whole screen, and on
-// a phone it lay over the pads and took their touches.
+// a phone it lay over the talk pad and took its touches.
 const FORM = Math.min(screen.width, screen.height) >= 600 ? "tablet" : "phone";
 const perm = { mic: f0.microphone ? "tap" : "none", camera: f0.camera ? "tap" : "none", motion: f0.motion ? "tap" : "none", location: f0.geolocation ? "tap" : "none" };
 const inUse = new Map(); // cap -> what it is doing now
@@ -335,8 +315,6 @@ const CAPS = [
   { key: "speak", to: "in", name: "스피커", icon: '<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/>', state: () => armed() ? "ok" : "tap" },
   { key: "light", to: "in", name: "조명", icon: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>', state: () => (FORM === "tablet" ? "ok" : "none"), ok: () => lampOn ? "비추는 중" : "켜짐" }, // the switch allows it; the words say whether it is lit
   { key: "talk", to: "out", name: "음성", icon: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', state: () => armed() ? perm.mic : "tap" },
-  { key: "dial", to: "out", name: "다이얼", icon: '<circle cx="12" cy="12" r="8"/><path d="M12 12l3.5-3.5"/>', state: () => "ok" },
-  { key: "click", to: "out", name: "버튼", icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>', state: () => "ok" },
   { key: "camera", to: "out", name: "카메라", icon: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', state: () => perm.camera },
   { key: "sound", to: "out", name: "소리 크기", icon: '<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/>', state: () => armed() ? perm.mic : "tap" },
   { key: "sensors", to: "out", name: "가속도 센서", icon: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>', state: () => perm.motion },
@@ -344,14 +322,12 @@ const CAPS = [
 ];
 const STATE = { ok: "켜짐", tap: "탭 필요", denied: "권한 없음", none: "지원 안 함" };
 
-// What this device's inputs and outputs are used for. Chosen in Kkachi Home and told by the service
-// ("use"): which pads show, one for each input that goes somewhere (to Kkachi, or joined to an output),
-// and which inputs and outputs are open to Kkachi. Remembered, so the pads are right at once next time.
+// What of this device is open to Kkachi. Chosen in Kkachi Home and told by the service ("use": pads
+// says whether the talk pad shows). Remembered, so the pad is right at once next time.
 let use = { pads: ["talk"], agent: {} };
 try { use = { ...use, ...JSON.parse(store.get("use") || "{}") }; } catch {}
-const MODES = ["talk", "click", "dial"]; // the inputs that need something to touch: a pad each
-const CAP = { speak: "speak", light: "lamp", talk: "talk", click: "click", dial: "dial", camera: "photo", sound: "sound level", sensors: "motion sensors", location: "location" }; // this page's keys, as the service names them
-const isOn = (key) => (MODES.includes(key) ? use.pads.includes(key) : use.agent[CAP[key]] !== false);
+const CAP = { speak: "speak", light: "lamp", talk: "talk", camera: "photo", sound: "sound level", sensors: "motion sensors", location: "location" }; // this page's keys, as the service names them
+const isOn = (key) => (key === "talk" ? use.pads.includes("talk") : use.agent[CAP[key]] !== false);
 
 const cards = {};
 function renderCaps() {
@@ -372,7 +348,7 @@ function renderCaps() {
     const listening = !!doing && (c.key === "sound" || doing === "듣는 중");
     b.classList.toggle("busy", !!doing && !listening);
     b.classList.toggle("listening", listening);
-    b.querySelector(".s").textContent = doing ?? (!usable ? STATE[st] : !on ? (MODES.includes(c.key) ? "쓰는 곳 없음" : "에이전트에게 닫힘") : st === "ok" && c.ok ? c.ok() : STATE[st]);
+    b.querySelector(".s").textContent = doing ?? (!usable ? STATE[st] : !on ? "에이전트에게 닫힘" : st === "ok" && c.ok ? c.ok() : STATE[st]);
   }
   renderSenses();
 }
@@ -403,11 +379,8 @@ function renderSenses() {
 
 // ---- the lamp: Kkachi's device_light picks the colour and brightness; the whole screen becomes that
 // light, with no button on it. A tap turns it off. ----
-let lampColor = "#ffe6c4", lampLevel = 100; // the colour and brightness it last had (warm white, full, before any)
 function lamp(on, color, brightness) {
   lampOn = on;
-  if (on && color) lampColor = color;
-  if (on && brightness > 0) lampLevel = brightness;
   if (on) stopTalking(); // lit mid-sentence: what was said so far is sent
   $("lamp").hidden = !on;
   if (on) {
@@ -416,44 +389,6 @@ function lamp(on, color, brightness) {
   }
   showReady();
 }
-// An input joined to this lamp, with no agent in between. A dial moved: the brightness alone, in the
-// colour the lamp last had. A button was pressed (toggle): on as it last was, or off.
-function dim(m) {
-  if (FORM !== "tablet") return;
-  const brightness = Number(m.brightness);
-  if (m.toggle) { if (lampOn) lamp(false); else { lamp(true, lampColor, lampLevel); activity("버튼이 조명을 켰어요"); } }
-  else if (!(brightness > 0)) { if (lampOn) lamp(false); }
-  else if (lampOn) { lampLevel = brightness; $("lamp-dim").style.opacity = String(1 - Math.min(100, brightness) / 100); }
-  else { lamp(true, lampColor, brightness); activity("다이얼이 조명을 켰어요"); }
-}
-// This device as a dial or a button. The dial turns through three quarters of a circle, 0 at the lower
-// left to 100 at the lower right, and sends its value ten times a second at most, the newest only.
-// Every press of the button is sent.
-const sendValue = (kind, value) => ws?.readyState === 1 && ws.send(JSON.stringify({ type: "value", kind, value }));
-let dialValue = 50, dialTimer = 0;
-function turnDial(value) {
-  dialValue = Math.round(Math.min(100, Math.max(0, value)));
-  $("dial").style.transform = `rotate(${dialValue * 2.7 - 135}deg)`;
-  $("dial").setAttribute("aria-valuenow", String(dialValue));
-  $("dial-value").textContent = String(dialValue);
-  dialTimer ||= setTimeout(() => { dialTimer = 0; sendValue("dial", dialValue); }, 100);
-}
-const dialAt = (e) => { // where the finger is around the dial's centre, as a value
-  const r = $("dial").getBoundingClientRect();
-  const angle = Math.atan2(e.clientX - (r.left + r.width / 2), (r.top + r.height / 2) - e.clientY) * 180 / Math.PI;
-  return (Math.min(135, Math.max(-135, angle)) + 135) / 2.7;
-};
-$("dial").addEventListener("pointerdown", (e) => { $("dial").setPointerCapture(e.pointerId); turnDial(dialAt(e)); });
-$("dial").addEventListener("pointermove", (e) => {
-  if (!$("dial").hasPointerCapture(e.pointerId)) return;
-  const v = dialAt(e);
-  if (Math.abs(v - dialValue) < 50) turnDial(v); // across the gap at the bottom it stays at its end: no jump from 100 to 0
-});
-$("dial").addEventListener("keydown", (e) => {
-  const step = { ArrowUp: 5, ArrowRight: 5, ArrowDown: -5, ArrowLeft: -5 }[e.key];
-  if (step) { e.preventDefault(); turnDial(dialValue + step); }
-});
-$("click").addEventListener("click", () => { sendValue("click", 1); navigator.vibrate?.(10); });
 const openSettings = () => { if (!$("settings").open) $("settings").showModal(); };
 $("open-settings").addEventListener("click", openSettings);
 $("senses").addEventListener("click", openSettings);
@@ -583,7 +518,6 @@ async function onMessage(m) {
   if (m.type === "update") $("update").hidden = false;
   if (m.type === "ack") onAck(m);
   if (m.type === "reply") onReply(m);
-  if (m.type === "dim") dim(m);
   if (m.type === "use") { // Kkachi Home changed what this device is used for
     use = { pads: Array.isArray(m.pads) ? m.pads : [], agent: m.agent && typeof m.agent === "object" ? m.agent : {} };
     store.set("use", JSON.stringify(use));
@@ -606,11 +540,12 @@ async function onMessage(m) {
   }
 }
 // How each request shows on screen: [cap, while doing it, afterwards].
+const who = (m) => (m.by === "home" ? "까치 홈에서" : "까치가");
 const SHOWN = {
-  speak: (m) => ["speak", "말하는 중", m.from ? `${m.from}에서 온 말을 틀었어요` : "까치가 말했어요"],
-  snapshot: () => ["camera", "찍는 중", "까치가 사진을 찍었어요 (저장 안 함)"],
-  sound: () => ["sound", "재는 중", "까치가 소리 크기를 쟀어요 (녹음 안 함)"],
-  sensors: () => ["sensors", "읽는 중", "까치가 가속도 센서를 읽었어요"],
+  speak: () => ["speak", "말하는 중", "까치가 말했어요"],
+  snapshot: (m) => ["camera", "찍는 중", `${who(m)} 사진을 찍었어요 (저장 안 함)`],
+  sound: (m) => ["sound", "재는 중", `${who(m)} 소리 크기를 쟀어요 (녹음 안 함)`],
+  sensors: (m) => ["sensors", "읽는 중", `${who(m)} 센서를 읽었어요`],
   light: (m) => ["light", m.on ? "켜는 중" : "끄는 중", m.on ? "까치가 조명을 켰어요" : "까치가 조명을 껐어요"],
 };
 

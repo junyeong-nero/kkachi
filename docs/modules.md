@@ -23,14 +23,13 @@
 | `speech.ts`, `polish.ts`, `vocabulary.ts` | 받아쓰기, 받아쓴 말 다듬기, 다듬기에 넣는 용어 목록(memory 레포의 `vocabulary.md`, 노트 제목, 기본 용어). [design.md](design.md) "음성 처리" |
 | `replay.ts` | 턴의 이벤트를 id 로 보관한다. 폰에서 연결이 끊겨도 앱이 받은 데서부터 이어 받는다 |
 | `bus.ts`, `inbox.ts`, `feed.ts` | 입력 버스. 공기계의 입력을 id 하나당 한 번, 60초 안에만 접수하고, 설정대로 세션을 골라 답을 기기나 폰 피드로 보낸다. [bus.md](bus.md) |
-| `router.ts`, `flow.ts` | 연결. 한 기기의 입력(음성, 다이얼, 버튼)을 다른 기기의 출력(스피커, 조명)에 에이전트 없이 잇는 표(`data/routes.json`)와, 지나가는 것을 까치 홈에 알리는 `/api/flow`. [bus.md](bus.md) |
-| `activity.ts` | 에이전트 탭의 기록. 로그에서 최근 턴을 읽는다 |
+| `activity.ts` | 설정의 "까치를 쓴 기록". 로그에서 최근 턴을 읽는다 |
 | `port.ts` | "공기계끼리"와 "기기마다" 세션의 Pi. 도구는 설정대로 전체(까치 홈과 같고 턴마다 커밋) 또는 제한(`port` 에이전트 도구와 `send_to_phone`) |
 | `mcp-bridge.ts`, `services.ts` | `kkachi.mcp.json` 을 읽어 서버 목록과 에이전트별 허용 도구를 정한다. Pi 를 띄울 때 `tools/list` 로 도구를 받아 넘긴다. `command` 가 있는 서버는 core 가 띄우고 멈추면 다시 띄우며, `routes` 는 core 주소에서 중계한다 |
 | `memory.ts` | memory 서비스의 `git_*` 도구를 부른다. 턴 전 sync, 턴 끝 checkpoint, 사서와 대화 정리의 작업 사본 |
 | `review.ts` | 30분 조용하면 대화를 노트와 견줘 빠진 것을 채운다 |
 | `librarian.ts` | 사서. 노트를 정리하고 목록을 다시 쓴다 |
-| `settings.ts` | 설정 화면과 에이전트 탭의 자원에서 바꾼 값(`data/settings.json`): 목소리와 말 빠르기, 모델, 생각 깊이, 공기계 대화 |
+| `settings.ts` | 설정 화면에서 바꾼 값(`data/settings.json`): 목소리와 말 빠르기, 모델, 생각 깊이, 공기계 대화 |
 | `config.ts`, `check.ts` | 환경 변수 설정과 시작할 때의 점검. git 이나 Pi 가 없으면 서버를 멈추고, 음성 쪽이 빠지면 그 기능만 끈다 |
 | `web/` | 까치 홈. 화면 동작은 [design.md](design.md), 색과 글꼴은 [DESIGN.md](../DESIGN.md) |
 
@@ -40,7 +39,7 @@
 
 - 에이전트가 쓰는 MCP 도구는 `list_devices`, `device_speak`, `device_snapshot`, `device_sound_level`, `device_sensors`, `device_light` 다. core 안에서는 `/mcp`, 다른 에이전트는 `/mcp/devices` 로 쓴다.
 - 사진과 측정값은 전달만 하고 저장하지 않는다.
-- 공기계에 한 말은 WebSocket `input` 으로 받아 core 의 입력 버스에 넘기고 ACK 를 돌려준다. 답은 core 만 부를 수 있는 `device_reply` 로 온다. 연결로 가는 값과 녹음도 core 전용 도구(`device_dim`, `device_play`, `device_links`)로 온다.
+- 공기계에 한 말은 WebSocket `input` 으로 받아 core 의 입력 버스에 넘기고 ACK 를 돌려준다. 답은 core 만 부를 수 있는 `device_reply` 로 온다. 까치 홈은 `POST /api/device/<id>/read` 로 그 방의 센서, 소리 크기, 사진을 직접 읽는다.
 - 폴더만 복사해도 MCP 서버로 돈다. 그때는 core 가 없으니 기기에 한 말을 거절하고, 기기는 자기 목소리로 말한다.
 
 기능별 현황은 [sensors.md](sensors.md), 서비스 사용법은 [services/devices/README.md](../services/devices/README.md), core 와의 약속은 [PROTOCOL.md](../services/devices/PROTOCOL.md)에 있다.

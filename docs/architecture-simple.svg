@@ -37,7 +37,7 @@
   <!-- core, with Pi inside -->
   <rect x="40" y="204" width="720" height="124" rx="14" class="core"/>
   <text x="64" y="244" class="name">kkachi-core</text>
-  <text x="64" y="272" class="what">agent loop, speech, connections, MCP bridge</text>
+  <text x="64" y="272" class="what">agent loop, speech, MCP bridge</text>
   <text x="64" y="294" class="what">starts the two services and forwards their pages</text>
 
   <rect x="470" y="226" width="266" height="80" rx="12" class="pi"/>
@@ -52,8 +52,8 @@
 
   <rect x="40" y="376" width="210" height="112" rx="14" class="card"/>
   <text x="145" y="414" class="name" text-anchor="middle">kkachi-devices</text>
-  <text x="145" y="442" class="what" text-anchor="middle">speaker, lamp, camera, sensors,</text>
-  <text x="145" y="464" class="what" text-anchor="middle">voice, dial, button</text>
+  <text x="145" y="442" class="what" text-anchor="middle">eyes, ears and voice</text>
+  <text x="145" y="464" class="what" text-anchor="middle">in each room</text>
 
   <rect x="295" y="376" width="210" height="112" rx="14" class="card"/>
   <text x="400" y="414" class="name" text-anchor="middle">kkachi-memory</text>

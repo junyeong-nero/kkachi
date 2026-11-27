@@ -12,7 +12,7 @@
 import { join } from "node:path";
 import { handleMcp } from "./lib/mcp-server";
 import { trusted } from "./lib/trust";
-import { allowDevice, deviceSocket, forgetDevice, listDevices, page, pageVersion, setAgent } from "./devices";
+import { allowDevice, deviceSocket, forgetDevice, listDevices, page, pageVersion, readOn, setAgent } from "./devices";
 import { service } from "./tools";
 
 const port = Number(process.env.KKACHI_DEVICES_PORT ?? 4301);
@@ -39,6 +39,12 @@ Bun.serve({
       if (agent) {
         const body: any = await req.json();
         return setAgent(agent[1], body?.cap, body?.open) ? Response.json({ devices: listDevices() }) : new Response("no such device or ability", { status: 400 });
+      }
+      const read = req.method === "POST" && pathname.match(/^\/api\/device\/(\w+)\/read$/); // Kkachi Home looks into a room: { what: sensors | sound | photo }
+      if (read) {
+        const body: any = await req.json().catch(() => ({}));
+        try { return Response.json(await readOn(read[1], body?.what)); }
+        catch (err) { return Response.json({ error: String((err as Error).message ?? err) }, { status: 409 }); }
       }
       const action = req.method === "POST" && pathname.match(/^\/api\/device\/(\w+)\/(allow|forget)$/);
       if (action) {

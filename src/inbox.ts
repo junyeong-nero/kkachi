@@ -1,5 +1,5 @@
 // Accepting inputs from devices (docs/bus.md): each id once, and only while fresh.
-export type Input = { id: string; source: { id: string; name: string }; kind: "talk"; age: number; audio: string; mime: string; agent?: boolean }; // agent: this device's voice is open to Kkachi (false: only to what it is joined to)
+export type Input = { id: string; source: { id: string; name: string }; kind: "talk"; age: number; audio: string; mime: string };
 export type Accepted = { accepted: boolean; duplicate?: boolean; reason?: string };
 
 export const INPUT_TTL_MS = 60_000; // older than this when it arrives: dropped, a late "불 꺼줘" must not run

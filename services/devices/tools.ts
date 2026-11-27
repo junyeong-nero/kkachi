@@ -1,7 +1,7 @@
 // kkachi-devices as an MCP service: the tools and what they do. Which agent gets which is set in
 // core's kkachi.mcp.json.
 import type { McpService, McpTool } from "./lib/mcp-server";
-import { describeDevices, dimOn, lightOn, playOn, setJoined, replyOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
+import { describeDevices, lightOn, replyOn, sensorsOn, snapshotOn, soundLevelOn, speakOn } from "./devices";
 
 const device = { type: "string", description: "Device name, as in list_devices" };
 
@@ -10,24 +10,6 @@ const DEFS: (Omit<McpTool, "run">)[] = [
     name: "device_reply",
     description: "Kkachi core only: the answer to something said on a device, shown there (what was heard, the answer read aloud, or where the answer went instead). A long answer comes a sentence at a time, as it is written: part counts them from 0, and last ends the answer (show: the whole answer, to leave on screen).",
     inputSchema: { type: "object", properties: { device, inputId: { type: "string" }, heard: { type: "string" }, text: { type: "string" }, elsewhere: { type: "string" }, part: { type: "number" }, last: { type: "boolean" }, show: { type: "string" } }, required: ["device", "inputId", "heard"] },
-    internal: true,
-  },
-  {
-    name: "device_links",
-    description: "Kkachi core only: which inputs of each device are joined straight to an output now ({links: {<device id>: [\"talk\" | \"click\" | \"dial\"]}}), so each device shows a pad for them.",
-    inputSchema: { type: "object", properties: { links: { type: "object" } }, required: ["links"] },
-    internal: true,
-  },
-  {
-    name: "device_play",
-    description: "Kkachi core only, for one device's talk button joined to another's speaker: plays what was said there, as recorded. Waits until it has been played.",
-    inputSchema: { type: "object", properties: { device, audio: { type: "string", description: "base64" }, mime: { type: "string" }, from: { type: "string", description: "The device it was said on" } }, required: ["device", "audio"] },
-    internal: true,
-  },
-  {
-    name: "device_dim",
-    description: "Kkachi core only, for an input joined to a lamp: its brightness alone (0 turns it off), or toggle to switch it on as it last was or off. Sent one way.",
-    inputSchema: { type: "object", properties: { device, brightness: { type: "number" }, toggle: { type: "boolean" } }, required: ["device"] },
     internal: true,
   },
   {
@@ -78,9 +60,6 @@ const RUN: Record<string, Pick<McpTool, "run" | "annotations">> = {
     annotations: { readOnlyHint: false, destructiveHint: false },
     run: (a) => replyOn(name(a), { inputId: String(a?.inputId ?? ""), heard: String(a?.heard ?? ""), ...(a?.text && { text: String(a.text) }), ...(a?.elsewhere && { elsewhere: String(a.elsewhere) }), ...(Number.isInteger(a?.part) && { part: a.part }), ...(a?.last === true && { last: true }), ...(typeof a?.show === "string" && { show: a.show }) }),
   },
-  device_links: { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true }, run: async (a) => setJoined(a?.links) },
-  device_play: { annotations: { readOnlyHint: false, destructiveHint: false }, run: (a) => playOn(name(a), a) },
-  device_dim: { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true }, run: async (a) => dimOn(name(a), a) },
   list_devices: { annotations: { readOnlyHint: true }, run: () => describeDevices() },
   device_speak: { annotations: { readOnlyHint: false, destructiveHint: false }, run: (a) => speakOn(name(a), String(a?.text ?? "")) },
   device_snapshot: { annotations: looks, run: (a) => snapshotOn(name(a), a?.camera) },

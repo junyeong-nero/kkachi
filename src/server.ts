@@ -10,9 +10,8 @@ import { agentState, applyThinking, modelChoices, newConversation, runTurn, star
 import { recentUses } from "./activity";
 import { findTurn, recordTurn, streamTurn } from "./replay";
 import type { PiImage } from "./pi";
-import { accept, parseInput, router, syncLinks, warm } from "./bus";
+import { accept, parseInput, warm } from "./bus";
 import { feedStream, pushFeed } from "./feed";
-import { flowStream } from "./flow";
 import { routeFor, startServices } from "./services";
 import { connections } from "./mcp-bridge";
 import { internal, trusted } from "../lib/trust";
@@ -89,7 +88,7 @@ Bun.serve({
         if (pathname === "/api/settings") {
           return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1), deviceOptions: DEVICE_OPTIONS });
         }
-        if (pathname === "/api/mcp") return Response.json({ servers: await connections() }); // the agent screen's MCP list
+        if (pathname === "/api/mcp") return Response.json({ servers: await connections() }); // Settings' list of MCP servers
         if (pathname === "/api/agent") { // the status screen and the agent screen's 기록: the end of the log is enough
           const file = Bun.file(join(config.dataDir, "kkachi.log"));
           const tail = (await file.exists()) ? await file.slice(Math.max(0, file.size - 512_000)).text() : "";
@@ -111,29 +110,9 @@ Bun.serve({
         const body = await req.json();
         if (pathname === "/api/bus/warm" && typeof body?.source?.id === "string") { warm(body.source); return Response.json({}); }
         if (pathname === "/api/bus/voice") return Response.json({ voice: settings().voice, rate: settings().rate }); // how devices speak
-        if (pathname === "/api/bus/value") { // a dial moved: on to the outputs joined to it, not waited for
-          if (typeof body?.source?.id !== "string" || typeof body.kind !== "string") return new Response("bad value", { status: 400 });
-          router.dispatch({ id: body.source.id, name: String(body.source.name ?? "") }, body.kind, Number(body.value));
-          return Response.json({});
-        }
         const input = pathname === "/api/bus/input" ? parseInput(body) : null;
         if (!input) return new Response("bad input", { status: 400 });
         return Response.json(accept(input), { status: 202 });
-      }
-
-      // Inputs joined straight to outputs (src/router.ts): made, switched off and removed in the app's 연결 tab.
-      if (req.method === "GET" && pathname === "/api/routes") return Response.json({ routes: router.list() });
-      if (req.method === "GET" && pathname === "/api/flow") return flowStream(); // what is going through them, as it happens
-      if (req.method === "POST" && pathname === "/api/routes") {
-        if (!router.add(await req.json())) return new Response("cannot join these", { status: 400 });
-        syncLinks();
-        return Response.json({ routes: router.list() });
-      }
-      const link = req.method === "POST" && pathname.match(/^\/api\/routes\/([\w-]+)\/(on|off|remove)$/);
-      if (link) {
-        const ok = link[2] === "remove" ? router.remove(link[1]) : router.set(link[1], link[2] === "on");
-        if (ok) syncLinks();
-        return ok ? Response.json({ routes: router.list() }) : new Response("no such link", { status: 404 });
       }
 
       // What reaches Kkachi Home outside its own turns: device conversations and send_to_phone.
@@ -221,5 +200,4 @@ Bun.serve({
 console.log(`Kkachi listening on http://127.0.0.1:${config.port} (memory: ${config.memoryDir}, models: ${modelOrder().join(", ")})`);
 // After listening: the conversation Pi lists its MCP tools from the services, which must be up.
 await startServices();
-syncLinks();
 await startConversation();

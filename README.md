@@ -1,31 +1,45 @@
-![Kkachi: a lightweight home assistant that remembers](docs/banner.png)
+<p align="center">
+  <img src="docs/banner.png" alt="Kkachi (까치): a home assistant that is easy to install and light to run" width="820">
+</p>
 
-# Kkachi (까치)
+# Kkachi
 
-Kkachi is a lightweight home assistant that remembers. It runs on the computer you already have, and you talk to it from your phone. What you tell it goes into your own Markdown notes (a git repo). The old phones in your drawer become its speakers, microphones and cameras by opening a web page.
+Kkachi (까치, "magpie") is an agent that stays home. It runs on the computer you already have, and you call it from your phone, at home or away, to see what is happening there and get things done. It remembers what you tell it in your own Markdown notes, and the old phones in your drawer become its eyes, ears and voice in each room.
 
-The agent behind it is [Pi](https://github.com/earendil-works/pi), the coding agent, running with your subscription, your MCP servers and your skills, so it can also search the web, use your tools and work on code.
+It started from not wanting to set up Home Assistant OS just to try a home assistant: a dedicated machine or a VM, an OS image, and add-ons before anything answers. Kkachi is one command on a computer that stays on, and one web page on each phone.
 
-On your phone you type or dictate (check the transcript, then send). Replies come back as text and can be read aloud.
+<p align="center">
+  <img src="docs/demo.gif" alt="Kkachi Home: asking how the living room is, then opening a device to see its room and choose what Kkachi may use there" width="300">
+</p>
+
+The agent behind it is [Pi](https://github.com/earendil-works/pi), a coding agent, signed in to a model subscription you have (Claude, ChatGPT and others). So besides the home it can search the web, use MCP tools and work on code.
 
 > [!NOTE]
-> Early prototype. Runs on macOS, Windows, and Linux (the Linux auto-start is untested).
+> Early prototype. Runs on macOS, Windows, and Linux (the Linux auto-start is untested). The apps' interface is in Korean.
 
 > [!WARNING]
 > Kkachi runs Pi with full access to your computer (shell, files, network) and acts without asking. Anyone who can reach it can make it run commands by voice. Expose it only through Tailscale Serve on a tailnet you control, never Tailscale Funnel or a public URL.
 
-## What you need
+## Why Kkachi
 
-- A computer that stays on (macOS, Windows, or Linux). Kkachi runs there.
-- A phone. You use Kkachi in its browser.
-- An account Pi can sign in to for a model, such as Claude Pro/Max or ChatGPT Plus/Pro.
-- A [Tailscale](https://tailscale.com/download) account, used on both the computer and the phone.
+Home Assistant is a hub: it joins devices to each other and runs automations, and it is the right tool for a house full of them. Kkachi is an agent: you ask, and it looks, answers and acts. It works with no smart device at all, and it leaves wiring devices together to the hub: when you have lights or cameras, Home Assistant plugs into Kkachi as one more MCP server ([docs/ha.md](docs/ha.md)), and Kkachi uses it when you ask.
 
-## Install
+Two rules decide what goes in ([docs/philosophy.md](docs/philosophy.md), Korean):
 
-### 1. On the computer
+1. **Light.** One install, no VM, no hub: the computer you have and the phones you no longer use. A spare phone joins by opening a web page, with nothing to install on it. Heavier things, like Home Assistant or local models, are added when you want them.
+2. **Yours.** Your memory is plain Markdown in your own git repo: every turn is a commit, and "forget that" reverts it. What devices see and hear is passed on and not stored. Apart from the LLM, Kkachi calls no outside service unless you choose one, and speech can run on your computer too.
 
-macOS or Linux:
+Not there yet: dictation uses Groq by default (running it locally is a setting, and wants a small GPU), and the install command pulls in Git, Bun, Pi and Tailscale, so "one command" is still a few minutes and four tools.
+
+![How Kkachi fits together](docs/architecture-simple.svg)
+
+One process, kkachi-core, runs the agent and starts two services that are plain MCP servers. Anything else that speaks MCP can be added in `kkachi.mcp.json`, and other agents (Claude Desktop, Codex) can use Kkachi's devices and memory the same way. The detailed diagram is [docs/architecture.svg](docs/architecture.svg).
+
+## Installation
+
+You need a computer that stays on (macOS, Windows, or Linux), a phone, an account Pi can sign in to for a model (such as Claude Pro/Max or ChatGPT Plus/Pro), and a [Tailscale](https://tailscale.com/download) account on both the computer and the phone.
+
+On the computer, macOS or Linux:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/junyeong-nero/kkachi/main/install.sh | sh
@@ -37,186 +51,47 @@ Windows:
 powershell -c "irm https://raw.githubusercontent.com/junyeong-nero/kkachi/main/install.ps1 | iex"
 ```
 
-The command installs what is missing ([Git](https://git-scm.com/downloads), [Bun](https://bun.sh), [Pi](https://pi.dev), [Tailscale](https://tailscale.com/download)), puts Kkachi in `~/kkachi` and runs its setup. The setup asks a few questions and then:
-
-- creates your memory repo, or uses an existing one
-- signs Pi in to a model provider if it is not yet, and lets you pick a model
-- offers to bring in the MCP servers you set up for Claude Code, Codex, Cursor or VS Code (through [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter))
-- asks for a Groq API key for dictation, which you can skip
-- saves settings to `.env.local`
-- starts Kkachi now and at every login
-- makes it reachable on your tailnet with Tailscale Serve, signing this computer in to Tailscale first if needed
-
-At the end it prints an address like `https://<computer>.<tailnet>.ts.net`.
-
-### 2. On your phone
-
-1. Install Tailscale and sign in to the same account as the computer.
-2. Open the address the setup printed.
-3. Add the page to your home screen. This is Kkachi Home (까치 홈): where you talk to Kkachi and look after your devices.
-
-Add `?debug` to the URL for an on-screen log.
-
-### Update
-
-Run the install command again. It skips anything already installed and updates Kkachi.
-
-### Install by hand
-
-Install [Git](https://git-scm.com/downloads), [Bun](https://bun.sh), [Pi](https://pi.dev) and [Tailscale](https://tailscale.com/download) yourself, then run the same setup:
-
-```sh
-git clone https://github.com/junyeong-nero/kkachi.git
-cd kkachi
-bun run init
-```
-
-`init` checks the tools before it starts. You can run it again later; it keeps what is already set up. To sign Pi in yourself first, use `pi auth login`.
-
-## Voice (optional)
-
-Typing needs nothing extra. Dictation and neural voices are optional.
-
-To dictate, get a free [Groq API key](https://console.groq.com/keys) for speech-to-text. The setup asks for it, or add `GROQ_API_KEY` to `.env.local` later. Groq is an outside service and the next piece to move local (see [Principles](#principles)). Cleaning up transcripts with an LLM (English terms, noise) is off unless you set `KKACHI_POLISH_MODEL`, for example `openai/gpt-oss-120b` on the same key. Speech-to-text can also run on your computer with whisper.cpp, at about ten seconds a sentence on a laptop CPU ([docs/design.md](docs/design.md), Korean).
-
-Hearing replies needs nothing extra: each phone and spare device reads them in its own built-in voice. For Microsoft's neural voices instead (generated online), install [uv](https://docs.astral.sh/uv/), run `uv tool install edge-tts`, and pick one of the voices in Settings.
-
-## Run and configure
-
-Kkachi runs as a background server:
-
-```sh
-bun run service status      # or: install, uninstall
-```
-
-Its log is `data/service.log`. To run in the foreground instead, use `bun start`.
-
-| OS | How it runs |
-|---|---|
-| macOS | A launchd agent that runs while you are logged in. |
-| Linux | A systemd user service. `sudo loginctl enable-linger $USER` keeps it running while you are logged out. |
-| Windows | Starts when you sign in (from the Startup folder, so no admin rights are needed) and stops when you sign out. Sleep stops it too, so keep the computer awake. |
-
-All settings are environment variables in `.env.local` (see `src/config.ts`), for example `KKACHI_MODEL` for the model and fallbacks, `KKACHI_PORT`, `KKACHI_TIMEZONE`, and OpenAI-compatible speech APIs instead of Groq and Edge TTS. Kkachi works with any model your Pi can use and falls back to the next one in `KKACHI_MODEL` when one is rate-limited.
-
-## What it does
-
-### Talk and remember
-
-- Type, or tap the mic and dictate into the text box to check before sending. Read-aloud is off by default and set per device.
-- There are no commands to learn. Saying "thanks, that's all" or "I'll take it from the computer" ends the conversation, and the librarian then tidies the notes.
-- Mention a plan or decision and it goes into the right note, without Kkachi announcing "I've noted that". Each turn is one git commit, and "forget that" reverts it.
-- Ask about your own life and it answers from the notes, showing which notes it used.
-- Take or pick up to four photos and ask about them. They go to the model only; the memory repo records only that there were photos.
-- It can search the web, use MCP tools, and work on code in other repos: whatever your Pi setup can do.
-
-### Spare phones and tablets
-
-1. Open `/device` on a spare phone or tablet, name it ("living room") and tap once.
-2. Allow it in Kkachi Home's Settings, under Devices.
-3. Keep its screen on.
-
-After that:
-
-- "Tell the living room dinner is ready" plays on it.
-- From Kkachi Home, Kkachi can take a photo there ("How does the living room look?"), measure how loud it is, read its motion and orientation sensors, and turn a tablet's screen into a lamp. Nothing is stored ([docs/sensors.md](docs/sensors.md)).
-- The device's own screen shows what is in use right now and keeps a log, so anyone in the room can see when its camera or microphone was used.
-- Hold the device's button to ask Kkachi something. The device sends what you said and moves on; Kkachi answers there, on your phone, or both.
-
-By default a device joins your phone's conversation with the same tools, which assumes only you use these devices. The spare-device conversation settings can give devices a conversation of their own, limit them to the notes, speaking and the lamp, and keep private details from being said aloud ([docs/bus.md](docs/bus.md)). Your own MCP servers stay with Kkachi Home unless you let devices use them too.
+It installs what is missing ([Git](https://git-scm.com/downloads), [Bun](https://bun.sh), [Pi](https://pi.dev), Tailscale), puts Kkachi in `~/kkachi`, asks a few questions, starts Kkachi now and at every login, and prints an address like `https://<computer>.<tailnet>.ts.net`. That one install is all three parts below.
 
 ### Kkachi Home
 
-The page on your phone is where you talk to Kkachi and look after the devices. Its interface is in Korean. It has five tabs:
+The app on your phone: where you talk to Kkachi and look after the devices.
 
-- Inputs (입력) and Outputs (출력): each spare device, and what it can send (voice, dial, button, camera, sound level, motion sensors, location) or take (speaker, lamp) right now.
-- Connections (연결): where each input goes. A device's voice goes to the agent, or straight to another device's speaker like a walkie-talkie. A dial or a button on one device's screen sets the brightness of a tablet's lamp or switches it on and off, with no agent in between. Each connection has a switch, and you see when something goes through it.
-- Agent (에이전트): the conversation, what the agent was used for lately, which speakers and lamps it may use, and its MCP servers.
-- Settings (설정): read-aloud, text size, model, and the list of devices.
+1. Install Tailscale on the phone and sign in to the same account as the computer.
+2. Open the address the setup printed.
+3. Add the page to your home screen.
 
-### Other agents
+### Kkachi Device
 
-Claude Desktop, Codex, another Pi, or anything else that speaks MCP can use your devices and your memory. Add one of these to its MCP config:
+A spare phone or tablet becomes a Kkachi Device: Kkachi's eyes, ears and voice in that room. It has a speaker, a microphone, a camera, a sound meter, motion sensors, and on a tablet a lamp.
 
-| Address | Tools |
-|---|---|
-| `https://<computer>.<tailnet>.ts.net/mcp/devices` | `list_devices`, `device_speak`, `device_snapshot`, `device_sound_level`, `device_sensors`, `device_light` |
-| `https://<computer>.<tailnet>.ts.net/mcp/memory` | `memory_list`, `memory_search`, `memory_read`, `memory_write`, `memory_edit`, `memory_move`, `memory_delete`, `memory_undo` |
+1. Open `/device` at the same address on the spare phone, name it ("living room") and tap once.
+2. Allow it in Kkachi Home, under Devices (기기).
+3. Keep its screen on.
 
-Each memory change is one `kkachi: …` commit (pushed only if sync is on) and can be undone.
+Then "tell the living room dinner is ready" plays there, "how is the living room?" gets a photo and an answer, and holding the talk pad on its screen asks Kkachi something from that room. In Kkachi Home, open a device to see what is happening there now (how loud it is, when it last moved, a photo when you ask) and to choose what Kkachi may use there.
 
-### Lights, speakers and Home Assistant
+Real lights, plugs and speakers come in through their MCP servers: add one for TP-Link Tapo, Philips Hue or others ([docs/extensions.md](docs/extensions.md) lists them, Korean), or Home Assistant for a whole house, and Kkachi switches them when you ask.
 
-When you get real lights, speakers or cameras, plug in Home Assistant with [ha-mcp](https://github.com/homeassistant-ai/ha-mcp). Kkachi then switches lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Put the ha-mcp address in `.env.local` as `KKACHI_HA_MCP_URL`; setup steps are in [docs/ha.md](docs/ha.md) (Korean). Without that setting, nothing Home Assistant-related runs.
+### Kkachi Memory
 
-To control lights without Home Assistant, see [docs/extensions.md](docs/extensions.md) (Korean), which lists MCP servers worth adding, local ones first.
+Your notes: a git repo of Markdown files that the setup creates on your computer (or an existing one you point it to). Kkachi writes to it as you talk and answers from it. It stays on your computer; to back it up, add a remote and set `KKACHI_MEMORY_SYNC=1` ([docs/setup.md](docs/setup.md#memory-repo)).
 
-### In the background
+## Documents
 
-After 30 quiet minutes, Kkachi checks the conversation against the notes for anything it missed, such as a decision or an appointment. New information is committed as a conversation-review `kkachi: …` commit (and pushed if sync is on, see [Memory repo](#memory-repo)); if there is nothing to add, there is no commit. Turns waiting for this review stay in the server's private `data/conversation.jsonl` (not the memory repo) until it succeeds, across restarts too. Your chat session is not reset.
-
-A librarian then sorts the changed notes and rewrites the catalog in the memory repo's `README.md`. A new message always goes ahead of this background work.
-
-## Memory repo
-
-Your notes live in a separate git repo that you own, created from `templates/memory/`. Its `AGENTS.md` tells Kkachi how to organize notes. Do not store secrets (ID numbers, bank accounts, passwords) in it.
-
-### Backup
-
-The notes stay on your computer: Kkachi never pushes or pulls unless you ask it to. To keep a backup:
-
-1. Add a remote: a private GitHub repo, or a bare repo on a USB drive or NAS (`git init --bare E:/kkachi-memory.git`).
-2. Push yourself now and then, or set `KKACHI_MEMORY_SYNC=1` in `.env.local` to have Kkachi pull before each turn and push after each commit.
-
-A remote on its own changes nothing.
-
-### Import existing notes
-
-If you already keep notes in a PARA-style folder (for example an Obsidian vault with `00_inbox`, `01_projects`, ...), import them and let the librarian build the catalog:
-
-```sh
-bun scripts/import-notes.ts <your-notes-repo> <memory-repo> --dry-run   # preview the new paths
-bun scripts/import-notes.ts <your-notes-repo> <memory-repo>             # copy, strip NN_ numbers, convert [[wikilinks]]
-bun -e 'await (await import("./src/librarian")).tidyNow(); process.exit(0)'   # build the catalog
-```
-
-## How it works
-
-```
-Kkachi Home, spare phones, other agents
-  → Tailscale Serve (HTTPS, tailnet only)
-  → kkachi-core (src/, :4300): the agent loop and MCP orchestration
-       ├─ speech-to-text → (optional) transcript cleanup → Pi (RPC) → replies read on each device
-       ├─ kkachi.mcp.json: which MCP servers, which tools each agent gets
-       ├─ kkachi-devices (services/devices/, :4301): spare phones' inputs and outputs; runs on its own too
-       └─ kkachi-memory  (services/memory/, :4302): the notes and their git history; runs on its own too
-```
-
-![How Kkachi fits together](docs/architecture-simple.svg)
-
-Core starts the two services, restarts them if they stop, and forwards their pages from its own address. Both services also run by themselves as MCP servers for any agent ([services/devices/README.md](services/devices/README.md), [services/memory/README.md](services/memory/README.md)). Any other MCP server can be added in `kkachi.mcp.json`. Each module is described in [docs/modules.md](docs/modules.md) (Korean), with a more detailed diagram in [docs/architecture.svg](docs/architecture.svg).
-
-## Principles
-
-Home Assistant adds AI to a house; Kkachi brings the agent you already use into your home. Three rules decide what goes in ([docs/philosophy.md](docs/philosophy.md), Korean):
-
-1. Light. One install, no VM or hub: the computer you have and the phones you no longer use. Heavier things, like Home Assistant or a local LLM, plug in when you need them.
-2. Yours. Your memory is plain Markdown in your own git repo, your data stays on your computer, and backups go where you choose, only when you choose. Apart from the LLM, Kkachi itself calls no outside service. Not there yet: dictation still uses Groq.
-3. Bring your own. Your Pi subscription, your MCP servers (imported from Claude Code, Codex, Cursor or VS Code), your skills. Pi is the one runtime; everything else is imported.
-
-## More docs
-
-The docs are in Korean.
+Most are in Korean.
 
 | Doc | What is in it |
 |---|---|
-| [docs/philosophy.md](docs/philosophy.md) | The three principles and where Kkachi does not meet them yet |
-| [docs/design.md](docs/design.md) | How Kkachi Home and the device page behave, the voice pipeline, local dictation |
-| [docs/bus.md](docs/bus.md) | How spare devices talk to Kkachi, and the spare-device conversation settings |
+| [docs/setup.md](docs/setup.md) | Updating, installing by hand, voices, running as a service, everyday use, other agents, the memory repo (English) |
+| [docs/philosophy.md](docs/philosophy.md) | The two rules and where Kkachi does not meet them yet |
+| [docs/design.md](docs/design.md) | How Kkachi Home and the device page behave, the voice pipeline, local speech |
+| [docs/bus.md](docs/bus.md) | How devices talk to Kkachi, what is open to Kkachi, and the device conversation settings |
 | [docs/sensors.md](docs/sensors.md) | What a spare phone can do, feature by feature |
 | [docs/ha.md](docs/ha.md) | Setting up Home Assistant with ha-mcp |
 | [docs/extensions.md](docs/extensions.md) | MCP servers worth adding |
 | [docs/modules.md](docs/modules.md) | What each module does and how a turn flows through them |
+| [DESIGN.md](DESIGN.md) | The visual system (English) |
 
 ## License
 
