@@ -1,8 +1,13 @@
 <p align="center">
-  <img src="docs/banner.png" alt="Kkachi (까치): an agent that stays home. Call it from anywhere." width="820">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.png">
+    <img src="docs/banner-light.png" alt="Kkachi" width="480">
+  </picture>
 </p>
 
-# Kkachi
+<h3 align="center">An agent that stays home: call it from anywhere.</h3>
+
+<br>
 
 Kkachi (까치, "magpie") is an agent that stays home. It runs on the computer you already have, and you call it from your phone, at home or away, to see what is happening there and get things done. It remembers what you tell it in your own Markdown notes, and the old phones in your drawer become its eyes, ears and voice in each room.
 
