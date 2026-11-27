@@ -112,6 +112,8 @@
     content: ""; position: absolute; inset: -5px; border-radius: inherit; background: var(--accent-soft);
     z-index: -1; opacity: 0; transform: scale(calc(1 + var(--level, 0) * 0.23)); transition: transform 80ms linear;
   }
+  #talk { border-radius: 50%; } /* round, like Kkachi Home's mic */
+  #talk .t { bottom: 15%; }
   #talk.recording, #talk.recording .t { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
   #talk.recording::before { opacity: 1; }
   #talk:disabled { color: var(--muted); cursor: progress; } /* waiting for Kkachi's answer */

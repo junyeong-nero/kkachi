@@ -36,10 +36,10 @@ Typing needs nothing extra. Dictation and server-made voices are optional, and w
 
 | | Default | On your own computer |
 |---|---|---|
-| Dictation | [Groq](https://console.groq.com/keys) Whisper, an outside service (free key: enter it in Settings › Accounts › Groq, or add `GROQ_API_KEY` to `.env.local`) | Qwen3-ASR on [speech.cpp](https://github.com/nyosegawa/speech.cpp): 1 to 2 s a sentence with a small GPU, 3 to 10 s without. `bun scripts/speech-install.ts` fetches it (init offers to), then choose This computer under Dictation |
-| Reading replies | each phone's and device's own built-in voice: nothing is sent anywhere | Supertonic 3 on the CPU: choose This computer under Voice, and Kkachi starts `scripts/supertonic-server.py` with uv |
+| Dictation | [Groq](https://console.groq.com/keys) Whisper, an outside service (free key: enter it in Settings › Accounts › Groq, or add `GROQ_API_KEY` to `.env.local`) | Qwen3-ASR on [speech.cpp](https://github.com/nyosegawa/speech.cpp): 1 to 2 s a sentence with a small GPU, 3 to 10 s without. `bun scripts/speech-install.ts` fetches it (init offers to), then choose Local under Dictation |
+| Reading replies | Microsoft's neural voices through edge-tts, online (Online under Voice) | Supertonic 3 on the CPU: choose Local under Voice, and Kkachi starts `scripts/supertonic-server.py` with uv |
 
-Microsoft's neural voices (made online: Online under Voice) are there too: install [uv](https://docs.astral.sh/uv/) and run `uv tool install edge-tts`. Cleaning up transcripts with an LLM (English terms, noise; `openai/gpt-oss-120b` on the Groq key unless `KKACHI_POLISH_MODEL` says otherwise) is Tidy up dictation in the same place (Korean only; in English the transcript goes as heard). The page says when a server on this computer is not running or Groq has no key. The settings and the timings measured are in [design.md](design.md) (Korean).
+The online voices need [uv](https://docs.astral.sh/uv/) and `uv tool install edge-tts` (init installs them). Cleaning up transcripts with an LLM (English terms, noise; `openai/gpt-oss-120b` on the Groq key unless `KKACHI_POLISH_MODEL` says otherwise) is Tidy up dictation in the same place (Korean only; in English the transcript goes as heard). The page says when a server on this computer is not running or Groq has no key. The settings and the timings measured are in [design.md](design.md) (Korean).
 
 ## Run and configure
 

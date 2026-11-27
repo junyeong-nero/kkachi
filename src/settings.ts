@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config";
 
-export type Tts = "device" | "local" | "edge"; // each device's own voice, Supertonic here, or Edge TTS online
+export type Tts = "local" | "edge"; // Supertonic on this computer, or Edge TTS online
 export type Lang = "ko" | "en";
 export interface Settings {
   lang: Lang;              // Kkachi Home, the device pages, dictation and what devices say (src/web/i18n.js)
@@ -27,7 +27,7 @@ export const local = (url: string) => /\/\/(127\.0\.0\.1|localhost|\[::1\])\b/.t
 const systemLang: Lang = /^ko\b/i.test(Intl.DateTimeFormat().resolvedOptions().locale) ? "ko" : "en";
 const defaults: Settings = {
   lang: process.env.KKACHI_LANG === "ko" || process.env.KKACHI_LANG === "en" ? process.env.KKACHI_LANG : systemLang,
-  tts: config.tts.voice === "device" ? "device" : config.tts.provider === "supertonic" ? "local" : "edge",
+  tts: config.tts.provider === "supertonic" ? "local" : "edge",
   stt: local(config.stt.baseUrl) ? "local" : "groq",
   polish: config.polish.model ? "groq" : "off",
   voice: config.tts.voice,
@@ -41,7 +41,9 @@ const defaults: Settings = {
 const stored = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
 let current: Settings = { ...defaults, ...Object.fromEntries(Object.entries(stored).filter(([k]) => k in defaults)) };
 if (Object.keys(stored).length && !stored.lang) current.lang = "ko"; // an install from before English: it was Korean
-if (!stored.tts) current.tts = current.voice === "device" ? "device" : config.tts.provider === "supertonic" ? "local" : "edge"; // from before the setting
+// From before: no engine chosen, or the device's own voice (gone: it was silent on iPhones while their
+// microphone was open), so this computer's when it was chosen before, else online.
+if (!stored.tts || stored.tts === "device") current.tts = stored.voiceBy?.local || config.tts.provider === "supertonic" ? "local" : "edge";
 
 export const settings = () => current;
 
@@ -63,10 +65,8 @@ export function updateSettings(patch: Partial<Settings>): Settings {
   return current;
 }
 
-// The voices of each engine: the device's own (made on the phone or spare device, nothing sent out),
-// Supertonic 3's ten (made on this computer), and Edge TTS voices that speak Korean (made online; the
+// The voices of each engine: Supertonic 3's ten (made on this computer), and Edge TTS voices that speak Korean (made online; the
 // multilingual ones read English terms more naturally).
-const DEVICE_VOICE = { id: "device", name: "기기 목소리", note: "이 폰과 각 기기에 들어 있는 목소리. 까치 서버에서 만들지 않아요" };
 const SUPERTONIC_VOICES = ["F", "M"].flatMap((g) => [1, 2, 3, 4, 5].map((n) => ({ id: `${g}${n}`, name: `${g === "F" ? "여성" : "남성"} ${n}`, note: "" })));
 const EDGE_VOICES = [
   { id: "ko-KR-SunHiNeural", name: "선희", note: "여성, 차분한 한국어" },
@@ -76,8 +76,8 @@ const EDGE_VOICES = [
   { id: "en-US-EmmaMultilingualNeural", name: "엠마", note: "여성, 다국어, 밝은 목소리" },
   { id: "en-US-AndrewMultilingualNeural", name: "앤드루", note: "남성, 다국어, 따뜻한 목소리" },
 ];
-export const VOICES: Record<Tts, { id: string; name: string; note: string }[]> = { device: [DEVICE_VOICE], local: SUPERTONIC_VOICES, edge: EDGE_VOICES };
-if (!VOICES[current.tts].some((v) => v.id === current.voice)) current.voice = VOICES[current.tts][0].id;
+export const VOICES: Record<Tts, { id: string; name: string; note: string }[]> = { local: SUPERTONIC_VOICES, edge: EDGE_VOICES };
+if (!VOICES[current.tts].some((v) => v.id === current.voice)) current.voice = current.voiceBy[current.tts] ?? VOICES[current.tts][0].id;
 
 export const THINKING = [
   { id: "minimal", name: "빠르게" },

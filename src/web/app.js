@@ -61,7 +61,6 @@ function audioOut() {
     setSession("play-and-record"); // not "playback": WebKit then refuses the mic
   }
   if (ctx.state !== "running") ctx.resume();
-  if (builtInVoice()) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } // iOS: the built-in voice too wants a tap first
 }
 
 // Music from other apps: while a web page captures the mic, iOS puts it in a play-and-record session
@@ -224,7 +223,7 @@ async function runTurn(my, view, body, t0) {
         if (my !== turnId) return;
         if (!buf) continue;
         if (!firstSound) { firstSound = performance.now(); diag("first sound", { ms: Math.round(firstSound - t0) }); }
-        await (buf.say ? sayBuiltIn(buf.say) : play(buf));
+        await play(buf);
       } else if (streamDone) return;
       else await new Promise((r) => setTimeout(r, 40));
     }
@@ -405,23 +404,8 @@ function showChips(container, sources, changed, titles = {}) {
 }
 
 // ---- audio out ----
-// With the voice "device" (기기 목소리) the phone speaks with its own voice (Web Speech API) and
-// no words go to the server for speech; any other voice is made on the server, one sentence at a time.
-const builtInVoice = () => saved?.tts === "device" && "speechSynthesis" in window;
-if ("speechSynthesis" in window) speechSynthesis.getVoices(); // browsers fill the list only once asked
-const spoken = (text) => (builtInVoice() ? Promise.resolve({ say: text }) : ttsBuffer(text));
-
-function sayBuiltIn(text, rate = saved?.rate ?? 0) {
-  return new Promise((resolve) => {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = LANG === "en" ? "en-US" : "ko-KR";
-    const ko = speechSynthesis.getVoices().filter((v) => new RegExp(`^${LANG}([-_]|$)`, "i").test(v.lang)); // in the app's language
-    u.voice = ko.find((v) => v.localService) ?? ko[0] ?? null; // made on the phone first (desktop browsers also offer online ones)
-    u.rate = Math.max(0.5, Math.min(2, 1 + rate / 100));
-    u.onend = u.onerror = () => resolve();
-    speechSynthesis.speak(u);
-  });
-}
+// The voice is made on Kkachi's server (Settings, 음성: local or online), one sentence at a time.
+const spoken = (text) => ttsBuffer(text);
 
 async function ttsBuffer(text) {
   try {
@@ -623,7 +607,7 @@ function renderSums() {
   if (accountList.length) $("sum-account").textContent = accountList.filter((a) => a.connected).map((a) => a.name).join(", ") || "연결된 계정 없음";
   if (!catalog || !saved) return;
   const name = (list, id) => list.find((x) => x.id === id)?.name ?? "";
-  $("sum-voice").textContent = t("목소리 {voice}, 받아쓰기 {stt}", { voice: t({ device: "기기", local: "이 컴퓨터", edge: "온라인" }[saved.tts]), stt: saved.stt === "local" ? t("이 컴퓨터") : "Groq" });
+  $("sum-voice").textContent = t("목소리 {voice}, 받아쓰기 {stt}", { voice: t({ local: "로컬", edge: "온라인" }[saved.tts]), stt: saved.stt === "local" ? t("로컬") : "Groq" });
   $("sum-model").textContent = [name(catalog.models, saved.model) || saved.model?.split("/").pop(), name(catalog.thinking, saved.thinking)].filter(Boolean).join(", ");
 }
 async function openSettings() {
@@ -683,20 +667,18 @@ const segmentOf = (id, name, options, value, change) => {
 function renderSpeech() {
   if (!saved || !catalog) return;
   const ok = speechState ?? {}, known = !!speechState; // until it is known, nothing is said to be off
-  const ENGINE = { device: "기기", local: "이 컴퓨터", edge: "온라인" };
+  const ENGINE = { local: "로컬", edge: "온라인" };
   segmentOf("tts-engine", "tts", Object.entries(ENGINE), saved.tts, async (v) => { await saveSettings({ tts: v }); renderSpeech(); });
   const ttsDown = known && ((saved.tts === "local" && !ok.ttsLocal) || (saved.tts === "edge" && !ok.edge));
   $("tts-note").textContent = {
-    device: "폰과 각 기기에 들어 있는 목소리예요. 읽을 말이 밖으로 나가지 않아요.",
-    local: ttsDown ? "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켜기 전에는 말하지 못해요." : "이 컴퓨터에서 만들어요 (Supertonic). 읽을 말이 밖으로 나가지 않아요.",
-    edge: ttsDown ? "edge-tts 가 이 컴퓨터에 없어요. 설치하기 전에는 말하지 못해요." : "Microsoft Edge 의 목소리예요. 읽을 말이 인터넷으로 나가요.",
+    local: ttsDown ? "로컬 목소리 서버가 꺼져 있어요. 켜기 전에는 말하지 못해요." : "까치 서버에서 만들어요 (Supertonic). 읽을 말이 밖으로 나가지 않아요.",
+    edge: ttsDown ? "까치 서버에 edge-tts 가 없어요. 설치하기 전에는 말하지 못해요." : "Microsoft Edge 의 목소리예요. 읽을 말이 인터넷으로 나가요.",
   }[saved.tts];
   $("tts-note").classList.toggle("down", ttsDown);
-  const voiceName = saved.tts === "device" ? "기기 목소리" : (catalog.voices[saved.tts] ?? []).find((v) => v.id === saved.voice)?.name ?? saved.voice;
-  $("voice-now").textContent = ttsDown ? t("{engine}. 지금 말하지 못해요", { engine: t(ENGINE[saved.tts]) }) : saved.tts === "device" ? t(voiceName) : `${t(ENGINE[saved.tts])}, ${t(voiceName)}`;
+  const voiceName = (catalog.voices[saved.tts] ?? []).find((v) => v.id === saved.voice)?.name ?? saved.voice;
+  $("voice-now").textContent = ttsDown ? t("{engine}. 지금 말하지 못해요", { engine: t(ENGINE[saved.tts]) }) : `${t(ENGINE[saved.tts])}, ${t(voiceName)}`;
   $("voice-now").classList.toggle("down", ttsDown);
   const voices = catalog.voices[saved.tts] ?? [];
-  $("voices").hidden = saved.tts === "device"; // the device voice is the only one
   $("voices").replaceChildren(...voices.map((v) => {
     const row = document.createElement("label");
     row.className = "voice";
@@ -709,7 +691,7 @@ function renderSpeech() {
     row.querySelector(".play").addEventListener("click", (e) => { e.preventDefault(); preview(v.id); });
     return row;
   }));
-  segmentOf("stt-engine", "stt", [["local", "이 컴퓨터"], ["groq", "Groq"]], saved.stt, async (v) => { await saveSettings({ stt: v }); renderSpeech(); });
+  segmentOf("stt-engine", "stt", [["local", "로컬"], ["groq", "Groq"]], saved.stt, async (v) => { await saveSettings({ stt: v }); renderSpeech(); });
   const noKey = "Groq 키가 없어요";
   $("stt-note").textContent = saved.stt === "local"
     ? (ok.sttLocal || !known ? "밖으로 안 나가요" : "서버가 꺼져 있어요")
@@ -723,7 +705,6 @@ function renderSpeech() {
 async function preview(voice) {
   audioOut();
   stopPlayback();
-  if (voice === "device") { sayBuiltIn("안녕하세요, 까치예요. 오늘도 반가운 소식 전해 드릴게요.", Number($("rate").value)); return; }
   try {
     const r = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "안녕하세요, 까치예요. 오늘도 반가운 소식 전해 드릴게요.", voice, rate: Number($("rate").value) }) });
     if (!r.ok) throw new Error("tts " + r.status);
@@ -1640,7 +1621,7 @@ function showFeedItem(item) {
   v.finish();
   scrollDown(true); // said elsewhere: easy to miss below, so it is brought into view
   const fresh = Date.now() - Date.parse(item.at) < 15_000;
-  if (item.speak && fresh && readAloud() && ctx && item.text) spoken(item.text).then((buf) => buf && (buf.say ? sayBuiltIn(buf.say) : play(buf)));
+  if (item.speak && fresh && readAloud() && ctx && item.text) spoken(item.text).then((buf) => buf && play(buf));
 }
 restoreConversation().finally(openFeed); // the conversation first, then what came meanwhile
 // The voice setting decides how replies are read aloud, so it is needed before the first one.

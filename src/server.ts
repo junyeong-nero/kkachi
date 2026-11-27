@@ -126,7 +126,7 @@ Bun.serve({
       if (req.method === "POST" && pathname.startsWith("/api/bus/")) {
         if (!internal(req)) return new Response("forbidden", { status: 403 });
         const body = await req.json();
-        if (pathname === "/api/bus/voice") return Response.json({ voice: settings().tts === "device" ? BUILT_IN : settings().voice, rate: settings().rate }); // how devices speak
+        if (pathname === "/api/bus/voice") return Response.json({ voice: settings().voice, rate: settings().rate }); // how devices speak
         const input = pathname === "/api/bus/input" ? parseInput(body) : null;
         if (!input) return new Response("bad input", { status: 400 });
         return Response.json(accept(input), { status: 202 });
@@ -208,7 +208,7 @@ Bun.serve({
       if (req.method === "POST" && pathname === "/api/tts") {
         const { text, voice, rate } = await req.json();
         // The device voice is made on the phone itself; the app does not ask for it here.
-        if (voice === BUILT_IN || (!voice && settings().tts === "device")) return new Response("the device voice is spoken on the device", { status: 409 });
+        if (voice === BUILT_IN) return new Response("the device voice is spoken on the device", { status: 409 });
         const t0 = performance.now();
         try {
           const engine = (["local", "edge"] as const).find((e) => VOICES[e].some((v) => v.id === voice)); // a preview in the settings

@@ -60,7 +60,7 @@ export async function transcribe(audio: Blob): Promise<string> {
 
 /** voice/rate/engine override the saved settings (used for previews in the settings sheet). */
 export const synthesize = (text: string, voice = settings().voice, rate = settings().rate, engine = settings().tts) =>
-  tts(text, voice, rate, engine === "device" ? undefined : engine, settings().lang);
+  tts(text, voice, rate, engine, settings().lang);
 
 /** Whether each way is ready: the servers on this computer answer, Groq has a key, edge-tts is installed. */
 export async function speechReady() {
