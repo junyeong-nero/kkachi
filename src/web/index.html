@@ -176,7 +176,8 @@
   @media (hover: hover) { .menu-row:hover { background: var(--surface); } }
   .menu-row:active { background: var(--line); }
   /* two tabs at the top of the menu: 기기 (기기 추가, then the devices) and 대화 (새 대화, then the history) */
-  .menu-tabs { margin: 0 0 12px; }
+  #menu .menu-tabs { margin: 0 0 12px; display: inline-grid; grid-template-columns: repeat(2, 56px); } /* two icons: as wide as they need */
+  .menu-tabs svg { width: 22px; height: 22px; }
   #menu[data-tab=chat] .menu-pane[data-tab=devices], #menu[data-tab=devices] .menu-pane[data-tab=chat] { display: none; }
   .menu-pane > .group { margin-top: 8px; }
   .conv.current .name { font-weight: 600; }
@@ -601,8 +602,8 @@
 <aside id="menu" aria-label="메뉴" tabindex="-1" data-tab="chat">
   <div class="menu-in">
     <div class="segment two menu-tabs" role="radiogroup" aria-label="메뉴">
-      <label><input type="radio" name="menu-tab" value="devices">기기</label>
-      <label><input type="radio" name="menu-tab" value="chat">대화</label>
+      <label title="기기"><input type="radio" name="menu-tab" value="devices" aria-label="기기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2"/></svg></label>
+      <label title="대화"><input type="radio" name="menu-tab" value="chat" aria-label="대화"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg></label>
     </div>
     <div class="menu-pane" data-tab="devices">
       <button type="button" class="menu-row" id="add-device">
