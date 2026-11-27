@@ -38,7 +38,7 @@ export function feedStream(lastEventId: string | null): Response {
       send(`id: ${EPOCH}:${after}\ndata: {"kind":"hello"}\n\n`); // a first visit starts from now
       for (const i of items) if (i.id > after) emit(i);
       listeners.add(emit);
-      heartbeat = setInterval(() => send(": ping\n\n"), 15_000);
+      heartbeat = setInterval(() => send("event: ping\ndata: {}\n\n"), 15_000); // an event, not a comment: the app watches for it
       off = () => { listeners.delete(emit); clearInterval(heartbeat); };
     },
     cancel() { off(); },

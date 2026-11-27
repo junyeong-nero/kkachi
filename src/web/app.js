@@ -1566,10 +1566,11 @@ else if (demo) {
 // app opens (iOS often closes a home-screen app), and the menu's 대화 tab lists them to go back to ----
 let shownConversation = null;
 const restored = new Set(); // device turns shown from the conversation: not again from the feed
+let restoredAt = 0;
 async function restoreConversation(id = null) {
   const r = await fetch(`/api/conversation${id ? `?id=${encodeURIComponent(id)}` : ""}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
   if (!r) return;
-  shownConversation = r.id;
+  shownConversation = r.id; restoredAt = Date.now();
   clearTranscript();
   for (const t of r.turns.slice(-MAX_TURNS)) {
     const v = addTurn(t.text + (t.photos ? `${t.text ? " " : ""}(사진 ${t.photos}장)` : ""), [], t.from ? `${t.from}에서` : null);
@@ -1605,23 +1606,35 @@ async function openConversation(id, now) {
 // ---- the feed (docs/bus.md): conversations on spare devices and messages sent to the phone ----
 // Listened to while the app is open. The last event id is kept, so reopening shows what came
 // meanwhile; only fresh items are read aloud.
-let feed = null;
+// iOS can leave an EventSource "open" after the app was away, receiving nothing and never erroring:
+// so it is opened anew whenever the app comes back, and again when the server's ping (every 15 s) has
+// not come for 40 s.
+let feed = null, feedSeen = 0, feedWatch = null;
 function openFeed() {
-  if (feed || demo || document.visibilityState !== "visible") return;
+  if (demo || document.visibilityState !== "visible") return;
+  closeFeed();
   const last = localStorage.getItem("kkachi.feed");
   feed = new EventSource(`/api/feed${last ? `?last=${encodeURIComponent(last)}` : ""}`);
+  feedSeen = Date.now();
+  feed.onopen = () => (feedSeen = Date.now());
+  feed.addEventListener("ping", () => (feedSeen = Date.now()));
   feed.onmessage = (e) => {
+    feedSeen = Date.now();
     if (e.lastEventId) localStorage.setItem("kkachi.feed", e.lastEventId);
     const item = JSON.parse(e.data);
     if (item.kind !== "hello") showFeedItem(item);
   };
+  feedWatch = setInterval(() => { if (Date.now() - feedSeen > 40_000) { diag("feed went quiet; opening it again"); openFeed(); } }, 10_000);
 }
-function closeFeed() { feed?.close(); feed = null; }
+function closeFeed() { clearInterval(feedWatch); feed?.close(); feed = null; }
+addEventListener("pageshow", (e) => { if (e.persisted) openFeed(); }); // back from the page cache
 function showFeedItem(item) {
-  if (item.kind === "turn" && restored.has(`${item.from}|${item.heard}`)) return; // already shown with the conversation
+  // A turn the restored conversation already has (it came while the app was closed); a later one is new.
+  if (item.kind === "turn" && restored.has(`${item.from}|${item.heard}`) && Date.parse(item.at) <= restoredAt) return;
   const v = item.kind === "turn" ? addTurn(item.heard, [], `${item.from}에서`) : addTurn("", [], "까치가 보냈어요", true);
   v.stream(item.text || "");
   v.finish();
+  scrollDown(true); // said elsewhere: easy to miss below, so it is brought into view
   const fresh = Date.now() - Date.parse(item.at) < 15_000;
   if (item.speak && fresh && readAloud() && ctx && item.text) spoken(item.text).then((buf) => buf && (buf.say ? sayBuiltIn(buf.say) : play(buf)));
 }
