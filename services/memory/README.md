@@ -29,7 +29,7 @@ Each change is committed at once as `kkachi: <summary>`, touching only its own p
 
 ## Sync
 
-Off by default: a remote alone changes nothing. With `KKACHI_MEMORY_SYNC=1` and an upstream, the service pulls before a change and pushes after it. The remote can be a private GitHub repo or a bare repo on a USB drive or NAS.
+Off by default: a remote alone changes nothing. With sync on (Kkachi Home, Settings › Notes, stored as `memorySync` in `settings.json` under `KKACHI_DATA_DIR` and read on each sync) and an upstream, the service pulls before a change and pushes after it. The remote can be a private GitHub repo or a bare repo on a USB drive or NAS.
 
 ## With Kkachi core
 
@@ -43,7 +43,7 @@ A caller can also hold a change for its own commit: with `_meta: {commit: "later
 |---|---|---|
 | `KKACHI_MEMORY_DIR` | | the notes repo (required) |
 | `KKACHI_MEMORY_PORT` | `4302` | |
-| `KKACHI_MEMORY_SYNC` | off | `1`: pull and push with the upstream |
+| `KKACHI_MEMORY_SYNC` | off | `1`: pull and push with the upstream, until the setting is chosen in Kkachi Home |
 | `KKACHI_INTERNAL_TOKEN` | | shared with Kkachi core: the `git_*` tools |
 | `KKACHI_DATA_DIR` | | where core keeps its log; without it the log goes to the console only |
 

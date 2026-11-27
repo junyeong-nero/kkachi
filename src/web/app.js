@@ -608,6 +608,7 @@ function renderSums() {
   if (!catalog || !saved) return;
   const name = (list, id) => list.find((x) => x.id === id)?.name ?? "";
   $("sum-voice").textContent = t("목소리 {voice}, 받아쓰기 {stt}", { voice: t({ local: "로컬", edge: "온라인" }[saved.tts]), stt: saved.stt === "local" ? t("로컬") : "Groq" });
+  $("sum-notes").textContent = saved.memorySync && catalog.memoryRemote ? t("GitHub에 올림") : t("이 컴퓨터에만");
   $("sum-model").textContent = [name(catalog.models, saved.model) || saved.model?.split("/").pop(), name(catalog.thinking, saved.thinking)].filter(Boolean).join(", ");
 }
 async function openSettings() {
@@ -615,8 +616,9 @@ async function openSettings() {
   renderDevicePrefs();
   const r = await fetch("/api/settings");
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
-  const { settings: s, voices, thinking, models, fallbacks } = await r.json();
-  saved = s; catalog = { voices, thinking, models };
+  const { settings: s, voices, thinking, models, fallbacks, memoryRemote } = await r.json();
+  saved = s; catalog = { voices, thinking, models, memoryRemote };
+  renderNotes();
   renderSpeech();
   fetch("/api/speech").then((x) => x.json()).then((ready) => { speechState = ready; renderSpeech(); }).catch(() => {});
 
@@ -651,6 +653,21 @@ async function openSettings() {
   const others = fallbacks.filter((m) => m !== s.model);
   renderSums();
   $("fallbacks").textContent = others.length ? t("이 모델이 막히면 {list} 순서로 넘어가요.", { list: others.map((m) => m.split("/").pop()).join(", ") }) : "";
+}
+
+// Settings, 노트: whether the notes are pushed to their repo (GitHub) after each change. Without an
+// upstream there is nowhere to push, so the switch waits for one.
+function renderNotes() {
+  const remote = catalog.memoryRemote, on = !!(saved.memorySync && remote);
+  const r = row("GitHub에 올리기", remote ?? t("연결된 저장소 없음"));
+  r.id = "notes-sync-row";
+  const sw = switchFor(on, "GitHub에 올리기", async (v) => { await saveSettings({ memorySync: v }); renderNotes(); renderSums(); });
+  sw.disabled = !remote;
+  r.append(sw);
+  $("notes-sync-row").replaceWith(r);
+  $("notes-note").textContent = !remote ? t("노트 폴더에 원격 저장소를 연결하면 켤 수 있어요. 비공개 저장소를 쓰세요.")
+    : on ? t("노트가 바뀔 때마다 올리고, 대화 전에 받아 와요. 다른 컴퓨터와도 같은 노트를 써요.")
+    : t("노트는 이 컴퓨터에만 있어요. 켜면 지금까지의 노트도 올려요.");
 }
 
 // Settings, 음성: where the voice is made, the voices of that engine, where dictation is heard, and

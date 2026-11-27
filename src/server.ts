@@ -19,6 +19,20 @@ import { feedStream, pushFeed } from "./feed";
 import { routeFor, startServices } from "./services";
 import { ensureSpeechServers } from "./speech-servers";
 import { connections } from "./mcp-bridge";
+
+// Settings, 노트: where the notes are pushed, when the repo has an upstream (github.com/me/notes), else null.
+function memoryRemote() {
+  const git = (...a: string[]) => { const p = Bun.spawnSync(["git", "-C", config.memoryDir, ...a]); return p.exitCode === 0 ? p.stdout.toString().trim() : ""; };
+  const up = git("rev-parse", "--abbrev-ref", "@{upstream}");
+  if (!up) return null;
+  const url = git("remote", "get-url", up.split("/")[0]);
+  return url.replace(/^(https?:\/\/|git@)/, "").replace(/^([^/:]+):/, "$1/").replace(/\.git$/, "") || up;
+}
+// Turned on: what was committed while it was off goes up now, not only after the next change.
+function pushNotes() {
+  const p = Bun.spawn(["git", "-C", config.memoryDir, "push", "--quiet"], { stdout: "ignore", stderr: "pipe" });
+  p.exited.then(async (code) => log("memory push", { ok: code === 0, ...(code ? { err: (await new Response(p.stderr).text()).trim() } : {}) }));
+}
 import { internal, trusted } from "../lib/trust";
 import { BUILT_IN } from "../lib/tts";
 import type { ServerWebSocket } from "bun";
@@ -96,7 +110,7 @@ Bun.serve({
         }
         if (pathname === "/api/speech") return Response.json(await speechReady()); // Settings, 음성: what is ready
         if (pathname === "/api/settings") {
-          return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
+          return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1), memoryRemote: memoryRemote() });
         }
         // Settings, 도구: Kkachi's own servers, the ones added (?fresh asks each again), and the suggestions
         if (pathname === "/api/mcp") {
@@ -114,7 +128,8 @@ Bun.serve({
       }
 
       if (req.method === "POST" && pathname === "/api/settings") {
-        const next = updateSettings(await req.json());
+        const was = settings().memorySync, next = updateSettings(await req.json());
+        if (next.memorySync && !was && memoryRemote()) pushNotes();
         await applyThinking(); // model changes apply on the next turn
         ensureSpeechServers(); // this computer chosen for the voice or dictation: start it
         log("settings", { ...next });

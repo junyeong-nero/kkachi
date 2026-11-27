@@ -17,6 +17,7 @@ export interface Settings {
   rate: number;     // speech speed in percent, -50..+100 (0 = normal)
   model: string;    // primary Pi model; config.models stay as fallbacks
   thinking: string; // Pi thinking level
+  memorySync: boolean; // pull and push the notes with their upstream (services/memory/git.ts reads this file)
 }
 
 const file = join(config.dataDir, "settings.json");
@@ -35,6 +36,7 @@ const defaults: Settings = {
   rate: 0,
   model: config.models[0],
   thinking: config.thinking,
+  memorySync: /^(1|true|on|yes)$/i.test(process.env.KKACHI_MEMORY_SYNC ?? ""),
 };
 
 // Only known keys: older files also had the device options (docs/bus.md: they are fixed now).
@@ -59,6 +61,7 @@ export function updateSettings(patch: Partial<Settings>): Settings {
   if (patch.polish === "off" || patch.polish === "groq") next.polish = patch.polish;
   if (typeof patch.rate === "number" && Number.isFinite(patch.rate)) next.rate = Math.max(-50, Math.min(100, Math.round(patch.rate)));
   if (typeof patch.model === "string" && patch.model.includes("/")) next.model = patch.model;
+  if (typeof patch.memorySync === "boolean") next.memorySync = patch.memorySync;
   if (typeof patch.thinking === "string" && THINKING.some((t) => t.id === patch.thinking)) next.thinking = patch.thinking;
   current = next;
   writeFileSync(file, JSON.stringify(current, null, 2));

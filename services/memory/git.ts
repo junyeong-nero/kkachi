@@ -1,7 +1,7 @@
 // Git on the memory repo. Only the memory service runs git; one operation at a time (locked()).
 // Commit messages say who made them: a turn "kkachi: <what was said>", the librarian
 // "kkachi: 정리 — …", the idle review "kkachi: 대화 정리 — …", an undo "kkachi: undo "…"".
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -30,9 +30,16 @@ export async function git(dir: string, ...args: string[]) {
 }
 
 // Notes stay on this computer. Kkachi pulls before a turn and pushes after a commit only when the
-// user turns sync on (KKACHI_MEMORY_SYNC=1) and the repo has an upstream; a remote alone is not
-// enough, so someone who backs up by pushing now and then is never synced behind their back.
-export const syncOn = () => /^(1|true|on|yes)$/i.test(process.env.KKACHI_MEMORY_SYNC ?? "");
+// user turns sync on (Kkachi Home, 설정, 노트; before it is set there, KKACHI_MEMORY_SYNC=1) and the repo
+// has an upstream; a remote alone is not enough, so someone who backs up by pushing now and then is
+// never synced behind their back. Read each time: the switch applies without a restart.
+export function syncOn() {
+  try {
+    const s = JSON.parse(readFileSync(join(process.env.KKACHI_DATA_DIR ?? "", "settings.json"), "utf8"));
+    if (typeof s.memorySync === "boolean") return s.memorySync;
+  } catch {}
+  return /^(1|true|on|yes)$/i.test(process.env.KKACHI_MEMORY_SYNC ?? "");
+}
 
 async function hasUpstream(dir: string) {
   try { await git(dir, "rev-parse", "--abbrev-ref", "@{upstream}"); return true; } catch { return false; }

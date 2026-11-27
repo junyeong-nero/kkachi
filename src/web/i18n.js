@@ -59,6 +59,14 @@ const EN = {
   "음성": "Voice", "스피커": "Speaker", "조명": "Lamp", "카메라": "Camera", "소리 크기": "Sound level", "움직임 센서": "Motion sensors",
 
   // ---- settings
+  "까치가 기억하는 것은 이 컴퓨터의 노트 폴더에 git으로 쌓여요.": "What Kkachi remembers is kept in the notes folder on this computer, with git.",
+  "GitHub에 올리기": "Push to GitHub",
+  "GitHub에 올림": "Pushed to GitHub",
+  "이 컴퓨터에만": "This computer only",
+  "연결된 저장소 없음": "No repository connected",
+  "노트 폴더에 원격 저장소를 연결하면 켤 수 있어요. 비공개 저장소를 쓰세요.": "Connect a remote repository to the notes folder to turn this on. Use a private one.",
+  "노트가 바뀔 때마다 올리고, 대화 전에 받아 와요. 다른 컴퓨터와도 같은 노트를 써요.": "Notes are pushed after each change and pulled before a conversation, so other computers share them.",
+  "노트는 이 컴퓨터에만 있어요. 켜면 지금까지의 노트도 올려요.": "Notes stay on this computer. Turning this on also pushes the notes so far.",
   "계정": "Accounts", "외형": "Appearance", "모델": "Model", "도구": "Tools", "앱 다시 불러오기": "Reload the app", "새 버전이 있으면 받아요": "Gets the new version, if there is one",
   "화면": "Theme", "폰 설정대로": "As the phone", "밝게": "Light", "어둡게": "Dark", "글자 크기": "Text size", "글자 크기 (px)": "Text size (px)", "글자 {n}px": "Text {n}px",
   "본문 글자 크기예요. 다른 글자도 같은 비율로 바뀌고, 화면과 글자 크기는 이 기기에만 적용돼요.": "The size of body text; the rest follows. Theme and text size apply to this phone only.",

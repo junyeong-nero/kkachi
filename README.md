@@ -81,7 +81,7 @@ Real lights, plugs and speakers come in through MCP servers, added in Kkachi Hom
 
 ### Kkachi Memory
 
-Your notes: a git repo of Markdown files that the setup creates on your computer (or an existing one you point it to). Kkachi writes to it as you talk and answers from it. It stays on your computer; to back it up, add a remote and set `KKACHI_MEMORY_SYNC=1` ([docs/setup.md](docs/setup.md#memory-repo)).
+Your notes: a git repo of Markdown files that the setup creates on your computer (or an existing one you point it to). Kkachi writes to it as you talk and answers from it. It stays on your computer; to back it up, add a remote and turn on Settings › Notes › Push to GitHub ([docs/setup.md](docs/setup.md#memory-repo)).
 
 ## Documents
 

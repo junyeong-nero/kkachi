@@ -137,7 +137,7 @@ Your notes live in a separate git repo that you own, created from `templates/mem
 The notes stay on your computer: Kkachi never pushes or pulls unless you ask it to. To keep a backup:
 
 1. Add a remote: a private GitHub repo, or a bare repo on a USB drive or NAS (`git init --bare E:/kkachi-memory.git`).
-2. Push yourself now and then, or set `KKACHI_MEMORY_SYNC=1` in `.env.local` to have Kkachi pull before each turn and push after each commit.
+2. Push yourself now and then, or turn on Kkachi Home, Settings › Notes › Push to GitHub, to have Kkachi pull before each turn and push after each commit. Turning it on also pushes what was committed so far. The switch is greyed out until the notes repo has an upstream. (`KKACHI_MEMORY_SYNC=1` in `.env.local` is the default until the switch is used.)
 
 A remote on its own changes nothing.
 

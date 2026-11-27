@@ -51,7 +51,7 @@
 - 에이전트가 쓰는 MCP 도구는 `memory_list`, `memory_search`, `memory_read`, `memory_write`, `memory_edit`, `memory_move`, `memory_delete`, `memory_undo` 다. 다른 에이전트는 `/mcp/memory` 로 쓴다.
 - 도구로 바꾸면 그 경로만 바로 커밋한다. 요청의 `meta.commit` 이 `later` 면 커밋하지 않고, core 가 턴 끝에 한 번에 한다.
 - core 만 쓰는 `git_*` 도구(내부 토큰)로 sync, checkpoint, 작업 사본을 다룬다.
-- 원격이 있어도 `KKACHI_MEMORY_SYNC=1` 일 때만 pull 과 push 를 한다.
+- 원격이 있어도 까치 홈 설정 › 노트 › GitHub에 올리기를 켰을 때만 pull 과 push 를 한다(정하기 전에는 `KKACHI_MEMORY_SYNC=1`).
 - 폴더만 복사해도 MCP 서버로 돈다.
 
 까치 홈 대화의 Pi 는 노트 파일을 직접 고치고, 다른 에이전트는 `memory_*` 도구로만 접근한다. 서비스 사용법은 [services/memory/README.md](../services/memory/README.md)에 있다.

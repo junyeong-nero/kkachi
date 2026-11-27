@@ -305,6 +305,7 @@
   .switch:active i::after { scale: 1.2 1; } /* held: the knob widens under the finger */
   .switch:focus-visible { box-shadow: none; } /* the ring goes round the track, as it goes round a pill, not round the area to tap */
   .switch:focus-visible i { box-shadow: 0 0 0 3px var(--accent-ring); }
+  .switch:disabled { opacity: .4; cursor: default; } /* cannot work now (설정, 노트 with no repository) */
   .switch[aria-checked=true] i { background: var(--text); }
   .switch[aria-checked=true] i::after { transform: translateX(16px); background: var(--bg); }
   @media (prefers-reduced-motion: reduce) { .switch i::after { transition: none; } }
@@ -555,6 +556,7 @@
         <button type="button" class="device item cat-row" data-cat="look"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19l5-14 5 14M6 14h6M15 19l3-8 3 8M16 16h4"/></svg></span><span><span class="name">외형</span><span class="sub" id="sum-look"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="voice"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4zM16.5 8.5a5 5 0 0 1 0 7"/></svg></span><span><span class="name">음성</span><span class="sub" id="sum-voice"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="model"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h8v10H8zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h5M3 14h5M16 10h5M16 14h5"/></svg></span><span><span class="name">모델</span><span class="sub" id="sum-model"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button type="button" class="device item cat-row" data-cat="notes"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l3 3v15H6z"/><path d="M9 10h6M9 14h6M9 18h4"/></svg></span><span><span class="name">노트</span><span class="sub" id="sum-notes"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button type="button" class="device item cat-row" data-cat="mcp"><span class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5"/></svg></span><span><span class="name">도구</span><span class="sub" id="sum-mcp"></span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
       </div>
       <div class="group cats">
@@ -623,6 +625,14 @@
       <h2>생각 깊이</h2>
       <div class="segment" id="thinking" role="radiogroup" aria-label="생각 깊이"></div>
       <p class="note">빠르게는 답이 일찍 오고, 꼼꼼하게는 어려운 일을 더 잘해요.</p>
+    </div>
+
+    <div class="cat" data-cat="notes">
+      <button type="button" class="back cat-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>설정</button>
+      <h1>노트</h1>
+      <p class="lede">까치가 기억하는 것은 이 컴퓨터의 노트 폴더에 git으로 쌓여요.</p>
+      <div class="group"><div class="device" id="notes-sync-row"></div></div>
+      <p class="note" id="notes-note"></p>
     </div>
 
     <div class="cat" data-cat="account">
