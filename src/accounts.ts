@@ -8,24 +8,32 @@ import { readAgentJson, writeAgentJson } from "./agent-dir";
 
 type Way = "subscription" | "key";
 // id is Pi's provider id: one credential each, so Claude's API key replaces its subscription.
-export const ACCOUNTS: { id: string; name: string; ways: Way[]; env?: string; note: string }[] = [
+// keys: not a model account but a key Kkachi itself uses (keys.json), so Pi does not list its models.
+export const ACCOUNTS: { id: string; name: string; ways: Way[]; env?: string; note: string; keys?: boolean }[] = [
   { id: "anthropic", name: "Claude", ways: ["subscription", "key"], env: "ANTHROPIC_API_KEY", note: "Claude Pro 나 Max 구독, 또는 Anthropic API 키" },
   { id: "openai-codex", name: "ChatGPT", ways: ["subscription"], note: "ChatGPT Plus 나 Pro 구독" },
   { id: "openai", name: "OpenAI API", ways: ["key"], env: "OPENAI_API_KEY", note: "OpenAI API 키" },
   { id: "openrouter", name: "OpenRouter", ways: ["key"], env: "OPENROUTER_API_KEY", note: "OpenRouter API 키. 무료 모델도 있어요" },
+  { id: "groq", name: "Groq", ways: ["key"], env: "GROQ_API_KEY", note: "받아쓰기와 다듬기를 Groq 로 할 때 써요", keys: true },
 ];
 const OAUTH: Record<string, () => any> = { anthropic: () => anthropicProvider().auth.oauth, "openai-codex": () => openaiCodexProvider().auth.oauth };
 
 export function accounts() {
-  const stored = readAgentJson("auth.json");
+  const stored = readAgentJson("auth.json"), keys = readAgentJson("keys.json");
   return ACCOUNTS.map((a) => {
-    const c = stored[a.id];
+    const c = a.keys ? (keys[a.id] ? { type: "api_key" } : undefined) : stored[a.id];
     const connected = c?.type === "oauth" ? "subscription" : c?.type === "api_key" ? "key" : a.env && process.env[a.env] ? "env" : null;
     return { ...a, connected };
   });
 }
 
-function store(id: string, credential: unknown | null) {
+function store(id: string, credential: any) {
+  if (ACCOUNTS.find((a) => a.id === id)?.keys) { // a plain key of Kkachi's own
+    const keys = readAgentJson("keys.json");
+    if (credential) keys[id] = credential.key; else delete keys[id];
+    writeAgentJson("keys.json", keys);
+    return;
+  }
   const auth = readAgentJson("auth.json");
   if (credential) auth[id] = credential; else delete auth[id];
   writeAgentJson("auth.json", auth);

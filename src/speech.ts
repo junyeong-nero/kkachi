@@ -1,6 +1,7 @@
 import { synthesize as tts } from "../lib/tts";
+import { readAgentJson } from "./agent-dir";
 import { config } from "./config";
-import { settings } from "./settings";
+import { local, settings } from "./settings";
 
 const auth = (key: string): Record<string, string> => (key ? { Authorization: `Bearer ${key}` } : {});
 
@@ -19,11 +20,26 @@ const isHallucination = (text: string) => {
 // silence and noise 0.5+ on whisper-large-v3; the turbo model always reports 0).
 const NO_SPEECH = 0.4;
 
+// Groq's key: entered in Settings, 계정 (src/accounts.ts), else GROQ_API_KEY.
+export const groqKey = (): string => readAgentJson("keys.json").groq ?? process.env.GROQ_API_KEY ?? "";
+
+// Where dictation is heard, as chosen in Settings, 음성: a speech server on this computer
+// (KKACHI_STT_LOCAL_URL, or KKACHI_STT_BASE_URL when it is local; speech.cpp with Qwen3-ASR by default),
+// or Groq's Whisper (KKACHI_STT_BASE_URL when it is not local).
+const GROQ = "https://api.groq.com/openai/v1";
+export function sttConfig() {
+  const { baseUrl, model, language } = config.stt, here = local(baseUrl);
+  if (settings().stt === "local") {
+    return { baseUrl: process.env.KKACHI_STT_LOCAL_URL ?? (here ? baseUrl : "http://127.0.0.1:8091/v1"), apiKey: "", model: process.env.KKACHI_STT_LOCAL_MODEL ?? (here ? model : "qwen3-asr-0.6b"), language, chunking: "auto" };
+  }
+  return { baseUrl: here ? GROQ : baseUrl, apiKey: groqKey() || (here ? "" : config.stt.apiKey), model: here ? "whisper-large-v3" : model, language, chunking: "" };
+}
+
 // Any OpenAI-compatible transcription API (Groq, OpenAI, local mlx-audio, ...).
 // No Whisper `prompt`: a vocabulary hint gets transcribed back verbatim on silence ("K-EXAONE 2.5
 // 무료 API" from note titles) and garbles real speech. Terms are fixed in the polish step instead.
 export async function transcribe(audio: Blob): Promise<string> {
-  const { baseUrl, apiKey, model, language, chunking } = config.stt;
+  const { baseUrl, apiKey, model, language, chunking } = sttConfig();
   const verbose = /whisper/i.test(model); // segment scores; gpt-4o-transcribe models do not support verbose_json
   const form = new FormData();
   form.append("file", new File([audio], "speech.wav", { type: audio.type || "audio/wav" }));
@@ -40,5 +56,14 @@ export async function transcribe(audio: Blob): Promise<string> {
   return isHallucination(text) ? "" : text;
 }
 
-/** voice/rate override the saved settings (used for previews in the settings sheet). */
-export const synthesize = (text: string, voice = settings().voice, rate = settings().rate) => tts(text, voice, rate);
+/** voice/rate/engine override the saved settings (used for previews in the settings sheet). */
+export const synthesize = (text: string, voice = settings().voice, rate = settings().rate, engine = settings().tts) =>
+  tts(text, voice, rate, engine === "device" ? undefined : engine);
+
+/** Whether each way is ready: the servers on this computer answer, Groq has a key, edge-tts is installed. */
+export async function speechReady() {
+  const up = (url: string) => fetch(url, { signal: AbortSignal.timeout(1500) }).then(() => true, () => false);
+  const stt = settings().stt === "local" ? sttConfig().baseUrl : process.env.KKACHI_STT_LOCAL_URL ?? (local(config.stt.baseUrl) ? config.stt.baseUrl : "http://127.0.0.1:8091/v1");
+  const [sttLocal, ttsLocal] = await Promise.all([up(`${stt}/models`), up(config.tts.localUrl.replace(/\/v1$/, "") + "/health")]);
+  return { sttLocal, ttsLocal, groq: !!groqKey(), edge: !!Bun.which("edge-tts") };
+}

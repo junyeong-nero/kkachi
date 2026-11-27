@@ -15,7 +15,7 @@
 - 추천: Home Assistant(ha-mcp, 주소만)와 LG ThinQ(LG 공식, 개인 액세스 토큰). 필요한 값만 묻는다.
 - 직접 추가: 원격 서버는 주소(필요하면 토큰), 로컬 서버는 실행 명령과 환경 변수. 각 프로젝트 README 에 있는 그대로 쓴다. 명령은 까치 서버에서 실행된다.
 - 붙인 서버는 켜고 끄거나 지울 수 있고, 연결됐는지와 도구 수가 보인다. 바꾸면 다음 말부터 쓴다.
-- OAuth 로그인이 필요한 서버는 아직 안 된다. 로그인 뒤 돌아오는 곳이 까치 서버의 localhost 라서 폰에서 끝낼 수 없다. 삼성 SmartThings 공식 서버는 아는 클라이언트(ChatGPT, Claude)만 받아서 붙일 수 없다. SmartThings 기기는 Home Assistant 에 붙여서 쓴다.
+- OAuth 로그인이 필요한 서버도 붙인다. 로그인 뒤 돌아오는 곳이 까치 서버의 127.0.0.1 이라 폰 브라우저는 열리지 않는 페이지에서 멈춘다. 그 페이지 주소를 까치 홈에 붙여 넣으면 까치가 서버에서 대신 연다(`src/mcp-login.ts`). 계정의 서비스(Google, Notion, GitHub)도 이렇게 붙는다. 삼성 SmartThings 공식 서버는 아는 클라이언트(ChatGPT, Claude)만 받아서 붙일 수 없다. SmartThings 기기는 Home Assistant 에 붙여서 쓴다.
 
 `kkachi.mcp.json` 은 까치 자신의 서비스(기기, 기억)가 붙는 자리다. 여기 넣은 서버는 늘 켜져 있고 설정에서 끌 수 없다.
 

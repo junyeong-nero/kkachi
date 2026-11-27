@@ -5,9 +5,10 @@ import { log } from "./log";
 import { polish } from "./polish";
 import { modelOrder } from "./models";
 import { settings, THINKING, updateSettings, VOICES } from "./settings";
-import { synthesize, transcribe } from "./speech";
+import { speechReady, synthesize, transcribe } from "./speech";
 import { applyThinking, currentSession, reloadAgent, modelChoices, newConversation, openConversation, runTurn, startConversation } from "./turn";
 import { conversations, fileOf, idOf, newestId, transcript } from "./conversations";
+import { answerMcpLogin, cancelMcpLogin, currentMcpLogin, mcpLoginShown, startMcpLogin } from "./mcp-login";
 import { addOwn, addSuggested, enableServer, forget, listServers, removeServer, suggestions } from "./mcp-servers";
 import { accounts, answerLogin, cancelLogin, currentLogin, loginShown, saveKey, signOut, startLogin } from "./accounts";
 import { findTurn, recordTurn, streamTurn } from "./replay";
@@ -89,13 +90,14 @@ Bun.serve({
         if (["/icon.png", "/apple-touch-icon.png", "/favicon.png"].includes(pathname)) {
           return new Response(Bun.file(join(web, pathname.slice(1))), { headers: { "Content-Type": "image/png" } });
         }
+        if (pathname === "/api/speech") return Response.json(await speechReady()); // Settings, 음성: what is ready
         if (pathname === "/api/settings") {
           return Response.json({ settings: settings(), voices: VOICES, thinking: THINKING, models: await modelChoices(), fallbacks: modelOrder().slice(1) });
         }
         // Settings, 도구: Kkachi's own servers, the ones added (?fresh asks each again), and the suggestions
         if (pathname === "/api/mcp") {
           const [builtin, added] = await Promise.all([connections(), listServers(new URL(req.url).searchParams.has("fresh"))]);
-          return Response.json({ builtin, added, suggested: suggestions() });
+          return Response.json({ builtin, added, suggested: suggestions(), login: currentMcpLogin() });
         }
         // Kkachi Home's conversations (Pi's session files): the menu lists them, and the app shows the
         // open one again when it is reopened. ?id= reads another.
@@ -119,7 +121,7 @@ Bun.serve({
       if (req.method === "POST" && pathname.startsWith("/api/bus/")) {
         if (!internal(req)) return new Response("forbidden", { status: 403 });
         const body = await req.json();
-        if (pathname === "/api/bus/voice") return Response.json({ voice: settings().voice, rate: settings().rate }); // how devices speak
+        if (pathname === "/api/bus/voice") return Response.json({ voice: settings().tts === "device" ? BUILT_IN : settings().voice, rate: settings().rate }); // how devices speak
         const input = pathname === "/api/bus/input" ? parseInput(body) : null;
         if (!input) return new Response("bad input", { status: 400 });
         return Response.json(accept(input), { status: 202 });
@@ -152,16 +154,24 @@ Bun.serve({
       if (req.method === "POST" && pathname.startsWith("/api/mcp/")) {
         const body = await req.json().catch(() => ({}));
         const what = pathname.slice("/api/mcp/".length);
+        const changed = () => { forget(); reloadAgent().catch((err) => console.error("reload after an MCP change failed", err)); };
+        // Signing in to one (src/mcp-login.ts): start, then the address the phone's browser ended on
+        if (what === "login") { startMcpLogin(String(body.name), () => { log("mcp_signed_in", { name: body.name }); changed(); }); return Response.json({ login: await mcpLoginShown() }); }
+        if (what === "login/answer") {
+          try { return Response.json({ login: await answerMcpLogin(String(body.url ?? "")), added: await listServers(true) }); }
+          catch (err) { return Response.json({ error: (err as Error).message }, { status: 400 }); }
+        }
+        if (what === "login/cancel") { cancelMcpLogin(); return Response.json({}); }
+        let names: string[] = [];
         try {
-          if (what === "add") body.suggested ? addSuggested(String(body.suggested), body.values ?? {}) : addOwn(body);
+          if (what === "add") { if (body.suggested) names = addSuggested(String(body.suggested), body.values ?? {}); else addOwn(body); }
           else if (what === "remove") removeServer(String(body.name));
           else if (what === "enable") enableServer(String(body.name), !!body.on);
           else return new Response("unknown", { status: 404 });
         } catch (err) { return Response.json({ error: (err as Error).message }, { status: 400 }); }
         log("mcp_change", { what, name: body.name ?? body.suggested ?? null });
-        forget();
-        reloadAgent().catch((err) => console.error("reload after an MCP change failed", err));
-        return Response.json({ added: await listServers(true) });
+        changed();
+        return Response.json({ added: await listServers(true), names });
       }
 
       if (req.method === "POST" && pathname === "/api/conversation/open") {
@@ -193,12 +203,12 @@ Bun.serve({
       if (req.method === "POST" && pathname === "/api/tts") {
         const { text, voice, rate } = await req.json();
         // The device voice is made on the phone itself; the app does not ask for it here.
-        if ((voice ?? settings().voice) === BUILT_IN) return new Response("the device voice is spoken on the device", { status: 409 });
+        if (voice === BUILT_IN || (!voice && settings().tts === "device")) return new Response("the device voice is spoken on the device", { status: 409 });
         const t0 = performance.now();
         try {
-          const preview = typeof voice === "string" && VOICES.some((v) => v.id === voice);
-          const { audio, type } = preview
-            ? await synthesize(String(text).slice(0, 200), voice, typeof rate === "number" ? rate : settings().rate)
+          const engine = (["local", "edge"] as const).find((e) => VOICES[e].some((v) => v.id === voice)); // a preview in the settings
+          const { audio, type } = engine
+            ? await synthesize(String(text).slice(0, 200), voice, typeof rate === "number" ? rate : settings().rate, engine)
             : await synthesize(String(text).slice(0, 1000));
           log("tts", { ms: Math.round(performance.now() - t0), chars: String(text).length, bytes: audio.byteLength });
           return new Response(audio, { headers: { "Content-Type": type } });

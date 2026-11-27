@@ -2,6 +2,8 @@
 // fix misheard words, spacing, numbers, and drop noise. Returns "" for noise (the client then
 // just keeps listening). Falls back to the raw transcript if the LLM fails.
 import { config } from "./config";
+import { settings } from "./settings";
+import { groqKey } from "./speech";
 import { vocabulary } from "./vocabulary";
 
 const TIMEOUT_MS = 2500;
@@ -26,9 +28,9 @@ const systemPrompt = () => `${SYSTEM}
 Known terms: ${vocabulary().join(", ")}`;
 
 export async function polish(raw: string): Promise<string> {
-  const { baseUrl, apiKey, model } = config.polish;
   if (!raw || FILLER_ONLY.test(raw)) return "";
-  if (!model) return raw;
+  if (settings().polish === "off") return raw; // Settings, 음성
+  const { baseUrl } = config.polish, model = config.polish.model || "openai/gpt-oss-120b", apiKey = groqKey() || config.polish.apiKey;
   try {
     const body: Record<string, unknown> = {
       model,

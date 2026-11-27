@@ -372,7 +372,7 @@ function showChips(container, sources, changed, titles = {}) {
 // ---- audio out ----
 // With the voice "device" (기기 목소리) the phone speaks with its own voice (Web Speech API) and
 // no words go to the server for speech; any other voice is made on the server, one sentence at a time.
-const builtInVoice = () => saved?.voice === "device" && "speechSynthesis" in window;
+const builtInVoice = () => saved?.tts === "device" && "speechSynthesis" in window;
 if ("speechSynthesis" in window) speechSynthesis.getVoices(); // browsers fill the list only once asked
 const spoken = (text) => (builtInVoice() ? Promise.resolve({ say: text }) : ttsBuffer(text));
 
@@ -566,7 +566,6 @@ function renderDevicePrefs() {
 }
 
 function applySpeak() {
-  $("voice-settings").hidden = !readAloud();
   if (!readAloud() && !recording) { stopPlayback(); resetAudio(); setSession("auto"); } // nothing holds audio now
 }
 
@@ -577,7 +576,7 @@ function renderSums() {
   if (accountList.length) $("sum-account").textContent = accountList.filter((a) => a.connected).map((a) => a.name).join(", ") || "연결된 계정 없음";
   if (!catalog || !saved) return;
   const name = (list, id) => list.find((x) => x.id === id)?.name ?? "";
-  $("sum-voice").textContent = readAloud() ? `읽어 주기 켜짐. ${name(catalog.voices, saved.voice)}` : "읽어 주기 꺼짐";
+  $("sum-voice").textContent = `${{ device: "기기 목소리", local: "이 컴퓨터 목소리", edge: "온라인 목소리" }[saved.tts]}. 받아쓰기 ${saved.stt === "local" ? "이 컴퓨터" : "Groq"}`;
   $("sum-model").textContent = [name(catalog.models, saved.model) || saved.model?.split("/").pop(), name(catalog.thinking, saved.thinking)].filter(Boolean).join(", ");
 }
 async function openSettings() {
@@ -587,25 +586,13 @@ async function openSettings() {
   if (!r.ok) { toast("설정을 불러오지 못했어요"); return; }
   const { settings: s, voices, thinking, models, fallbacks } = await r.json();
   saved = s; catalog = { voices, thinking, models };
-
-  $("voices").replaceChildren(...voices.map((v) => {
-    const row = document.createElement("label");
-    row.className = "voice";
-    row.innerHTML = `<input type="radio" name="voice" value="${v.id}"><span><span class="name"></span><span class="sub"></span></span><button type="button" class="play">들어보기</button>`;
-    row.querySelector(".name").textContent = v.name;
-    row.querySelector(".sub").textContent = v.note;
-    const input = row.querySelector("input");
-    input.checked = v.id === s.voice;
-    input.addEventListener("change", () => saveSettings({ voice: v.id }));
-    row.querySelector(".play").addEventListener("click", (e) => { e.preventDefault(); preview(v.id); });
-    return row;
-  }));
+  renderSpeech();
+  fetch("/api/speech").then((x) => x.json()).then((ready) => { speechState = ready; renderSpeech(); }).catch(() => {});
 
   const rate = $("rate");
   rate.value = s.rate; $("rate-out").textContent = rateLabel(s.rate);
   rate.oninput = () => ($("rate-out").textContent = rateLabel(Number(rate.value)));
   rate.onchange = () => saveSettings({ rate: Number(rate.value) });
-
 
   $("thinking").replaceChildren(...thinking.map((t) => {
     const l = document.createElement("label");
@@ -633,6 +620,52 @@ async function openSettings() {
   const others = fallbacks.filter((m) => m !== s.model);
   renderSums();
   $("fallbacks").textContent = others.length ? `이 모델이 막히면 ${others.map((m) => m.split("/").pop()).join(", ")} 순서로 넘어가요.` : "";
+}
+
+// Settings, 음성: where the voice is made, the voices of that engine, where dictation is heard, and
+// whether it is tidied (src/speech.ts). speechState: what is ready (GET /api/speech).
+let speechState = null;
+const segmentOf = (id, name, options, value, change) => {
+  $(id).replaceChildren(...options.map(([v, label]) => {
+    const l = el("label"); l.innerHTML = `<input type="radio" name="${name}">`; l.append(label);
+    const input = l.querySelector("input"); input.checked = v === value;
+    input.addEventListener("change", () => change(v));
+    return l;
+  }));
+};
+function renderSpeech() {
+  if (!saved || !catalog) return;
+  const ok = speechState ?? {}, known = !!speechState; // until it is known, nothing is said to be off
+  segmentOf("tts-engine", "tts", [["device", "기기"], ["local", "이 컴퓨터"], ["edge", "온라인"]], saved.tts, async (v) => { await saveSettings({ tts: v }); renderSpeech(); });
+  $("tts-note").textContent = {
+    device: "폰과 각 기기에 들어 있는 목소리예요. 읽을 말이 밖으로 나가지 않아요.",
+    local: ok.ttsLocal || !known ? "이 컴퓨터에서 만들어요 (Supertonic). 읽을 말이 밖으로 나가지 않아요." : "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켜기 전에는 말하지 못해요.",
+    edge: ok.edge || !known ? "Microsoft Edge 의 목소리예요. 읽을 말이 인터넷으로 나가요." : "edge-tts 가 이 컴퓨터에 없어요. 설치하기 전에는 말하지 못해요.",
+  }[saved.tts];
+  $("tts-note").classList.toggle("down", known && ((saved.tts === "local" && !ok.ttsLocal) || (saved.tts === "edge" && !ok.edge)));
+  const voices = catalog.voices[saved.tts] ?? [];
+  $("voices").hidden = saved.tts === "device";
+  $("voices").replaceChildren(...voices.map((v) => {
+    const row = document.createElement("label");
+    row.className = "voice";
+    row.innerHTML = `<input type="radio" name="voice" value="${v.id}"><span><span class="name"></span><span class="sub"></span></span><button type="button" class="play">들어보기</button>`;
+    row.querySelector(".name").textContent = v.name;
+    row.querySelector(".sub").textContent = v.note;
+    const input = row.querySelector("input");
+    input.checked = v.id === saved.voice;
+    input.addEventListener("change", () => saveSettings({ voice: v.id }));
+    row.querySelector(".play").addEventListener("click", (e) => { e.preventDefault(); preview(v.id); });
+    return row;
+  }));
+  segmentOf("stt-engine", "stt", [["local", "이 컴퓨터"], ["groq", "Groq"]], saved.stt, async (v) => { await saveSettings({ stt: v }); renderSpeech(); });
+  const noKey = "Groq 키가 없어요. 계정에서 넣어 주세요.";
+  $("stt-note").textContent = saved.stt === "local"
+    ? (ok.sttLocal || !known ? "이 컴퓨터에서 받아써요 (Qwen3-ASR). 녹음이 밖으로 나가지 않아요." : "이 컴퓨터의 받아쓰기 서버가 꺼져 있어요. 켜기 전에는 받아쓰지 못해요.")
+    : (ok.groq || !known ? "Groq 의 Whisper 로 받아써요. 녹음이 Groq 로 나가요." : noKey);
+  $("stt-note").classList.toggle("down", known && (saved.stt === "local" ? !ok.sttLocal : !ok.groq));
+  segmentOf("polish-engine", "polish", [["off", "끄기"], ["groq", "Groq"]], saved.polish, async (v) => { await saveSettings({ polish: v }); renderSpeech(); });
+  $("polish-note").textContent = saved.polish === "off" ? "받아쓴 그대로 입력창에 넣어요." : ok.groq || !known ? "잘못 들은 말, 띄어쓰기, 숫자를 고쳐요. 받아쓴 글이 Groq 로 나가요." : noKey;
+  $("polish-note").classList.toggle("down", known && saved.polish === "groq" && !ok.groq);
 }
 
 async function preview(voice) {
@@ -1114,18 +1147,112 @@ function renderMcp() {
     if (down) r.querySelector(".sub").classList.add("down");
     if (!s.enabled) r.classList.add("off");
     r.append(actions(
+      ...(s.enabled && s.state === "needs-auth" ? [button("로그인", () => mcpSignIn(s, "tools"))] : []),
       iconButton("M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13", `${s.title} 삭제`, () => removeTool(s)),
       switchFor(s.enabled, `${s.title} 쓰기`, (on) => changeTool("enable", { name: s.name, on }))));
     return r;
   }) : [el("div", "loading", "아직 없어요")]));
   const rows = [];
-  for (const s of mcp.suggested.filter((x) => !x.added)) {
+  for (const s of mcp.suggested.filter((x) => !x.added && x.group === "home")) {
     rows.push(row(s.name, `${s.by}. ${s.note}`, adding === s.id ? null : { label: "추가", click: () => { adding = s.id; renderMcp(); } }));
     if (adding === s.id) rows.push(suggestedForm(s));
   }
   rows.push(row("직접 추가", "주소나 실행 명령으로 다른 MCP 서버를 붙여요", adding === "own" ? null : { label: "추가", click: () => { adding = "own"; renderMcp(); } }));
   if (adding === "own") rows.push(ownForm());
   $("mcp-suggest").replaceChildren(...rows);
+  renderServices();
+}
+
+// ---- services (Settings, 계정): the user's own accounts elsewhere, as MCP servers (src/mcp-servers.ts,
+// group "service"). Added, each of its servers is a row: signed in, or a 로그인 button. ----
+let serviceForm = null; // the service whose form is open
+function renderServices() {
+  if (!mcp) return;
+  const rows = [];
+  for (const s of mcp.suggested.filter((x) => x.group === "service")) {
+    const mine = mcp.added.filter((a) => a.suggested === s.id);
+    if (!mine.length) {
+      rows.push(row(s.name, `${s.by}. ${s.note}`, serviceForm === s.id ? null : { label: "연결", click: () => { serviceForm = s.id; renderServices(); } }));
+      if (serviceForm === s.id) rows.push(serviceFormFor(s));
+      continue;
+    }
+    for (const a of mine) {
+      const [words, down] = toolState(a);
+      const r = row(a.title, words);
+      if (down) r.querySelector(".sub").classList.add("down");
+      r.append(actions(
+        ...(a.enabled && a.state === "needs-auth" ? [button("로그인", () => mcpSignIn(a, "services"), "play primary")] : []),
+        button("연결 해제", async () => { if (confirm(`${a.title} 연결을 해제할까요?`) && (await changeTool("remove", { name: a.name }))) toast("연결을 해제했어요"); })));
+      rows.push(r);
+    }
+  }
+  $("services").replaceChildren(...rows);
+}
+function serviceFormFor(s) {
+  const inputs = s.fields.map((x) => [x.key, inputOf(x.secret ? "password" : "text", x.placeholder ?? "", x.value ?? "")]);
+  const boxes = (s.choices ?? []).map((c) => { const l = el("label"); l.innerHTML = '<input type="checkbox">'; l.append(c.label); l.querySelector("input").checked = !!c.on; return [c.key, l]; });
+  const help = el("a"); help.href = s.help; help.target = "_blank"; help.rel = "noopener noreferrer"; help.textContent = s.fields.length ? "어디서 받나요?" : "자세히";
+  const note = el("p", "note"); note.append(help);
+  const parts = inputs.map(([k, i]) => field(s.fields.find((x) => x.key === k).label, i));
+  if (boxes.length) { const c = el("div", "choices"); c.append(...boxes.map(([, l]) => l)); parts.push(c); }
+  const f = formWith([...parts, note], async (fail) => {
+    const values = { ...Object.fromEntries(inputs.map(([k, i]) => [k, i.value])), ...Object.fromEntries(boxes.map(([k, l]) => [k, l.querySelector("input").checked ? "on" : ""])) };
+    const r = await post("/api/mcp/add", { suggested: s.id, values });
+    if (!r.ok) { fail(r.error ?? "연결하지 못했어요"); return false; }
+    mcp.added = r.added; mcp.suggested = mcp.suggested.map((x) => (x.id === s.id ? { ...x, added: true } : x));
+    serviceForm = null; renderMcp(); renderSums();
+    const first = r.added.find((a) => r.names.includes(a.name) && a.state === "needs-auth");
+    if (first) mcpSignIn(first, "services"); // straight on to signing in
+    return false; // the form is gone: nothing more for formWith to do
+  });
+  f.querySelector(".actions .play").textContent = "연결";
+  f.querySelector(".actions .play:last-child").onclick = () => { serviceForm = null; renderServices(); };
+  return f;
+}
+
+// Signing in to an MCP server from a phone (src/mcp-login.ts): open its page, sign in, and paste back
+// the address the browser ends on (it cannot reach this computer, so it shows an error page).
+async function mcpSignIn(a, where) {
+  const box = $(where === "services" ? "service-flow" : "mcp-flow") ?? $("service-flow");
+  const panel = (...parts) => { box.className = "flow"; box.replaceChildren(text("h3", "", `${a.title} 로그인`), ...parts); box.scrollIntoView({ block: "nearest", behavior: "smooth" }); };
+  const close = () => { clearTimeout(mcpWaiting); box.replaceChildren(); };
+  const cancel = () => button("취소", () => { post("/api/mcp/login/cancel", {}); close(); });
+  panel(text("p", "note", "로그인 준비 중…"));
+  const r = await post("/api/mcp/login", { name: a.name });
+  const show = (l) => {
+    if (!l || l.step === "done") { close(); toast(`${a.title} 연결했어요`); loadMcp(true); return; }
+    if (l.step === "error") { panel(text("p", "err", `연결하지 못했어요. ${l.error ?? ""}`.trim()), actions(button("다시 시도", () => mcpSignIn(a, where), "play primary"), cancel())); return; }
+    if (l.step !== "open") { panel(text("p", "note", "확인하는 중…"), actions(cancel())); return; }
+    const open = el("a", "play primary"); open.href = l.url; open.target = "_blank"; open.rel = "noopener noreferrer"; open.textContent = "로그인 페이지 열기";
+    const back = inputOf("url", "http://127.0.0.1:…/callback?code=…");
+    const err = el("p", "err"); err.hidden = true;
+    const send = async () => {
+      if (!back.value.trim()) return;
+      panel(text("p", "note", "확인하는 중…"));
+      const res = await post("/api/mcp/login/answer", { url: back.value });
+      if (!res.ok) { show(l); const e = box.querySelector(".err"); e.textContent = res.error ?? "확인하지 못했어요"; e.hidden = false; return; }
+      if (res.added) mcp.added = res.added;
+      show(res.login);
+    };
+    back.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+    panel(
+      text("p", "note", "1. 로그인 페이지를 열고 로그인해서 허용하세요."), actions(open),
+      text("p", "note", "2. 그러면 열리지 않는 페이지(127.0.0.1)로 넘어가요. 그 페이지의 주소를 통째로 복사해서 붙여 넣으세요."),
+      field("주소", back), err, actions(button("확인", send, "play primary"), cancel()));
+    waitMcp(a, show);
+  };
+  show(r.login ?? { step: "error", error: r.error });
+}
+let mcpWaiting = null;
+function waitMcp(a, show) { // signed in on this computer's own browser: no address to paste
+  clearTimeout(mcpWaiting);
+  mcpWaiting = setTimeout(async () => {
+    if (page() !== "settings") return;
+    const r = await fetch("/api/mcp").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    if (r?.login?.name === a.name && r.login.step === "open") return waitMcp(a, show);
+    if (r) { mcp = r; renderMcp(); }
+    if (r?.login?.name === a.name) show(r.login);
+  }, 3000);
 }
 async function changeTool(what, body, done) {
   const r = await post(`/api/mcp/${what}`, body);

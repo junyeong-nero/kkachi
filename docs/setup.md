@@ -30,14 +30,14 @@ Add `?debug` to Kkachi Home's URL for an on-screen log.
 
 ## Voice (optional)
 
-Typing needs nothing extra. Dictation and server-made voices are optional.
+Typing needs nothing extra. Dictation and server-made voices are optional, and where each is made is chosen in Kkachi Home, 설정, 음성: on this computer or online. The `.env.local` settings below are only where they start.
 
 | | Default | On your own computer |
 |---|---|---|
-| Dictation | [Groq](https://console.groq.com/keys) Whisper, an outside service (free key; the setup asks for it, or add `GROQ_API_KEY` to `.env.local`) | Qwen3-ASR on [speech.cpp](https://github.com/nyosegawa/speech.cpp): 1 to 2 s a sentence with a small GPU, 3 to 10 s without |
-| Reading replies | each phone's and device's own built-in voice: nothing is sent anywhere | Supertonic 3 on the CPU: `uv run scripts/supertonic-server.py` and `KKACHI_TTS_PROVIDER=supertonic` |
+| Dictation | [Groq](https://console.groq.com/keys) Whisper, an outside service (free key: enter it in 설정, 계정, Groq, or add `GROQ_API_KEY` to `.env.local`) | Qwen3-ASR on [speech.cpp](https://github.com/nyosegawa/speech.cpp): 1 to 2 s a sentence with a small GPU, 3 to 10 s without |
+| Reading replies | each phone's and device's own built-in voice: nothing is sent anywhere | Supertonic 3 on the CPU: run `uv run scripts/supertonic-server.py`, then choose 이 컴퓨터 under 목소리 |
 
-Microsoft's neural voices (made online) are there too: install [uv](https://docs.astral.sh/uv/), run `uv tool install edge-tts`, and pick one in Settings. Cleaning up transcripts with an LLM (English terms, noise) is off unless you set `KKACHI_POLISH_MODEL`, for example `openai/gpt-oss-120b` on the Groq key. The settings and the timings measured are in [design.md](design.md) (Korean).
+Microsoft's neural voices (made online, 온라인 under 목소리) are there too: install [uv](https://docs.astral.sh/uv/) and run `uv tool install edge-tts`. Cleaning up transcripts with an LLM (English terms, noise; `openai/gpt-oss-120b` on the Groq key unless `KKACHI_POLISH_MODEL` says otherwise) is 받아쓴 말 다듬기 in the same place. The page says when a server on this computer is not running or Groq has no key. The settings and the timings measured are in [design.md](design.md) (Korean).
 
 ## Run and configure
 
@@ -79,7 +79,7 @@ At its top are two tabs.
 - Chat (대화): New chat (새 대화), and under it your earlier conversations. Tap one to go back to it and carry on. The conversation going on is shown again when you reopen the app.
 - Devices (기기): your spare phones and tablets. Open one to see what is happening in that room now (how loud it is, when it last moved, how it lies, where it is; a photo when you ask) and to choose what Kkachi may use there: its voice, speaker, lamp, camera, sound level, motion sensors and location. 기기 추가 shows how to add one, with the address to copy. Waiting devices are allowed here. What is said to a device joins this conversation: that device answers aloud, it shows here too, and Kkachi has the same tools as here, your own MCP servers included.
 
-Settings (설정), at the bottom, is in five parts: 계정 (the model accounts), 외형 (light or dark, text size), 소리 (read-aloud and voice), 모델 (model and thinking) and 도구 (its own servers, the ones you added, and suggestions to add).
+Settings (설정), at the bottom, is in five parts: 계정 (the model accounts, a Groq key, and your services: Google, Notion, GitHub), 외형 (light or dark, text size), 음성 (read-aloud, where the voice and dictation are made, tidying transcripts), 모델 (model and thinking) and 도구 (its own servers, the ones you added, and suggestions to add).
 
 The top bar shows whether home answers (집, 기기 2대 켜짐); tap it to see the devices.
 
@@ -115,6 +115,14 @@ Real lights, plugs and speakers come in through MCP servers, added in Kkachi Hom
 
 - Home Assistant through [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), for a whole house: Kkachi then switches lights, plays music on your speakers and sets up automations ("turn the living room light off at 11 every night"). Hue, Tapo, IKEA, Tuya, Matter and SmartThings devices come along once they are in Home Assistant. It asks for the ha-mcp address; setting up Home Assistant and ha-mcp is in [ha.md](ha.md) (Korean).
 - LG ThinQ, LG's own server (beta), for LG appliances. It asks for a ThinQ personal access token and runs with `uvx`, so [uv](https://docs.astral.sh/uv/) must be installed on the computer.
+
+Your own services are connected in 설정, 계정, under 서비스, and Kkachi can then use them when you ask ("내일 일정 뭐야?", "노션에 회의 메모 정리해 둬"):
+
+- Notion, Notion's own server: add it, then sign in to Notion and choose the pages to share.
+- GitHub, GitHub's own server: a fine-grained personal access token.
+- Google (Calendar, Gmail, Drive; Google's own servers, in preview): Google asks every app to bring its own OAuth client. In [Google Cloud](https://developers.google.com/workspace/guides/configure-mcp-servers), "personal mode" makes one: choose Desktop app, keep "Use this client for an AI-powered agent", and paste its client ID and secret. Each product then signs in on its own.
+
+Signing in from the phone takes one extra step. The sign-in ends by sending the browser back to this computer (`127.0.0.1`), which the phone cannot reach, so it shows a page that does not load: copy that page's whole address and paste it into Kkachi Home, which opens it on the computer. Pi also opens the sign-in page in the computer's own browser; it can be ignored.
 
 Any other server is added by its address (with a token if it wants one) or by the command that starts it. [extensions.md](extensions.md) (Korean) lists some, local ones first. Samsung's own SmartThings server accepts only the clients it knows, so Kkachi cannot sign in to it.
 
